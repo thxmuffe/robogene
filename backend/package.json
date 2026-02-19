@@ -5,7 +5,7 @@
   "description": "Azure Functions backend for RoboGene",
   "main": "src/index.js",
   "scripts": {
-    "start": "func start",
+    "start": "func start --cors \"http://localhost:8080,http://127.0.0.1:8080\"",
     "test": "echo \"No tests\""
   },
   "dependencies": {
