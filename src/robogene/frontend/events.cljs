@@ -5,6 +5,8 @@
 
 (defonce poll-timeout-id (atom nil))
 
+(def legacy-draft-id "__legacy_draft__")
+
 (defn api-base []
   (let [base (or (.-ROBOGENE_API_BASE js/window) "")]
     (str/replace base #"/+$" "")))
@@ -43,8 +45,55 @@
       (rf/dispatch [:generate-failed (or (:error data)
                                          (str "HTTP " status))]))))
 
-(defn to-gallery-items [state]
-  (->> (or (:frames state) [])
+(defn frame-from-history [idx h]
+  {:frameId (or (:frameId h) (str "legacy-ready-" (:sceneNumber h) "-" idx))
+   :sceneNumber (:sceneNumber h)
+   :beatText (:beatText h)
+   :suggestedDirection ""
+   :directionText ""
+   :imageDataUrl (:imageDataUrl h)
+   :status "ready"
+   :reference (:reference h)
+   :createdAt (:createdAt h)})
+
+(defn frame-from-pending [idx p]
+  {:frameId (or (:frameId p) (:jobId p) (str "legacy-pending-" (:sceneNumber p) "-" idx))
+   :sceneNumber (:sceneNumber p)
+   :beatText (:beatText p)
+   :suggestedDirection (:directionText p)
+   :directionText (:directionText p)
+   :status (or (:status p) "queued")
+   :createdAt (:queuedAt p)})
+
+(defn legacy-draft-frame [state existing-frames]
+  (let [max-scene (reduce max 0 (map :sceneNumber existing-frames))
+        suggested (or (:nextDefaultDirection state) "")
+        next-num (or (:nextSceneNumber state) (inc max-scene))]
+    {:frameId legacy-draft-id
+     :sceneNumber next-num
+     :beatText (if (str/blank? suggested) (str "Scene " next-num) suggested)
+     :suggestedDirection suggested
+     :directionText suggested
+     :status "draft"
+     :createdAt (.toISOString (js/Date.))}))
+
+(defn frame-model [state]
+  (if (seq (:frames state))
+    {:backend-mode :frames
+     :frames (vec (:frames state))}
+    (let [ready (->> (or (:history state) [])
+                     (map-indexed frame-from-history))
+          pending (->> (or (:pending state) [])
+                       (map-indexed frame-from-pending))
+          frames (vec (concat ready pending))
+          frames-with-draft (if (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)
+                              frames
+                              (conj frames (legacy-draft-frame state frames)))]
+      {:backend-mode :legacy
+       :frames frames-with-draft})))
+
+(defn to-gallery-items [frames]
+  (->> frames
        (sort-by :sceneNumber >)
        vec))
 
@@ -59,9 +108,13 @@
           {}
           frames))
 
-(defn status-line [state]
-  (let [pending (or (:pendingCount state) 0)
-        total (count (or (:frames state) []))]
+(defn status-line [state frames]
+  (let [pending (or (:pendingCount state)
+                    (count (filter (fn [f]
+                                     (or (= "queued" (:status f))
+                                         (= "processing" (:status f))))
+                                   frames)))
+        total (count frames)]
     (str "Frames: " total
          (if (pos? pending)
            (str " | Queue: " pending)
@@ -98,6 +151,19 @@
        (.catch (fn [e]
                  (rf/dispatch [:generate-failed (str (.-message e))]))))))
 
+(rf/reg-fx
+ :post-generate-next
+ (fn [direction]
+   (-> (js/fetch (api-url "/api/generate-next")
+                 (clj->js {:method "POST"
+                           :cache "no-store"
+                           :headers {"Content-Type" "application/json"}
+                           :body (.stringify js/JSON (clj->js {:direction direction}))}))
+       (.then response->map)
+       (.then handle-generate-response)
+       (.catch (fn [e]
+                 (rf/dispatch [:generate-failed (str (.-message e))]))))))
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -115,12 +181,13 @@
  (fn [{:keys [db]} [_ state]]
    (let [revision (:revision state)
          changed? (not= revision (:last-rendered-revision db))
-         frames (or (:frames state) [])
+         {:keys [backend-mode frames]} (frame-model state)
          new-db (-> db
                     (assoc :latest-state state
-                           :status (status-line state)
+                           :backend-mode backend-mode
+                           :status (status-line state frames)
                            :last-rendered-revision revision)
-                    (cond-> changed? (assoc :gallery-items (to-gallery-items state)))
+                    (cond-> changed? (assoc :gallery-items (to-gallery-items frames)))
                     (assoc :frame-inputs (merged-frame-inputs (:frame-inputs db) frames)))]
      {:db new-db
       :schedule-poll {:ms (if (pos? (or (:pendingCount state) 0)) 1200 3500)
@@ -139,10 +206,20 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id]]
-   (let [direction (get-in db [:frame-inputs frame-id] "")]
-     {:db (assoc db :status "Queueing frame...")
-      :post-generate-frame {:frame-id frame-id
-                            :direction direction}})))
+   (let [direction (get-in db [:frame-inputs frame-id] "")
+         legacy? (= :legacy (:backend-mode db))]
+     (cond
+       (and legacy? (= frame-id legacy-draft-id))
+       {:db (assoc db :status "Queueing frame...")
+        :post-generate-next direction}
+
+       legacy?
+       {:db (assoc db :status "This legacy frame is already fixed; generate from the draft card.")}
+
+       :else
+       {:db (assoc db :status "Queueing frame...")
+        :post-generate-frame {:frame-id frame-id
+                              :direction direction}}))))
 
 (rf/reg-event-fx
  :generate-accepted
