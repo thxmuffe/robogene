@@ -4,13 +4,13 @@ const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 
-const ROOT = __dirname;
-const PUBLIC_DIR = path.join(ROOT, 'public');
-const GENERATED_DIR = path.join(ROOT, 'generated');
-const DEFAULT_STORYBOARD = path.join(ROOT, '..', 'episode-28-draft', '28_Municipal_Firmware_script.md');
-const DEFAULT_PROMPTS = path.join(ROOT, '..', 'episode-28-draft', '28_Municipal_Firmware_image_prompts.md');
-const DEFAULT_REFERENCE_IMAGE = path.join(ROOT, 'references', 'robot_emperor_ep22_p01.png');
-const PAGE1_REFERENCE_IMAGE = path.join(ROOT, '..', 'episode-28-draft', 'images', '28_page_01_openai_refined.png');
+const APP_ROOT = path.resolve(__dirname, '..');
+const PUBLIC_DIR = APP_ROOT;
+const GENERATED_DIR = path.join(APP_ROOT, 'generated');
+const DEFAULT_STORYBOARD = path.join(APP_ROOT, '..', 'episode-28-draft', '28_Municipal_Firmware_script.md');
+const DEFAULT_PROMPTS = path.join(APP_ROOT, '..', 'episode-28-draft', '28_Municipal_Firmware_image_prompts.md');
+const DEFAULT_REFERENCE_IMAGE = path.join(APP_ROOT, 'references', 'robot_emperor_ep22_p01.png');
+const PAGE1_REFERENCE_IMAGE = path.join(APP_ROOT, '..', 'episode-28-draft', 'images', '28_page_01_openai_refined.png');
 
 fs.mkdirSync(GENERATED_DIR, { recursive: true });
 
@@ -28,8 +28,8 @@ function loadEnvFile(envPath) {
   }
 }
 
-loadEnvFile(path.join(ROOT, '.env'));
-loadEnvFile(path.join(ROOT, '..', 'pop.env'));
+loadEnvFile(path.join(APP_ROOT, '.env'));
+loadEnvFile(path.join(APP_ROOT, '..', 'pop.env'));
 
 function parseBeats(markdown) {
   const sectionMatch = markdown.match(/##\s*Page-by-page beats[\s\S]*?(?:\n##\s|$)/i);

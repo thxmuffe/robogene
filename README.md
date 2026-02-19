@@ -15,17 +15,17 @@ From `/Users/penpa/Desktop/PDFs`:
 
 ```bash
 set -a; source pop.env; set +a
-node robogene/server.js
+node robogene/backend/server.js
 ```
 
 Then open: `http://localhost:8787`
 
 ## Notes
+- Frontend files are in repo root: `index.html`, `app.js`, `styles.css`.
+- Backend files are in `backend/`.
 - API key must be available as `OPENAI_API_KEY`.
 - Default model: `gpt-image-1`.
 - Default reference image: `robogene/references/robot_emperor_ep22_p01.png`.
 - Generated images are written to `robogene/generated/`.
-
-## Notes
 - Existing files `scene_02.png`, `scene_03.png`, etc. are reused on startup.
 - The app continues from the highest existing scene number.
