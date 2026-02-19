@@ -42,6 +42,7 @@ jobs:
         run: |
           npm ci
           npm run build
+          npm run build:backend
           mkdir -p dist/js
           cp index.html styles.css dist/
           cp -R js/* dist/js/

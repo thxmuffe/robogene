@@ -31,3 +31,4 @@ backend/deploy.zip
 # Generated assets
 generated/
 js/
+backend/src/functions/api_compiled.js

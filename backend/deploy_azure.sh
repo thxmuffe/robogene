@@ -18,6 +18,7 @@ PLAN="${4:-${APP}-plan}"
 ST="${5:-${APP//-/}st}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   for ENV_PATH in "$SCRIPT_DIR/../.env" "$SCRIPT_DIR/../../pop.env"; do
     if [[ -f "$ENV_PATH" ]]; then
@@ -44,7 +45,13 @@ az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173" \
   AzureWebJobsFeatureFlags="EnableWorkerIndexing" >/dev/null
 
-npm install
+echo "Building ClojureScript backend..."
+cd "$REPO_ROOT"
+npm install >/dev/null
+npx shadow-cljs release backend >/dev/null
+
+cd "$SCRIPT_DIR"
+npm install >/dev/null
 rm -f deploy.zip
 zip -r deploy.zip . -x '*.git*' 'local.settings.json' >/dev/null
 az functionapp deployment source config-zip -g "$RG" -n "$APP" --src deploy.zip >/dev/null

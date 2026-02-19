@@ -17,6 +17,7 @@ if [[ -z "${AZURE_CONFIG_DIR:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   for ENV_PATH in "$SCRIPT_DIR/../.env" "$SCRIPT_DIR/../../pop.env"; do
     if [[ -f "$ENV_PATH" ]]; then
@@ -78,6 +79,11 @@ az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
   ROBOGENE_IMAGE_MODEL="gpt-image-1" \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173" \
   AzureWebJobsFeatureFlags="EnableWorkerIndexing" >/dev/null
+
+echo "Building ClojureScript backend..."
+cd "$REPO_ROOT"
+npm install >/dev/null
+npx shadow-cljs release backend >/dev/null
 
 cd "$SCRIPT_DIR"
 npm install >/dev/null
