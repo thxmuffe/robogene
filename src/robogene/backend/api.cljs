@@ -61,10 +61,8 @@
   (atom {:storyId nil
          :beats []
          :visual {:globalStyle "" :pagePrompts {}}
-         :history []
-         :pendingJobs []
+         :frames []
          :failedJobs []
-         :cursor 2
          :processing false
          :revision 0
          :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
@@ -79,6 +77,35 @@
         page-prompt (get-in @state [:visual :pagePrompts scene-number] "")]
     (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous scenes."]))))
 
+(defn direction-text-for [beats visual scene-number]
+  (let [beat-text (or (some (fn [b] (when (= (:index b) scene-number) (:text b))) beats)
+                      (str "Scene " scene-number))
+        page-prompt (get-in visual [:pagePrompts scene-number] "")]
+    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous scenes."]))))
+
+(defn make-draft-frame [scene-number]
+  {:frameId (new-uuid)
+   :sceneNumber scene-number
+   :beatText (scene-beat-text scene-number)
+   :suggestedDirection (default-direction-text scene-number)
+   :directionText ""
+   :status "draft"
+   :createdAt (.toISOString (js/Date.))})
+
+(defn next-scene-number [frames]
+  (inc (reduce max 0 (map :sceneNumber frames))))
+
+(defn ensure-draft-frame! []
+  (let [frames (:frames @state)
+        missing-image? (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)]
+    (when-not missing-image?
+      (let [scene-number (next-scene-number frames)]
+        (swap! state
+               (fn [s]
+                 (-> s
+                     (update :frames conj (make-draft-frame scene-number))
+                     (update :revision inc))))))))
+
 (defn initialize-state! []
   (let [storyboard-text (read-text default-storyboard)
         prompts-text (read-text default-prompts)
@@ -86,22 +113,30 @@
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
-        page1-beat (or (some (fn [b] (when (= (:index b) 1) (:text b))) beats) "Scene 1")
-        page1-scene (when page1-bytes
-                      {:sceneNumber 1
-                       :beatText page1-beat
-                       :continuityNote page1-beat
-                       :imageDataUrl (png-data-url page1-bytes)
-                       :reference true
-                       :createdAt (.toISOString (js/Date.))})]
+        scene1-beat (or (some (fn [b] (when (= (:index b) 1) (:text b))) beats) "Scene 1")
+        scene1 {:frameId (new-uuid)
+                :sceneNumber 1
+                :beatText scene1-beat
+                :suggestedDirection (direction-text-for beats visual 1)
+                :directionText scene1-beat
+                :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
+                :status (if page1-bytes "ready" "draft")
+                :reference true
+                :createdAt (.toISOString (js/Date.))}
+        frames (if page1-bytes
+                 [scene1 (assoc (make-draft-frame 2)
+                               :beatText (or (some (fn [b] (when (= (:index b) 2) (:text b))) beats)
+                                             "Scene 2")
+                               :suggestedDirection (direction-text-for beats visual 2))]
+                 [(assoc (make-draft-frame 1)
+                         :beatText scene1-beat
+                         :suggestedDirection (direction-text-for beats visual 1))])]
     (reset! state
             {:storyId (new-uuid)
              :beats beats
              :visual visual
-             :history (if page1-scene [page1-scene] [])
-             :pendingJobs []
+             :frames frames
              :failedJobs []
-             :cursor 2
              :processing false
              :revision 1
              :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
@@ -109,21 +144,29 @@
 
 (initialize-state!)
 
+(defn completed-frames []
+  (->> (:frames @state)
+       (filter (fn [f] (not (str/blank? (or (:imageDataUrl f) "")))))
+       (sort-by :sceneNumber)
+       vec))
+
 (defn continuity-window [limit]
-  (let [tail (take-last limit (:history @state))]
+  (let [tail (take-last limit (completed-frames))]
     (if (empty? tail)
       "No previous scenes yet."
       (str/join "\n" (map (fn [s] (str "Scene " (:sceneNumber s) ": " (:beatText s) ".")) tail)))))
 
-(defn build-prompt-for-scene [scene-number beat-text direction-text]
+(defn build-prompt-for-frame [frame]
   (str/join
    "\n\n"
    (filter seq
            ["Create ONE comic story image for the next scene."
             "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
             (get-in @state [:visual :globalStyle] "")
-            (str "Storyboard beat for this scene: " beat-text)
-            (str "User direction for this scene:\n" (if (seq direction-text) direction-text (default-direction-text scene-number)))
+            (str "Storyboard beat for this scene: " (:beatText frame))
+            (str "User direction for this scene:\n" (or (:directionText frame)
+                                                         (:suggestedDirection frame)
+                                                         ""))
             (str "Story continuity memory:\n" (continuity-window 6))
             "Keep this image as the next chronological scene in the same story world."
             "Avoid title/header text overlays."])))
@@ -141,13 +184,13 @@
                              :status (.-status response)
                              :body body})))))))
 
-(defn generate-image! [scene-number beat-text direction-text]
+(defn generate-image! [frame]
   (let [api-key (.. js/process -env -OPENAI_API_KEY)]
     (if (not (seq api-key))
       (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
-      (let [prompt (build-prompt-for-scene scene-number beat-text direction-text)
+      (let [prompt (build-prompt-for-frame frame)
             ref-bytes (:referenceImageBytes @state)
-            prev-scene (last (:history @state))
+            prev-scene (last (completed-frames))
             prev-bytes (image-data-url->bytes (:imageDataUrl prev-scene))
             refs (vec (filter some? [{:bytes ref-bytes :name "character_ref.png"}
                                      {:bytes prev-bytes :name "previous_scene.png"}]))
@@ -181,77 +224,77 @@
                              b64 (when first-item (gobj/get first-item "b64_json"))]
                          (if (not b64)
                            (throw (js/Error. (str "Unexpected OpenAI response: " (.stringify js/JSON body))))
-                           {:sceneNumber scene-number
-                            :beatText beat-text
-                            :continuityNote beat-text
-                            :imageDataUrl (str "data:image/png;base64," b64)
-                            :createdAt (.toISOString (js/Date.))}))))))))))
+                           (str "data:image/png;base64," b64))))))))))
 
-(defn next-queued-index [jobs]
-  (first (keep-indexed (fn [idx job] (when (= "queued" (:status job)) idx)) jobs)))
+(defn next-queued-frame-index [frames]
+  (first (keep-indexed (fn [idx frame]
+                         (when (= "queued" (:status frame)) idx))
+                       frames)))
 
-(defn cleanup-pending-jobs! []
-  (let [now (.now js/Date)
-        hold-ms 9000
-        before (count (:pendingJobs @state))]
-    (swap! state update :pendingJobs
-           (fn [jobs]
-             (vec (filter (fn [job]
-                            (if (or (= "queued" (:status job)) (= "processing" (:status job)))
-                              true
-                              (if-let [completed-at (:completedAt job)]
-                                (< (- now (.parse js/Date completed-at)) hold-ms)
-                                true)))
-                          jobs))))
-    (when (not= before (count (:pendingJobs @state)))
-      (swap! state update :revision inc))))
+(defn mark-frame-processing! [idx]
+  (swap! state
+         (fn [s]
+           (-> s
+               (assoc-in [:frames idx :status] "processing")
+               (assoc-in [:frames idx :startedAt] (.toISOString (js/Date.)))
+               (update :revision inc)))))
+
+(defn mark-frame-ready! [idx image-data-url]
+  (swap! state
+         (fn [s]
+           (-> s
+               (assoc-in [:frames idx :imageDataUrl] image-data-url)
+               (assoc-in [:frames idx :status] "ready")
+               (assoc-in [:frames idx :error] nil)
+               (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+               (update :revision inc)))))
+
+(defn mark-frame-failed! [idx frame message]
+  (swap! state
+         (fn [s]
+           (let [failed {:jobId (new-uuid)
+                         :frameId (:frameId frame)
+                         :sceneNumber (:sceneNumber frame)
+                         :beatText (:beatText frame)
+                         :error message
+                         :createdAt (.toISOString (js/Date.))}]
+             (-> s
+                 (assoc-in [:frames idx :status] "failed")
+                 (assoc-in [:frames idx :error] message)
+                 (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                 (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
+                 (update :revision inc))))))
+
+(declare process-step!)
+
+(defn process-step! []
+  (let [snapshot @state
+        idx (next-queued-frame-index (:frames snapshot))]
+    (if (nil? idx)
+      (swap! state assoc :processing false)
+      (let [frame (get (:frames snapshot) idx)]
+        (mark-frame-processing! idx)
+        (-> (generate-image! frame)
+            (.then (fn [image-data-url]
+                     (mark-frame-ready! idx image-data-url)
+                     (ensure-draft-frame!)
+                     (process-step!)
+                     nil))
+            (.catch (fn [err]
+                      (mark-frame-failed! idx frame (str (or (.-message err) err)))
+                      (process-step!)
+                      nil)))))))
 
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)
-    (letfn [(step []
-              (let [snapshot @state
-                    idx (next-queued-index (:pendingJobs snapshot))]
-                (if (nil? idx)
-                  (swap! state assoc :processing false)
-                  (let [job (get (:pendingJobs snapshot) idx)]
-                    (swap! state (fn [s]
-                                   (-> s
-                                       (assoc-in [:pendingJobs idx :status] "processing")
-                                       (assoc-in [:pendingJobs idx :startedAt] (.toISOString (js/Date.)))
-                                       (update :revision inc))))
-                    (-> (generate-image! (:sceneNumber job) (:beatText job) (:directionText job))
-                        (.then (fn [scene]
-                                 (swap! state
-                                        (fn [s]
-                                          (-> s
-                                              (update :history (fn [history]
-                                                                 (->> (conj history scene)
-                                                                      (sort-by :sceneNumber)
-                                                                      vec)))
-                                              (assoc-in [:pendingJobs idx :status] "completed")
-                                              (assoc-in [:pendingJobs idx :completedAt] (.toISOString (js/Date.)))
-                                              (update :revision inc))))
-                                 (step)
-                                 nil))
-                        (.catch (fn [err]
-                                  (swap! state
-                                         (fn [s]
-                                           (let [message (str (or (.-message err) err))
-                                                 failed {:jobId (:jobId job)
-                                                         :sceneNumber (:sceneNumber job)
-                                                         :beatText (:beatText job)
-                                                         :error message
-                                                         :createdAt (.toISOString (js/Date.))}]
-                                             (-> s
-                                                 (assoc-in [:pendingJobs idx :status] "failed")
-                                                 (assoc-in [:pendingJobs idx :error] message)
-                                                 (assoc-in [:pendingJobs idx :completedAt] (.toISOString (js/Date.)))
-                                                 (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
-                                                 (update :revision inc)))))
-                                  (step)
-                                  nil)))))))]
-      (step))))
+    (process-step!)))
+
+(defn active-queue-count [frames]
+  (count (filter (fn [f]
+                   (or (= "queued" (:status f))
+                       (= "processing" (:status f))))
+                 frames)))
 
 (defn allowed-origins []
   (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN)
@@ -290,23 +333,16 @@
        :headers (cors-headers request)})
 
 (defn state-response [request]
-  (cleanup-pending-jobs!)
+  (ensure-draft-frame!)
   (let [snapshot @state
-        cursor (:cursor snapshot)
-        total-scenes (count (:beats snapshot))]
+        frames (:frames snapshot)
+        pending-count (active-queue-count frames)]
     (json-response 200
                    {:storyId (:storyId snapshot)
                     :revision (:revision snapshot)
-                    :cursor cursor
-                    :totalScenes total-scenes
-                    :nextSceneNumber cursor
-                    :nextDefaultDirection (if (<= cursor total-scenes)
-                                            (default-direction-text cursor)
-                                            "")
                     :processing (:processing snapshot)
-                    :pendingCount (count (:pendingJobs snapshot))
-                    :pending (:pendingJobs snapshot)
-                    :history (:history snapshot)
+                    :pendingCount pending-count
+                    :frames frames
                     :failed (:failedJobs snapshot)}
                    request)))
 
@@ -314,45 +350,54 @@
   (-> (.json request)
       (.catch (fn [_] #js {}))))
 
-(defn generate-next-response [request]
+(defn find-frame-index [frames frame-id]
+  (first (keep-indexed (fn [idx frame]
+                         (when (= (:frameId frame) frame-id) idx))
+                       frames)))
+
+(defn queue-frame-response [request]
   (-> (request-json request)
       (.then
        (fn [body]
-         (cleanup-pending-jobs!)
-         (let [snapshot @state
-               cursor (:cursor snapshot)
-               total-scenes (count (:beats snapshot))]
-           (if (> cursor total-scenes)
-             (json-response 409 {:done true
-                                 :error "Storyboard complete."
-                                 :history (:history snapshot)}
-                            request)
-             (let [job {:jobId (new-uuid)
-                        :sceneNumber cursor
-                        :beatText (scene-beat-text cursor)
-                        :directionText (str/trim (str (or (.-direction body) "")))
-                        :status "queued"
-                        :queuedAt (.toISOString (js/Date.))}]
-               (swap! state
-                      (fn [s]
-                        (-> s
-                            (update :pendingJobs conj job)
-                            (update :cursor inc)
-                            (update :revision inc))))
-               (process-queue!)
-               (let [post @state
-                     next-cursor (:cursor post)
-                     total (count (:beats post))]
-                 (json-response 202
-                                {:accepted true
-                                 :job job
-                                 :revision (:revision post)
-                                 :pendingCount (count (:pendingJobs post))
-                                 :nextSceneNumber next-cursor
-                                 :nextDefaultDirection (if (<= next-cursor total)
-                                                         (default-direction-text next-cursor)
-                                                         "")}
-                                request)))))))))
+         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+               direction (some-> (gobj/get body "direction") str str/trim)]
+           (if (str/blank? frame-id)
+             (json-response 400 {:error "Missing frameId."} request)
+             (let [snapshot @state
+                   frames (:frames snapshot)
+                   idx (find-frame-index frames frame-id)]
+               (cond
+                 (nil? idx)
+                 (json-response 404 {:error "Frame not found."} request)
+
+                 (not (str/blank? (or (:imageDataUrl (get frames idx)) "")))
+                 (json-response 409 {:error "Frame already generated."} request)
+
+                 (or (= "queued" (:status (get frames idx)))
+                     (= "processing" (:status (get frames idx))))
+                 (json-response 409 {:error "Frame already in queue."} request)
+
+                 :else
+                 (do
+                   (swap! state
+                          (fn [s]
+                            (-> s
+                                (assoc-in [:frames idx :status] "queued")
+                                (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
+                                (assoc-in [:frames idx :error] nil)
+                                (assoc-in [:frames idx :directionText]
+                                          (if (str/blank? (or direction ""))
+                                            (or (get-in s [:frames idx :suggestedDirection]) "")
+                                            direction))
+                                (update :revision inc))))
+                   (process-queue!)
+                   (let [post @state]
+                     (json-response 202
+                                    {:accepted true
+                                     :frame (get (:frames post) idx)
+                                     :revision (:revision post)
+                                     :pendingCount (active-queue-count (:frames post))}
+                                    request))))))))))))
 
 (.http app "state"
        #js {:methods #js ["GET"]
@@ -360,11 +405,17 @@
             :route "state"
             :handler state-response})
 
+(.http app "generate-frame"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "generate-frame"
+            :handler queue-frame-response})
+
 (.http app "generate-next"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "generate-next"
-            :handler generate-next-response})
+            :handler queue-frame-response})
 
 (.http app "preflight"
        #js {:methods #js ["OPTIONS"]

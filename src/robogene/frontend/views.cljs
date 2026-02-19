@@ -1,61 +1,70 @@
 (ns robogene.frontend.views
-  (:require [re-frame.core :as rf]))
+  (:require [re-frame.core :as rf]
+            [clojure.string :as str]))
 
-(defn history-card [{:keys [sceneNumber imageDataUrl beatText reference]}]
-  [:article.card {:data-scene sceneNumber}
-   [:img {:src (or imageDataUrl "") :alt (str "Scene " sceneNumber)}]
-   [:div.meta
-    [:strong
-     (str "Scene " sceneNumber)
-     (when reference [:span.badge "Reference"])]
-    [:div (or beatText "")]]])
+(defn frame-label [frame]
+  (str "Frame " (:sceneNumber frame)))
 
-(defn pending-card [{:keys [jobId sceneNumber beatText status]}]
+(defn card-image [{:keys [imageDataUrl sceneNumber]}]
+  [:img {:src (or imageDataUrl "") :alt (str "Scene " sceneNumber)}])
+
+(defn frame-editor [{:keys [frameId status error]} frame-input]
+  (let [busy? (or (= status "queued") (= status "processing"))
+        button-label (if busy?
+                       (if (= status "processing") "Generating..." "Queued...")
+                       "Generate")]
+    [:div.frame-editor
+     [:textarea.direction-input
+      {:value frame-input
+       :placeholder "Describe this frame..."
+       :disabled busy?
+       :on-change #(rf/dispatch [:frame-direction-changed frameId (.. % -target -value)])}]
+     (when (and (seq (or error "")) (not busy?))
+       [:div.error-line (str "Last error: " error)])
+     [:button.btn.btn-primary
+      {:disabled busy?
+       :on-click #(rf/dispatch [:generate-frame frameId])}
+      button-label]]))
+
+(defn frame-placeholder [{:keys [status sceneNumber]}]
   (let [label (case status
-                "processing" "Processing"
-                "completed" "Finalizing"
-                "failed" "Failed"
-                "Queued")]
-    [:article.card.pending {:data-job jobId}
-     [:div.placeholder-img
-      [:div.spinner]
-      [:div.placeholder-text (str label " scene " sceneNumber "...")]]
+                "processing" (str "Generating frame " sceneNumber "...")
+                "queued" (str "Queued frame " sceneNumber "...")
+                "failed" (str "Frame " sceneNumber " failed")
+                (str "Frame " sceneNumber " draft"))]
+    [:div.placeholder-img
+     (when (or (= status "queued") (= status "processing"))
+       [:div.spinner])
+     [:div.placeholder-text label]]))
+
+(defn frame-card [frame frame-input]
+  (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))]
+    [:article.card {:data-frame-id (:frameId frame)}
+     (if has-image?
+       [card-image frame]
+       [frame-placeholder frame])
      [:div.meta
       [:strong
-       (str "Scene " sceneNumber)
-       [:span.badge.queue "In Queue"]]
-      [:div (or beatText "")]]]))
-
-(defn gallery-item [{:keys [kind payload]}]
-  (case kind
-    :history [history-card payload]
-    :pending [pending-card payload]
-    [:div]))
+       (frame-label frame)
+       (when (:reference frame) [:span.badge "Reference"])
+       (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+         [:span.badge.queue "In Queue"])]
+      [:div (or (:beatText frame) "")]
+      (when-not has-image?
+        [frame-editor frame frame-input])]]))
 
 (defn main-view []
   (let [status @(rf/subscribe [:status])
-        direction @(rf/subscribe [:direction-input])
         gallery @(rf/subscribe [:gallery-items])
-        submitting? @(rf/subscribe [:submitting?])]
+        frame-inputs @(rf/subscribe [:frame-inputs])]
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]
-      [:p "Episode timeline with shared queue and story memory."]
-      [:label.dir-label {:for "directionInput"} "Scene Direction (editable)"]
-      [:textarea.direction-input
-       {:id "directionInput"
-        :placeholder "Loading default scene direction..."
-        :value direction
-        :on-change #(rf/dispatch [:direction-changed (.. % -target -value)])}]
-      [:button.btn.btn-primary
-       {:id "nextBtn"
-        :disabled submitting?
-        :on-click #(rf/dispatch [:generate-next])}
-       "Generate Next"]
+      [:p "Shared episode timeline. Each frame is generated independently by frame ID."]
       [:div.status status]]
      [:section
-      [:h2 "Gallery (Most Recent First)"]
+      [:h2 "Gallery"]
       [:div.gallery
-       (for [item gallery]
-         ^{:key (str (:kind item) "-" (:scene-number item))}
-         [gallery-item item])]]]))
+       (for [frame gallery]
+         ^{:key (:frameId frame)}
+         [frame-card frame (get frame-inputs (:frameId frame) "")])]]]))

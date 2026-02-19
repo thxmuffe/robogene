@@ -64,7 +64,7 @@ func start
 
 API endpoints (local):
 - `GET http://localhost:7071/api/state`
-- `POST http://localhost:7071/api/generate-next`
+- `POST http://localhost:7071/api/generate-frame` with body `{ "frameId": "...", "direction": "..." }`
 
 ## Deploy backend to Azure Functions
 Use a writable Azure CLI config path in this workspace:
@@ -130,6 +130,7 @@ cd backend
 
 ## Notes
 - This backend stores story state in-memory per function instance.
-- Generated images are returned as `scene.imageDataUrl` (base64) for portability.
+- Backend state is frame-centric: every frame has a unique `frameId`.
+- Generated images are returned as `frame.imageDataUrl` (base64) for portability.
 - Deploy package must include `node_modules` for this zip-deploy flow.
 - `js/` build artifacts are not committed; CI builds them for Pages.

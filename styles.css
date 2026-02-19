@@ -131,6 +131,23 @@ h2 { margin: 24px 0 10px; }
   font-size: 0.95rem;
 }
 
+.frame-editor {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.frame-editor .direction-input {
+  min-height: 110px;
+  margin: 0;
+}
+
+.error-line {
+  color: #8b1e3f;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
 .badge {
   display: inline-block;
   margin-left: 6px;
