@@ -370,9 +370,6 @@
                  (nil? idx)
                  (json-response 404 {:error "Frame not found."} request)
 
-                 (not (str/blank? (or (:imageDataUrl (get frames idx)) "")))
-                 (json-response 409 {:error "Frame already generated."} request)
-
                  (or (= "queued" (:status (get frames idx)))
                      (= "processing" (:status (get frames idx))))
                  (json-response 409 {:error "Frame already in queue."} request)

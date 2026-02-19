@@ -101,6 +101,10 @@ h2 { margin: 24px 0 10px; }
   object-fit: cover;
 }
 
+.media-shell {
+  position: relative;
+}
+
 .placeholder-img {
   width: 100%;
   aspect-ratio: 3 / 2;
@@ -124,6 +128,21 @@ h2 { margin: 24px 0 10px; }
 
 .placeholder-text {
   font-weight: 700;
+}
+
+.placeholder-clue {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.overlay-generate-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  box-shadow: 0 6px 14px rgba(16, 42, 67, 0.25);
 }
 
 .meta {
