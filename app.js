@@ -29,9 +29,10 @@ async function readJsonSafe(res) {
 function cardHTML(scene) {
   const stamp = Date.now();
   const badge = scene.reference ? '<span class="badge">Reference</span>' : '';
+  const src = scene.imageDataUrl || `${scene.url}?t=${stamp}`;
   return `
     <article class="card" data-scene="${scene.sceneNumber}">
-      <img src="${scene.url}?t=${stamp}" alt="Scene ${scene.sceneNumber}" />
+      <img src="${src}" alt="Scene ${scene.sceneNumber}" />
       <div class="meta">
         <strong>Scene ${scene.sceneNumber} ${badge}</strong>
         <div>${scene.beatText || ''}</div>

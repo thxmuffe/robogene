@@ -1,0 +1,17 @@
+{
+  "name": "robogene-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Azure Functions backend for RoboGene",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"No tests\""
+  },
+  "dependencies": {
+    "@azure/functions": "^4.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

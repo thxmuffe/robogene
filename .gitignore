@@ -17,6 +17,9 @@ yarn-error.log*
 *.log
 .tmp/
 tmp/
+.azure/
+backend/local.settings.json
+backend/deploy.zip
 
 # Generated assets
 generated/

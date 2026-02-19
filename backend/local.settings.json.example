@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "OPENAI_API_KEY": "",
+    "ROBOGENE_IMAGE_MODEL": "gpt-image-1",
+    "ROBOGENE_ALLOWED_ORIGIN": "https://thxmuffe.github.io"
+  }
+}

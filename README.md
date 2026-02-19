@@ -1,32 +1,91 @@
 # RoboGene
 
-Interactive story-to-image web app with continuity memory.
+Interactive story-to-image app.
 
-## What it does
-- No input fields in UI: one `Generate Next` button only.
-- Auto-loads Episode 28 storyboard/prompt pack on server startup.
-- Uses page 1 as a fixed reference frame in the gallery.
-- Loads existing generated frames from `robogene/generated/`.
-- `Generate Next` creates exactly the next scene and inserts it as most recent in the gallery.
-- Keeps memory of previous scenes and includes continuity in prompts.
+- Frontend is static at repo root: `index.html`, `app.js`, `styles.css`
+- Backend is Azure Functions app in `backend/`
 
-## Run
-From `/Users/penpa/Desktop/PDFs`:
+## Frontend host (GitHub Pages)
+Set backend origin in `index.html`:
 
-```bash
-set -a; source pop.env; set +a
-node robogene/backend/server.js
+```html
+<script>
+  window.ROBOGENE_API_BASE = "https://<your-function-app>.azurewebsites.net";
+</script>
 ```
 
-Then open: `http://localhost:8787`
+## Backend local run (Azure Functions)
+Prereqs:
+- Node 20+
+- Azure Functions Core Tools v4 (`func`)
+
+From repo root:
+
+```bash
+cd backend
+npm install
+cp local.settings.json.example local.settings.json
+# set OPENAI_API_KEY in local.settings.json
+func start
+```
+
+API endpoints (local):
+- `GET http://localhost:7071/api/state`
+- `POST http://localhost:7071/api/generate-next`
+
+## Deploy backend to Azure Functions
+Use a writable Azure CLI config path in this workspace:
+
+```bash
+export AZURE_CONFIG_DIR=/Users/penpa/Desktop/PDFs/robogene/.azure
+az login
+```
+
+Create resources (example):
+
+```bash
+RG=robogene-rg
+LOC=eastus
+ST=robogenest$RANDOM
+PLAN=robogene-plan
+APP=robogene-func-$RANDOM
+
+az group create -n $RG -l $LOC
+az storage account create -g $RG -n $ST -l $LOC --sku Standard_LRS
+az functionapp plan create -g $RG -n $PLAN --location $LOC --number-of-workers 1 --sku B1 --is-linux
+az functionapp create -g $RG -p $PLAN -n $APP -s $ST --runtime node --runtime-version 20 --functions-version 4
+```
+
+Set app settings:
+
+```bash
+az functionapp config appsettings set -g $RG -n $APP --settings \
+  OPENAI_API_KEY="<your_key>" \
+  ROBOGENE_IMAGE_MODEL="gpt-image-1" \
+  ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io"
+```
+
+Deploy from `backend/`:
+
+```bash
+cd backend
+npm install
+zip -r deploy.zip . -x '*.git*' 'local.settings.json' 'node_modules/*'
+az functionapp deployment source config-zip -g $RG -n $APP --src deploy.zip
+```
+
+Then set frontend API base to:
+- `https://$APP.azurewebsites.net`
+
+Or run the helper script:
+
+```bash
+export AZURE_CONFIG_DIR=/Users/penpa/Desktop/PDFs/robogene/.azure
+export OPENAI_API_KEY="<your_key>"
+cd backend
+./deploy_azure.sh robogene-rg eastus robogene-func-prod
+```
 
 ## Notes
-- Frontend files are in repo root: `index.html`, `app.js`, `styles.css`.
-- Backend files are in `backend/`.
-- For hosted frontend, set `window.ROBOGENE_API_BASE` in `index.html` to your backend origin.
-- API key must be available as `OPENAI_API_KEY`.
-- Default model: `gpt-image-1`.
-- Default reference image: `robogene/references/robot_emperor_ep22_p01.png`.
-- Generated images are written to `robogene/generated/`.
-- Existing files `scene_02.png`, `scene_03.png`, etc. are reused on startup.
-- The app continues from the highest existing scene number.
+- This backend stores story state in-memory per function instance.
+- Generated images are returned as `scene.imageDataUrl` (base64) for portability.
