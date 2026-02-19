@@ -33,6 +33,20 @@ For local dev watch:
 npm run watch
 ```
 
+Or use the root helper script to run frontend + backend local stack together:
+
+```bash
+./robogen
+```
+
+This starts:
+- Frontend + backend ClojureScript watcher (`shadow-cljs watch app backend`)
+- Backend API host (`npm run backend:start`) on `http://localhost:7071`
+
+It prints the frontend URL and keeps all local processes running.
+For local stability, `./robogen` starts backend in legacy mode.
+When opened on `localhost`, the frontend automatically uses `http://localhost:7071` as API base.
+
 ## Frontend host (GitHub Pages)
 Pages is deployed via GitHub Actions workflow: `.github/workflows/pages.yml`.
 Set repository Pages source to `GitHub Actions`.

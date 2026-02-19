@@ -13,7 +13,16 @@
   <div id="app"></div>
 
   <script>
-    window.ROBOGENE_API_BASE = "https://robogene-func-prod.azurewebsites.net";
+    (function () {
+      if (window.ROBOGENE_API_BASE && String(window.ROBOGENE_API_BASE).trim() !== "") {
+        return;
+      }
+      var host = window.location.hostname;
+      var local = host === "localhost" || host === "127.0.0.1";
+      window.ROBOGENE_API_BASE = local
+        ? "http://localhost:7071"
+        : "https://robogene-func-prod.azurewebsites.net";
+    })();
   </script>
   <script src="./js/main.js"></script>
 </body>

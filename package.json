@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "watch": "shadow-cljs watch app",
+    "backend:watch": "shadow-cljs watch backend",
+    "watch:all": "shadow-cljs watch app backend",
+    "backend:start": "npm --prefix backend run start",
     "build": "shadow-cljs release app",
     "build:backend": "shadow-cljs release backend",
     "build:all": "shadow-cljs release app backend",
