@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoboGene</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-shape bg-a"></div>
+  <div class="bg-shape bg-b"></div>
+
+  <main class="app">
+    <header class="hero">
+      <h1>RoboGene</h1>
+      <p>Episode timeline with persistent story memory.</p>
+      <button id="nextBtn" class="btn btn-primary">Generate Next</button>
+      <div id="status" class="status">Loading existing frames...</div>
+    </header>
+
+    <section>
+      <h2>Gallery (Most Recent First)</h2>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

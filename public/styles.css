@@ -1,0 +1,102 @@
+:root {
+  --ink: #102a43;
+  --accent: #ff7a18;
+  --card: #ffffff;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 20% 20%, #ffe8c2 0%, #ffd9a8 35%, #ffc58b 60%, #ffb06f 100%);
+  min-height: 100vh;
+}
+
+.bg-shape {
+  position: fixed;
+  border-radius: 999px;
+  filter: blur(30px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.bg-a { width: 360px; height: 360px; background: #3caea3; top: -100px; right: 8%; }
+.bg-b { width: 420px; height: 420px; background: #20639b; bottom: -150px; left: -100px; }
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  letter-spacing: 0.04em;
+}
+.hero p { margin: 6px 0 14px; font-weight: 600; }
+
+.btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 180ms ease;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn-primary {
+  background: linear-gradient(90deg, var(--accent), #ffb03a);
+  color: #1d1d1d;
+}
+
+.status {
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+h2 { margin: 24px 0 10px; }
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: var(--card);
+  border: 2px solid #1f2a44;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.16);
+  animation: rise 320ms ease;
+}
+
+.card img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+
+.meta {
+  padding: 10px;
+  font-size: 0.95rem;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+  background: #2d7f87;
+  vertical-align: middle;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

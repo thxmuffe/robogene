@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Environment and secrets
+.env
+*.env
+pop.env
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Runtime files
+*.log
+.tmp/
+tmp/
+
+# Generated assets
+generated/
