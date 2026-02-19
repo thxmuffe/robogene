@@ -266,23 +266,42 @@ function cleanupPendingJobs() {
   if (state.pendingJobs.length !== before) state.revision += 1;
 }
 
-function corsHeaders() {
+function allowedOrigins() {
+  const raw =
+    process.env.ROBOGENE_ALLOWED_ORIGIN ||
+    'https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173';
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function corsOrigin(request) {
+  const origins = allowedOrigins();
+  const reqOrigin = request?.headers?.get('origin') || request?.headers?.get('Origin');
+  if (!reqOrigin) return origins[0] || '*';
+  if (origins.includes(reqOrigin)) return reqOrigin;
+  return origins[0] || 'null';
+}
+
+function corsHeaders(request) {
   return {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': process.env.ROBOGENE_ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Origin': corsOrigin(request),
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
     'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Vary: 'Origin',
     Pragma: 'no-cache',
     Expires: '0',
   };
 }
 
-function json(status, data) {
+function json(status, data, request) {
   return {
     status,
     jsonBody: data,
-    headers: corsHeaders(),
+    headers: corsHeaders(request),
   };
 }
 
@@ -290,7 +309,7 @@ app.http('state', {
   methods: ['GET'],
   authLevel: 'anonymous',
   route: 'state',
-  handler: async () => {
+  handler: async (request) => {
     cleanupPendingJobs();
     return json(200, {
       storyId: state.storyId,
@@ -304,7 +323,7 @@ app.http('state', {
       pending: state.pendingJobs,
       history: state.history,
       failed: state.failedJobs,
-    });
+    }, request);
   },
 });
 
@@ -316,7 +335,7 @@ app.http('generate-next', {
     try {
       cleanupPendingJobs();
       if (state.cursor > state.beats.length) {
-        return json(409, { done: true, error: 'Storyboard complete.', history: state.history });
+        return json(409, { done: true, error: 'Storyboard complete.', history: state.history }, request);
       }
 
       let body = {};
@@ -349,9 +368,9 @@ app.http('generate-next', {
         pendingCount: state.pendingJobs.length,
         nextSceneNumber: state.cursor,
         nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',
-      });
+      }, request);
     } catch (err) {
-      return json(500, { error: String(err.message || err) });
+      return json(500, { error: String(err.message || err) }, request);
     }
   },
 });
@@ -360,10 +379,10 @@ app.http('preflight', {
   methods: ['OPTIONS'],
   authLevel: 'anonymous',
   route: '{*path}',
-  handler: async () => {
+  handler: async (request) => {
     return {
       status: 204,
-      headers: corsHeaders(),
+      headers: corsHeaders(request),
     };
   },
 });
