@@ -1,0 +1,23 @@
+@base = http://localhost:7071
+@json = application/json
+
+### 1) Get current episode state (run this first)
+#
+# This request stores the response as `state`.
+#
+# @name state
+GET {{base}}/api/state
+Cache-Control: no-store
+
+### 2) Wait for state changes (long-poll)
+GET {{base}}/api/wait-state?since=0&timeoutMs=25000
+Cache-Control: no-store
+
+### 3) Generate next frame
+POST {{base}}/api/generate-next
+Content-Type: {{json}}
+Cache-Control: no-store
+
+{
+  "direction": "Tighten composition and keep continuity with previous frame."
+}
