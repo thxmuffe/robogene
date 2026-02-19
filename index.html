@@ -14,7 +14,9 @@
   <main class="app">
     <header class="hero">
       <h1>RoboGene</h1>
-      <p>Episode timeline with persistent story memory.</p>
+      <p>Episode timeline with shared queue and story memory.</p>
+      <label for="directionInput" class="dir-label">Scene Direction (editable)</label>
+      <textarea id="directionInput" class="direction-input" placeholder="Loading default scene direction..."></textarea>
       <button id="nextBtn" class="btn btn-primary">Generate Next</button>
       <div id="status" class="status">Loading existing frames...</div>
     </header>
@@ -26,7 +28,6 @@
   </main>
 
   <script>
-    // Set this to your deployed backend URL (example: https://your-api.azurewebsites.net).
     window.ROBOGENE_API_BASE = "https://robogene-func-prod.azurewebsites.net";
   </script>
   <script src="./app.js"></script>

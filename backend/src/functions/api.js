@@ -62,7 +62,10 @@ const state = {
   beats: [],
   visual: { globalStyle: '', pagePrompts: {} },
   history: [],
+  pendingJobs: [],
+  failedJobs: [],
   cursor: 2,
+  processing: false,
   model: process.env.ROBOGENE_IMAGE_MODEL || 'gpt-image-1',
   referenceImageBytes: null,
 };
@@ -70,6 +73,18 @@ const state = {
 function sceneBeatText(sceneNumber) {
   const beat = state.beats.find((b) => b.index === sceneNumber);
   return beat ? beat.text : `Scene ${sceneNumber}`;
+}
+
+function defaultDirectionText(sceneNumber) {
+  const beatText = sceneBeatText(sceneNumber);
+  const pagePrompt = state.visual.pagePrompts[sceneNumber] || '';
+  return [
+    beatText,
+    pagePrompt,
+    'Keep continuity with previous scenes.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function initializeState() {
@@ -80,7 +95,10 @@ function initializeState() {
   state.beats = parseBeats(storyboardText);
   state.visual = parseVisualPrompts(promptsText);
   state.history = [];
+  state.pendingJobs = [];
+  state.failedJobs = [];
   state.cursor = 2;
+  state.processing = false;
 
   const ref = readBytes(DEFAULT_REFERENCE_IMAGE);
   if (ref) state.referenceImageBytes = ref;
@@ -106,9 +124,8 @@ function continuityWindow(limit = 6) {
   return tail.map((s) => `Scene ${s.sceneNumber}: ${s.beatText}.`).join('\n');
 }
 
-function buildPromptForScene(sceneNumber, beatText) {
+function buildPromptForScene(sceneNumber, beatText, directionText) {
   const globalStyle = state.visual.globalStyle || '';
-  const visualPrompt = state.visual.pagePrompts[sceneNumber] || '';
   const soFar = continuityWindow();
 
   return [
@@ -116,7 +133,7 @@ function buildPromptForScene(sceneNumber, beatText) {
     'Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer).',
     globalStyle,
     `Storyboard beat for this scene: ${beatText}`,
-    visualPrompt ? `Scene visual direction: ${visualPrompt}` : '',
+    `User direction for this scene:\n${directionText || defaultDirectionText(sceneNumber)}`,
     `Story continuity memory:\n${soFar}`,
     'Keep this image as the next chronological scene in the same story world.',
     'Avoid title/header text overlays.',
@@ -125,13 +142,13 @@ function buildPromptForScene(sceneNumber, beatText) {
     .join('\n\n');
 }
 
-async function generateImage(sceneNumber, beatText) {
+async function generateImage(sceneNumber, beatText, directionText) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('Missing OPENAI_API_KEY in Function App settings.');
   }
 
-  const prompt = buildPromptForScene(sceneNumber, beatText);
+  const prompt = buildPromptForScene(sceneNumber, beatText, directionText);
   const refs = [];
 
   if (state.referenceImageBytes) {
@@ -186,13 +203,55 @@ async function generateImage(sceneNumber, beatText) {
     throw new Error(`Unexpected OpenAI response: ${JSON.stringify(body)}`);
   }
 
-  const imageDataUrl = `data:image/png;base64,${b64}`;
   return {
     sceneNumber,
     beatText,
     continuityNote: beatText,
-    imageDataUrl,
+    imageDataUrl: `data:image/png;base64,${b64}`,
     createdAt: new Date().toISOString(),
+  };
+}
+
+async function processQueue() {
+  if (state.processing) return;
+  state.processing = true;
+
+  try {
+    while (true) {
+      const job = state.pendingJobs.find((j) => j.status === 'queued');
+      if (!job) break;
+
+      job.status = 'processing';
+      job.startedAt = new Date().toISOString();
+
+      try {
+        const scene = await generateImage(job.sceneNumber, job.beatText, job.directionText);
+        state.history.push(scene);
+        state.history.sort((a, b) => a.sceneNumber - b.sceneNumber);
+      } catch (err) {
+        state.failedJobs.unshift({
+          jobId: job.jobId,
+          sceneNumber: job.sceneNumber,
+          beatText: job.beatText,
+          error: String(err.message || err),
+          createdAt: new Date().toISOString(),
+        });
+        state.failedJobs = state.failedJobs.slice(0, 20);
+      } finally {
+        state.pendingJobs = state.pendingJobs.filter((j) => j.jobId !== job.jobId);
+      }
+    }
+  } finally {
+    state.processing = false;
+  }
+}
+
+function corsHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': process.env.ROBOGENE_ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
   };
 }
 
@@ -200,10 +259,7 @@ function json(status, data) {
   return {
     status,
     jsonBody: data,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': process.env.ROBOGENE_ALLOWED_ORIGIN || '*',
-    },
+    headers: corsHeaders(),
   };
 }
 
@@ -216,7 +272,13 @@ app.http('state', {
       storyId: state.storyId,
       cursor: state.cursor,
       totalScenes: state.beats.length,
+      nextSceneNumber: state.cursor,
+      nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',
+      processing: state.processing,
+      pendingCount: state.pendingJobs.length,
+      pending: state.pendingJobs,
       history: state.history,
+      failed: state.failedJobs,
     });
   },
 });
@@ -225,22 +287,40 @@ app.http('generate-next', {
   methods: ['POST'],
   authLevel: 'anonymous',
   route: 'generate-next',
-  handler: async () => {
+  handler: async (request) => {
     try {
       if (state.cursor > state.beats.length) {
         return json(409, { done: true, error: 'Storyboard complete.', history: state.history });
       }
 
-      const beatText = sceneBeatText(state.cursor);
-      const scene = await generateImage(state.cursor, beatText);
-      state.history.push(scene);
+      let body = {};
+      try {
+        body = await request.json();
+      } catch (_) {
+        body = {};
+      }
+
+      const sceneNumber = state.cursor;
       state.cursor += 1;
 
-      return json(200, {
-        ok: true,
-        scene,
-        cursor: state.cursor,
-        totalScenes: state.beats.length,
+      const job = {
+        jobId: crypto.randomUUID(),
+        sceneNumber,
+        beatText: sceneBeatText(sceneNumber),
+        directionText: (body.direction || '').toString().trim(),
+        status: 'queued',
+        queuedAt: new Date().toISOString(),
+      };
+
+      state.pendingJobs.push(job);
+      processQueue();
+
+      return json(202, {
+        accepted: true,
+        job,
+        pendingCount: state.pendingJobs.length,
+        nextSceneNumber: state.cursor,
+        nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',
       });
     } catch (err) {
       return json(500, { error: String(err.message || err) });
@@ -255,11 +335,7 @@ app.http('preflight', {
   handler: async () => {
     return {
       status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': process.env.ROBOGENE_ALLOWED_ORIGIN || '*',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-      },
+      headers: corsHeaders(),
     };
   },
 });

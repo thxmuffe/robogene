@@ -2,9 +2,13 @@ const el = {
   nextBtn: document.getElementById('nextBtn'),
   status: document.getElementById('status'),
   gallery: document.getElementById('gallery'),
+  directionInput: document.getElementById('directionInput'),
 };
 
 const API_BASE = (window.ROBOGENE_API_BASE || '').replace(/\/+$/, '');
+let latestState = null;
+let directionDirty = false;
+let pollHandle = null;
 
 function setStatus(text) {
   el.status.textContent = text;
@@ -27,9 +31,8 @@ async function readJsonSafe(res) {
 }
 
 function cardHTML(scene) {
-  const stamp = Date.now();
   const badge = scene.reference ? '<span class="badge">Reference</span>' : '';
-  const src = scene.imageDataUrl || `${scene.url}?t=${stamp}`;
+  const src = scene.imageDataUrl || '';
   return `
     <article class="card" data-scene="${scene.sceneNumber}">
       <img src="${src}" alt="Scene ${scene.sceneNumber}" />
@@ -41,13 +44,40 @@ function cardHTML(scene) {
   `;
 }
 
-function renderHistory(history) {
-  const sorted = [...history].sort((a, b) => b.sceneNumber - a.sceneNumber);
-  el.gallery.innerHTML = sorted.map(cardHTML).join('');
+function pendingCardHTML(job) {
+  const label = job.status === 'processing' ? 'Processing' : 'Queued';
+  return `
+    <article class="card pending" data-job="${job.jobId}">
+      <div class="placeholder-img">
+        <div class="spinner"></div>
+        <div class="placeholder-text">${label} scene ${job.sceneNumber}...</div>
+      </div>
+      <div class="meta">
+        <strong>Scene ${job.sceneNumber} <span class="badge queue">In Queue</span></strong>
+        <div>${job.beatText || ''}</div>
+      </div>
+    </article>
+  `;
 }
 
-function prependScene(scene) {
-  el.gallery.insertAdjacentHTML('afterbegin', cardHTML(scene));
+function renderFromState(state) {
+  const history = (state.history || []).map((s) => ({ type: 'history', sceneNumber: s.sceneNumber, html: cardHTML(s) }));
+  const pending = (state.pending || []).map((p) => ({ type: 'pending', sceneNumber: p.sceneNumber, html: pendingCardHTML(p) }));
+
+  const combined = [...history, ...pending].sort((a, b) => b.sceneNumber - a.sceneNumber);
+  el.gallery.innerHTML = combined.map((x) => x.html).join('');
+
+  const pendingCount = state.pendingCount || 0;
+  if (state.cursor > state.totalScenes && pendingCount === 0) {
+    setStatus('Storyboard complete.');
+  } else {
+    const queueText = pendingCount > 0 ? ` | Queue: ${pendingCount}` : '';
+    setStatus(`Next scene: ${state.nextSceneNumber}/${state.totalScenes}${queueText}`);
+  }
+
+  if (!directionDirty) {
+    el.directionInput.value = state.nextDefaultDirection || '';
+  }
 }
 
 async function loadState() {
@@ -57,20 +87,23 @@ async function loadState() {
     setStatus(`Load failed: ${data.error || 'Unknown error'}`);
     return null;
   }
-  renderHistory(data.history || []);
-  if (data.cursor > data.totalScenes) {
-    setStatus('Storyboard complete.');
-  } else {
-    setStatus(`Ready. Next scene: ${data.cursor}/${data.totalScenes}`);
-  }
+
+  latestState = data;
+  renderFromState(data);
   return data;
 }
 
 async function generateNext() {
+  const direction = el.directionInput.value.trim();
   el.nextBtn.disabled = true;
-  setStatus('Generating next scene...');
+  setStatus('Queued next scene...');
+
   try {
-    const res = await fetch(apiUrl('/api/generate-next'), { method: 'POST' });
+    const res = await fetch(apiUrl('/api/generate-next'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction }),
+    });
     const data = await readJsonSafe(res);
 
     if (res.status === 409 && data.done) {
@@ -82,12 +115,29 @@ async function generateNext() {
       return;
     }
 
-    prependScene(data.scene);
-    setStatus(`Generated scene ${data.scene.sceneNumber}. Next: ${data.cursor}/${data.totalScenes}`);
+    directionDirty = false;
+    el.directionInput.value = data.nextDefaultDirection || '';
+    await loadState();
   } finally {
     el.nextBtn.disabled = false;
   }
 }
 
-el.nextBtn.addEventListener('click', generateNext);
-loadState().catch((err) => setStatus(`Load failed: ${err.message}`));
+function startPolling() {
+  if (pollHandle) clearInterval(pollHandle);
+  pollHandle = setInterval(() => {
+    loadState().catch((err) => setStatus(`Load failed: ${err.message}`));
+  }, 4000);
+}
+
+el.directionInput.addEventListener('input', () => {
+  directionDirty = true;
+});
+
+el.nextBtn.addEventListener('click', () => {
+  generateNext().catch((err) => setStatus(`Generation failed: ${err.message}`));
+});
+
+loadState()
+  .then(() => startPolling())
+  .catch((err) => setStatus(`Load failed: ${err.message}`));
