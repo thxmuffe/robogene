@@ -4,8 +4,26 @@ const el = {
   gallery: document.getElementById('gallery'),
 };
 
+const API_BASE = (window.ROBOGENE_API_BASE || '').replace(/\/+$/, '');
+
 function setStatus(text) {
   el.status.textContent = text;
+}
+
+function apiUrl(path) {
+  if (!API_BASE) return path;
+  return `${API_BASE}${path}`;
+}
+
+async function readJsonSafe(res) {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    throw new Error(
+      `Expected JSON from backend, got non-JSON response (${res.status}). Check ROBOGENE_API_BASE/CORS.`
+    );
+  }
 }
 
 function cardHTML(scene) {
@@ -32,8 +50,8 @@ function prependScene(scene) {
 }
 
 async function loadState() {
-  const res = await fetch('/api/state');
-  const data = await res.json();
+  const res = await fetch(apiUrl('/api/state'));
+  const data = await readJsonSafe(res);
   if (!res.ok) {
     setStatus(`Load failed: ${data.error || 'Unknown error'}`);
     return null;
@@ -51,8 +69,8 @@ async function generateNext() {
   el.nextBtn.disabled = true;
   setStatus('Generating next scene...');
   try {
-    const res = await fetch('/api/generate-next', { method: 'POST' });
-    const data = await res.json();
+    const res = await fetch(apiUrl('/api/generate-next'), { method: 'POST' });
+    const data = await readJsonSafe(res);
 
     if (res.status === 409 && data.done) {
       setStatus('Storyboard complete.');
