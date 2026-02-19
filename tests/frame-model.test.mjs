@@ -5,8 +5,8 @@ const LEGACY_DRAFT_ID = '__legacy_draft__';
 
 function frameFromHistory(idx, h) {
   return {
-    frameId: h.frameId || `legacy-ready-${h.sceneNumber}-${idx}`,
-    sceneNumber: h.sceneNumber,
+    frameId: h.frameId || `legacy-ready-${h.frameNumber}-${idx}`,
+    frameNumber: h.frameNumber,
     beatText: h.beatText,
     suggestedDirection: '',
     directionText: '',
@@ -19,8 +19,8 @@ function frameFromHistory(idx, h) {
 
 function frameFromPending(idx, p) {
   return {
-    frameId: p.frameId || p.jobId || `legacy-pending-${p.sceneNumber}-${idx}`,
-    sceneNumber: p.sceneNumber,
+    frameId: p.frameId || p.jobId || `legacy-pending-${p.frameNumber}-${idx}`,
+    frameNumber: p.frameNumber,
     beatText: p.beatText,
     suggestedDirection: p.directionText || '',
     directionText: p.directionText || '',
@@ -30,12 +30,12 @@ function frameFromPending(idx, p) {
 }
 
 function legacyDraftFrame(state, existingFrames) {
-  const maxScene = existingFrames.reduce((m, f) => Math.max(m, f.sceneNumber || 0), 0);
-  const nextNum = state.nextSceneNumber || (maxScene + 1);
+  const maxFrame = existingFrames.reduce((m, f) => Math.max(m, f.frameNumber || 0), 0);
+  const nextNum = state.nextFrameNumber || (maxFrame + 1);
   return {
     frameId: LEGACY_DRAFT_ID,
-    sceneNumber: nextNum,
-    beatText: `Scene ${nextNum}`,
+    frameNumber: nextNum,
+    beatText: `Frame ${nextNum}`,
     suggestedDirection: state.nextDefaultDirection || '',
     directionText: state.nextDefaultDirection || '',
     status: 'draft',
@@ -61,11 +61,11 @@ function frameModel(state) {
 test('legacy state converts to ready + draft frames', () => {
   const state = {
     history: [
-      { sceneNumber: 1, beatText: 'Cold open', imageDataUrl: 'data:image/png;base64,abc' },
+      { frameNumber: 1, beatText: 'Cold open', imageDataUrl: 'data:image/png;base64,abc' },
     ],
     pending: [],
-    nextSceneNumber: 2,
-    nextDefaultDirection: 'Scene 2 prompt',
+    nextFrameNumber: 2,
+    nextDefaultDirection: 'Frame 2 prompt',
   };
 
   const { backendMode, frames } = frameModel(state);
@@ -73,22 +73,22 @@ test('legacy state converts to ready + draft frames', () => {
   assert.equal(frames.length, 2);
   assert.equal(frames[0].status, 'ready');
   assert.equal(frames[1].status, 'draft');
-  assert.equal(frames[1].beatText, 'Scene 2');
-  assert.equal(typeof frames[0].sceneNumber, 'number');
+  assert.equal(frames[1].beatText, 'Frame 2');
+  assert.equal(typeof frames[0].frameNumber, 'number');
   assert.equal(typeof frames[1].status, 'string');
 });
 
 test('new frame state passes through', () => {
   const state = {
     frames: [
-      { frameId: 'a', sceneNumber: 1, status: 'ready', imageDataUrl: 'data:image/png;base64,aaa' },
-      { frameId: 'b', sceneNumber: 2, status: 'draft' },
+      { frameId: 'a', frameNumber: 1, status: 'ready', imageDataUrl: 'data:image/png;base64,aaa' },
+      { frameId: 'b', frameNumber: 2, status: 'draft' },
     ],
   };
 
   const { backendMode, frames } = frameModel(state);
   assert.equal(backendMode, 'frames');
   assert.equal(frames.length, 2);
-  assert.ok(frames.every((f) => typeof f.sceneNumber === 'number'));
+  assert.ok(frames.every((f) => typeof f.frameNumber === 'number'));
   assert.ok(frames.every((f) => typeof f.status === 'string'));
 });

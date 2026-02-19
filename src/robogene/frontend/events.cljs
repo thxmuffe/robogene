@@ -7,15 +7,21 @@
 
 (def legacy-draft-id "__legacy_draft__")
 
+(defn frame-number-of [frame]
+  (:frameNumber frame))
+
+(defn normalize-frame [frame]
+  (assoc frame :frameNumber (frame-number-of frame)))
+
 (defn parse-hash-route [hash]
-  (if-let [[_ episode scene] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
+  (if-let [[_ episode frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
     {:view :frame
      :episode episode
-     :scene-number (js/Number scene)}
+     :frame-number (js/Number frame)}
     {:view :index}))
 
-(defn frame-hash [episode scene-number]
-  (str "#/episode/" episode "/frame/" scene-number))
+(defn frame-hash [episode frame-number]
+  (str "#/episode/" episode "/frame/" frame-number))
 
 (defn api-base []
   (let [base (or (.-ROBOGENE_API_BASE js/window) "")]
@@ -62,33 +68,35 @@
                                          (str "HTTP " status))]))))
 
 (defn frame-from-history [idx h]
-  {:frameId (or (:frameId h) (str "legacy-ready-" (:sceneNumber h) "-" idx))
-   :sceneNumber (:sceneNumber h)
-   :beatText (:beatText h)
-   :suggestedDirection ""
-   :directionText ""
-   :imageDataUrl (:imageDataUrl h)
-   :status "ready"
-   :reference (:reference h)
-   :createdAt (:createdAt h)})
+  (let [frame-number (frame-number-of h)]
+    {:frameId (or (:frameId h) (str "legacy-ready-" frame-number "-" idx))
+     :frameNumber frame-number
+     :beatText (:beatText h)
+     :suggestedDirection ""
+     :directionText ""
+     :imageDataUrl (:imageDataUrl h)
+     :status "ready"
+     :reference (:reference h)
+     :createdAt (:createdAt h)}))
 
 (defn frame-from-pending [idx p]
-  {:frameId (or (:frameId p) (:jobId p) (str "legacy-pending-" (:sceneNumber p) "-" idx))
-   :sceneNumber (:sceneNumber p)
-   :beatText (:beatText p)
-   :suggestedDirection (:directionText p)
-   :directionText (:directionText p)
-   :error (:error p)
-   :status (or (:status p) "queued")
-   :createdAt (:queuedAt p)})
+  (let [frame-number (frame-number-of p)]
+    {:frameId (or (:frameId p) (:jobId p) (str "legacy-pending-" frame-number "-" idx))
+     :frameNumber frame-number
+     :beatText (:beatText p)
+     :suggestedDirection (:directionText p)
+     :directionText (:directionText p)
+     :error (:error p)
+     :status (or (:status p) "queued")
+     :createdAt (:queuedAt p)}))
 
 (defn legacy-draft-frame [state existing-frames]
-  (let [max-scene (reduce max 0 (map :sceneNumber existing-frames))
+  (let [max-frame (reduce max 0 (map frame-number-of existing-frames))
         suggested (or (:nextDefaultDirection state) "")
-        next-num (or (:nextSceneNumber state) (inc max-scene))]
+        next-num (or (:nextFrameNumber state) (inc max-frame))]
     {:frameId legacy-draft-id
-     :sceneNumber next-num
-     :beatText (str "Scene " next-num)
+     :frameNumber next-num
+     :beatText (str "Frame " next-num)
      :suggestedDirection suggested
      :directionText suggested
      :status "draft"
@@ -97,7 +105,7 @@
 (defn frame-model [state]
   (if (seq (:frames state))
     {:backend-mode :frames
-     :frames (vec (:frames state))}
+     :frames (vec (map normalize-frame (:frames state)))}
     (let [ready (->> (or (:history state) [])
                      (map-indexed frame-from-history))
           pending (->> (or (:pending state) [])
@@ -114,7 +122,7 @@
 
 (defn to-gallery-items [frames]
   (->> frames
-       (sort-by :sceneNumber >)
+       (sort-by frame-number-of >)
        vec))
 
 (defn merged-frame-inputs [existing frames]
@@ -300,10 +308,10 @@
 
 (rf/reg-event-fx
  :navigate-frame
- (fn [{:keys [db]} [_ scene-number]]
+ (fn [{:keys [db]} [_ frame-number]]
    (let [episode (or (get-in db [:latest-state :storyId]) "local")]
      {:db db
-      :set-hash (frame-hash episode scene-number)})))
+      :set-hash (frame-hash episode frame-number)})))
 
 (rf/reg-event-fx
  :navigate-index
@@ -316,16 +324,16 @@
  (fn [{:keys [db]} [_ delta]]
    (let [route (:route db)]
      (if (= :frame (:view route))
-       (let [ordered (->> (:gallery-items db) (sort-by :sceneNumber) vec)
-             current-scene (:scene-number route)
+       (let [ordered (->> (:gallery-items db) (sort-by frame-number-of) vec)
+             current-frame (:frame-number route)
              idx (first (keep-indexed (fn [i frame]
-                                        (when (= (:sceneNumber frame) current-scene) i))
+                                        (when (= (frame-number-of frame) current-frame) i))
                                       ordered))
              target-idx (when (number? idx) (+ idx delta))]
          (if (and (number? target-idx)
                   (<= 0 target-idx)
                   (< target-idx (count ordered)))
            {:db db
-            :dispatch [:navigate-frame (:sceneNumber (nth ordered target-idx))]}
+            :dispatch [:navigate-frame (frame-number-of (nth ordered target-idx))]}
            {:db db}))
        {:db db}))))

@@ -1,7 +1,7 @@
 :root {
   --ink: #102a43;
   --accent: #ff7a18;
-  --card: #ffffff;
+  --frame-surface: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -85,8 +85,8 @@ h2 { margin: 24px 0 10px; }
   gap: 14px;
 }
 
-.card {
-  background: var(--card);
+.frame {
+  background: var(--frame-surface);
   border: 2px solid #1f2a44;
   border-radius: 14px;
   overflow: hidden;
@@ -94,16 +94,16 @@ h2 { margin: 24px 0 10px; }
   animation: rise 320ms ease;
 }
 
-.card-clickable {
+.frame-clickable {
   cursor: pointer;
 }
 
-.card-clickable:focus-visible {
+.frame-clickable:focus-visible {
   outline: 3px solid #20639b;
   outline-offset: 2px;
 }
 
-.card img {
+.frame img {
   width: 100%;
   display: block;
   aspect-ratio: 3 / 2;
@@ -196,7 +196,7 @@ h2 { margin: 24px 0 10px; }
   gap: 12px;
 }
 
-.detail-page .card {
+.detail-page .frame {
   max-width: 840px;
 }
 

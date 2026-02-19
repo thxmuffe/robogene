@@ -1,17 +1,17 @@
-(ns robogene.frontend.views.frame-card
+(ns robogene.frontend.views.frame-view
   (:require [re-frame.core :as rf]
             [clojure.string :as str]))
 
 (defn frame-label [frame]
-  (str "Frame " (:sceneNumber frame)))
+  (str "Frame " (:frameNumber frame)))
 
-(defn card-image [{:keys [imageDataUrl sceneNumber]}]
-  [:img {:src (or imageDataUrl "") :alt (str "Scene " sceneNumber)}])
+(defn frame-image [{:keys [imageDataUrl frameNumber]}]
+  [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
 
-(defn generic-scene-label? [{:keys [beatText sceneNumber]}]
+(defn generic-frame-label? [{:keys [beatText frameNumber]}]
   (let [beat (str/trim (or beatText ""))]
     (or (str/blank? beat)
-        (= (str/lower-case beat) (str "scene " sceneNumber)))))
+        (= (str/lower-case beat) (str "frame " frameNumber)))))
 
 (defn frame-editor [{:keys [frameId status error]} frame-input]
   (let [busy? (or (= status "queued") (= status "processing"))]
@@ -54,26 +54,26 @@
                   (rf/dispatch [:generate-frame frameId]))}
      button-label]))
 
-(defn frame-card
+(defn frame-view
   ([frame frame-input]
-   [frame-card frame frame-input {:clickable? true}])
+   [frame-view frame frame-input {:clickable? true}])
   ([frame frame-input {:keys [clickable?]
                        :or {clickable? true}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
          attrs (cond-> {:data-frame-id (:frameId frame)
-                        :class (if clickable? "card card-clickable" "card")}
+                        :class (if clickable? "frame frame-clickable" "frame")}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-click #(rf/dispatch [:navigate-frame (:sceneNumber frame)])
+                                   :on-click #(rf/dispatch [:navigate-frame (:frameNumber frame)])
                                    :on-key-down (fn [e]
                                                   (when (or (= "Enter" (.-key e))
                                                             (= " " (.-key e)))
                                                     (.preventDefault e)
-                                                    (rf/dispatch [:navigate-frame (:sceneNumber frame)])))))]
+                                                    (rf/dispatch [:navigate-frame (:frameNumber frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?
-         [card-image frame]
+         [frame-image frame]
          [frame-placeholder frame])
        [frame-action-button frame]]
       [:div.meta
@@ -82,7 +82,7 @@
         (when (:reference frame) [:span.badge "Reference"])
         (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
           [:span.badge.queue "In Queue"])]
-       (when-not (generic-scene-label? frame)
+       (when-not (generic-frame-label? frame)
          [:div (or (:beatText frame) "")])
        (when-not has-image?
          [frame-editor frame frame-input])]])))

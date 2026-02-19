@@ -11,20 +11,20 @@ const DEFAULT_PROMPTS = path.join(ASSETS, '28_Municipal_Firmware_image_prompts.m
 const DEFAULT_REFERENCE_IMAGE = path.join(ASSETS, 'robot_emperor_ep22_p01.png');
 const PAGE1_REFERENCE_IMAGE = path.join(ASSETS, '28_page_01_openai_refined.png');
 
-function readText(filePath) {
+function readFileOr(filePath, fallback, encoding) {
   try {
-    return fs.readFileSync(filePath, 'utf8');
+    return encoding ? fs.readFileSync(filePath, encoding) : fs.readFileSync(filePath);
   } catch (_) {
-    return '';
+    return fallback;
   }
 }
 
+function readText(filePath) {
+  return readFileOr(filePath, '', 'utf8');
+}
+
 function readBytes(filePath) {
-  try {
-    return fs.readFileSync(filePath);
-  } catch (_) {
-    return null;
-  }
+  return readFileOr(filePath, null);
 }
 
 function parseBeats(markdown) {
@@ -72,18 +72,18 @@ const state = {
 };
 const stateWaiters = [];
 
-function sceneBeatText(sceneNumber) {
-  const beat = state.beats.find((b) => b.index === sceneNumber);
-  return beat ? beat.text : `Scene ${sceneNumber}`;
+function frameBeatText(frameNumber) {
+  const beat = state.beats.find((b) => b.index === frameNumber);
+  return beat ? beat.text : `Frame ${frameNumber}`;
 }
 
-function defaultDirectionText(sceneNumber) {
-  const beatText = sceneBeatText(sceneNumber);
-  const pagePrompt = state.visual.pagePrompts[sceneNumber] || '';
+function defaultFrameDirectionText(frameNumber) {
+  const beatText = frameBeatText(frameNumber);
+  const pagePrompt = state.visual.pagePrompts[frameNumber] || '';
   return [
     beatText,
     pagePrompt,
-    'Keep continuity with previous scenes.',
+    'Keep continuity with previous frames.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -109,9 +109,9 @@ function initializeState() {
   const page1 = readBytes(PAGE1_REFERENCE_IMAGE);
   if (page1) {
     state.history.push({
-      sceneNumber: 1,
-      beatText: sceneBeatText(1),
-      continuityNote: sceneBeatText(1),
+      frameNumber: 1,
+      beatText: frameBeatText(1),
+      continuityNote: frameBeatText(1),
       imageDataUrl: pngDataUrl(page1),
       reference: true,
       createdAt: new Date().toISOString(),
@@ -153,35 +153,35 @@ function parseIntQuery(request, name, fallback) {
 
 function continuityWindow(limit = 6) {
   const tail = state.history.slice(-limit);
-  if (!tail.length) return 'No previous scenes yet.';
-  return tail.map((s) => `Scene ${s.sceneNumber}: ${s.beatText}.`).join('\n');
+  if (!tail.length) return 'No previous frames yet.';
+  return tail.map((s) => `Frame ${s.frameNumber}: ${s.beatText}.`).join('\n');
 }
 
-function buildPromptForScene(sceneNumber, beatText, directionText) {
+function buildPromptForFrame(frameNumber, beatText, directionText) {
   const globalStyle = state.visual.globalStyle || '';
   const soFar = continuityWindow();
 
   return [
-    'Create ONE comic story image for the next scene.',
+    'Create ONE comic story image for the next frame.',
     'Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer).',
     globalStyle,
-    `Storyboard beat for this scene: ${beatText}`,
-    `User direction for this scene:\n${directionText || defaultDirectionText(sceneNumber)}`,
+    `Storyboard beat for this frame: ${beatText}`,
+    `User direction for this frame:\n${directionText || defaultFrameDirectionText(frameNumber)}`,
     `Story continuity memory:\n${soFar}`,
-    'Keep this image as the next chronological scene in the same story world.',
+    'Keep this image as the next chronological frame in the same story world.',
     'Avoid title/header text overlays.',
   ]
     .filter(Boolean)
     .join('\n\n');
 }
 
-async function generateImage(sceneNumber, beatText, directionText) {
+async function generateImage(frameNumber, beatText, directionText) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('Missing OPENAI_API_KEY in Function App settings.');
   }
 
-  const prompt = buildPromptForScene(sceneNumber, beatText, directionText);
+  const prompt = buildPromptForFrame(frameNumber, beatText, directionText);
   const refs = [];
 
   if (state.referenceImageBytes) {
@@ -191,7 +191,7 @@ async function generateImage(sceneNumber, beatText, directionText) {
   const previous = state.history[state.history.length - 1];
   if (previous && previous.imageDataUrl && previous.imageDataUrl.startsWith('data:image/png;base64,')) {
     const b64 = previous.imageDataUrl.replace('data:image/png;base64,', '');
-    refs.push({ bytes: Buffer.from(b64, 'base64'), name: 'previous_scene.png' });
+    refs.push({ bytes: Buffer.from(b64, 'base64'), name: 'previous_frame.png' });
   }
 
   let response;
@@ -237,7 +237,7 @@ async function generateImage(sceneNumber, beatText, directionText) {
   }
 
   return {
-    sceneNumber,
+    frameNumber,
     beatText,
     continuityNote: beatText,
     imageDataUrl: `data:image/png;base64,${b64}`,
@@ -259,9 +259,9 @@ async function processQueue() {
       bumpRevision();
 
       try {
-        const scene = await generateImage(job.sceneNumber, job.beatText, job.directionText);
-        state.history.push(scene);
-        state.history.sort((a, b) => a.sceneNumber - b.sceneNumber);
+        const frame = await generateImage(job.frameNumber, job.beatText, job.directionText);
+        state.history.push(frame);
+        state.history.sort((a, b) => a.frameNumber - b.frameNumber);
         job.status = 'completed';
         job.completedAt = new Date().toISOString();
         bumpRevision();
@@ -271,7 +271,7 @@ async function processQueue() {
         job.completedAt = new Date().toISOString();
         state.failedJobs.unshift({
           jobId: job.jobId,
-          sceneNumber: job.sceneNumber,
+          frameNumber: job.frameNumber,
           beatText: job.beatText,
           error: job.error,
           createdAt: new Date().toISOString(),
@@ -337,6 +337,14 @@ function json(status, data, request) {
   };
 }
 
+async function requestJson(request) {
+  try {
+    return await request.json();
+  } catch (_) {
+    return {};
+  }
+}
+
 app.http('state', {
   methods: ['GET'],
   authLevel: 'anonymous',
@@ -347,9 +355,9 @@ app.http('state', {
       storyId: state.storyId,
       revision: state.revision,
       cursor: state.cursor,
-      totalScenes: state.beats.length,
-      nextSceneNumber: state.cursor,
-      nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',
+      totalFrames: state.beats.length,
+      nextFrameNumber: state.cursor,
+      nextDefaultDirection: state.cursor <= state.beats.length ? defaultFrameDirectionText(state.cursor) : '',
       processing: state.processing,
       pendingCount: state.pendingJobs.length,
       pending: state.pendingJobs,
@@ -397,20 +405,15 @@ app.http('generate-next', {
         return json(409, { done: true, error: 'Storyboard complete.', history: state.history }, request);
       }
 
-      let body = {};
-      try {
-        body = await request.json();
-      } catch (_) {
-        body = {};
-      }
+      const body = await requestJson(request);
 
-      const sceneNumber = state.cursor;
+      const frameNumber = state.cursor;
       state.cursor += 1;
 
       const job = {
         jobId: crypto.randomUUID(),
-        sceneNumber,
-        beatText: sceneBeatText(sceneNumber),
+        frameNumber,
+        beatText: frameBeatText(frameNumber),
         directionText: (body.direction || '').toString().trim(),
         status: 'queued',
         queuedAt: new Date().toISOString(),
@@ -425,8 +428,8 @@ app.http('generate-next', {
         job,
         revision: state.revision,
         pendingCount: state.pendingJobs.length,
-        nextSceneNumber: state.cursor,
-        nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',
+        nextFrameNumber: state.cursor,
+        nextDefaultDirection: state.cursor <= state.beats.length ? defaultFrameDirectionText(state.cursor) : '',
       }, request);
     } catch (err) {
       return json(500, { error: String(err.message || err) }, request);

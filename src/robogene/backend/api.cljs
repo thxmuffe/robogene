@@ -16,17 +16,22 @@
 (def default-reference-image (.join path assets-dir "robot_emperor_ep22_p01.png"))
 (def page1-reference-image (.join path assets-dir "28_page_01_openai_refined.png"))
 
+(defn read-file-or
+  ([file-path fallback]
+   (read-file-or file-path fallback nil))
+  ([file-path fallback encoding]
+   (try
+     (if (some? encoding)
+       (.readFileSync fs file-path encoding)
+       (.readFileSync fs file-path))
+     (catch :default _
+       fallback))))
+
 (defn read-text [file-path]
-  (try
-    (.readFileSync fs file-path "utf8")
-    (catch :default _
-      "")))
+  (read-file-or file-path "" "utf8"))
 
 (defn read-bytes [file-path]
-  (try
-    (.readFileSync fs file-path)
-    (catch :default _
-      nil)))
+  (read-file-or file-path nil))
 
 (defn parse-beats [markdown]
   (let [section (or (second (re-find #"(?is)##\\s*Page-by-page beats([\\s\\S]*?)(?:\\n##\\s|$)" markdown))
@@ -68,42 +73,42 @@
          :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
          :referenceImageBytes nil}))
 
-(defn scene-beat-text [scene-number]
-  (or (some (fn [b] (when (= (:index b) scene-number) (:text b))) (:beats @state))
-      (str "Scene " scene-number)))
+(defn frame-beat-text [frame-number]
+  (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) (:beats @state))
+      (str "Frame " frame-number)))
 
-(defn default-direction-text [scene-number]
-  (let [beat-text (scene-beat-text scene-number)
-        page-prompt (get-in @state [:visual :pagePrompts scene-number] "")]
-    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous scenes."]))))
+(defn default-frame-direction-text [frame-number]
+  (let [beat-text (frame-beat-text frame-number)
+        page-prompt (get-in @state [:visual :pagePrompts frame-number] "")]
+    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous frames."]))))
 
-(defn direction-text-for [beats visual scene-number]
-  (let [beat-text (or (some (fn [b] (when (= (:index b) scene-number) (:text b))) beats)
-                      (str "Scene " scene-number))
-        page-prompt (get-in visual [:pagePrompts scene-number] "")]
-    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous scenes."]))))
+(defn direction-text-for [beats visual frame-number]
+  (let [beat-text (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) beats)
+                      (str "Frame " frame-number))
+        page-prompt (get-in visual [:pagePrompts frame-number] "")]
+    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous frames."]))))
 
-(defn make-draft-frame [scene-number]
+(defn make-draft-frame [frame-number]
   {:frameId (new-uuid)
-   :sceneNumber scene-number
-   :beatText (scene-beat-text scene-number)
-   :suggestedDirection (default-direction-text scene-number)
+   :frameNumber frame-number
+   :beatText (frame-beat-text frame-number)
+   :suggestedDirection (default-frame-direction-text frame-number)
    :directionText ""
    :status "draft"
    :createdAt (.toISOString (js/Date.))})
 
-(defn next-scene-number [frames]
-  (inc (reduce max 0 (map :sceneNumber frames))))
+(defn next-frame-number [frames]
+  (inc (reduce max 0 (map :frameNumber frames))))
 
 (defn ensure-draft-frame! []
   (let [frames (:frames @state)
         missing-image? (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)]
     (when-not missing-image?
-      (let [scene-number (next-scene-number frames)]
+      (let [frame-number (next-frame-number frames)]
         (swap! state
                (fn [s]
                  (-> s
-                     (update :frames conj (make-draft-frame scene-number))
+                     (update :frames conj (make-draft-frame frame-number))
                      (update :revision inc))))))))
 
 (defn initialize-state! []
@@ -113,23 +118,23 @@
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
-        scene1-beat (or (some (fn [b] (when (= (:index b) 1) (:text b))) beats) "Scene 1")
-        scene1 {:frameId (new-uuid)
-                :sceneNumber 1
-                :beatText scene1-beat
+        frame1-beat (or (some (fn [b] (when (= (:index b) 1) (:text b))) beats) "Frame 1")
+        frame1 {:frameId (new-uuid)
+                :frameNumber 1
+                :beatText frame1-beat
                 :suggestedDirection (direction-text-for beats visual 1)
-                :directionText scene1-beat
+                :directionText frame1-beat
                 :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
                 :status (if page1-bytes "ready" "draft")
                 :reference true
                 :createdAt (.toISOString (js/Date.))}
         frames (if page1-bytes
-                 [scene1 (assoc (make-draft-frame 2)
+                 [frame1 (assoc (make-draft-frame 2)
                                :beatText (or (some (fn [b] (when (= (:index b) 2) (:text b))) beats)
-                                             "Scene 2")
+                                             "Frame 2")
                                :suggestedDirection (direction-text-for beats visual 2))]
                  [(assoc (make-draft-frame 1)
-                         :beatText scene1-beat
+                         :beatText frame1-beat
                          :suggestedDirection (direction-text-for beats visual 1))])]
     (reset! state
             {:storyId (new-uuid)
@@ -147,28 +152,28 @@
 (defn completed-frames []
   (->> (:frames @state)
        (filter (fn [f] (not (str/blank? (or (:imageDataUrl f) "")))))
-       (sort-by :sceneNumber)
+       (sort-by :frameNumber)
        vec))
 
 (defn continuity-window [limit]
   (let [tail (take-last limit (completed-frames))]
     (if (empty? tail)
-      "No previous scenes yet."
-      (str/join "\n" (map (fn [s] (str "Scene " (:sceneNumber s) ": " (:beatText s) ".")) tail)))))
+      "No previous frames yet."
+      (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:beatText s) ".")) tail)))))
 
 (defn build-prompt-for-frame [frame]
   (str/join
    "\n\n"
    (filter seq
-           ["Create ONE comic story image for the next scene."
+           ["Create ONE comic story image for the next frame."
             "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
             (get-in @state [:visual :globalStyle] "")
-            (str "Storyboard beat for this scene: " (:beatText frame))
-            (str "User direction for this scene:\n" (or (:directionText frame)
+            (str "Storyboard beat for this frame: " (:beatText frame))
+            (str "User direction for this frame:\n" (or (:directionText frame)
                                                          (:suggestedDirection frame)
                                                          ""))
             (str "Story continuity memory:\n" (continuity-window 6))
-            "Keep this image as the next chronological scene in the same story world."
+            "Keep this image as the next chronological frame in the same story world."
             "Avoid title/header text overlays."])))
 
 (defn image-data-url->bytes [data-url]
@@ -190,10 +195,10 @@
       (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
       (let [prompt (build-prompt-for-frame frame)
             ref-bytes (:referenceImageBytes @state)
-            prev-scene (last (completed-frames))
-            prev-bytes (image-data-url->bytes (:imageDataUrl prev-scene))
+            prev-frame (last (completed-frames))
+            prev-bytes (image-data-url->bytes (:imageDataUrl prev-frame))
             refs (vec (filter some? [{:bytes ref-bytes :name "character_ref.png"}
-                                     {:bytes prev-bytes :name "previous_scene.png"}]))
+                                     {:bytes prev-bytes :name "previous_frame.png"}]))
             request-promise
             (if (seq refs)
               (let [form (js/FormData.)]
@@ -254,7 +259,7 @@
          (fn [s]
            (let [failed {:jobId (new-uuid)
                          :frameId (:frameId frame)
-                         :sceneNumber (:sceneNumber frame)
+                         :frameNumber (:frameNumber frame)
                          :beatText (:beatText frame)
                          :error message
                          :createdAt (.toISOString (js/Date.))}]

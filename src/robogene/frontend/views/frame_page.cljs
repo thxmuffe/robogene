@@ -1,6 +1,6 @@
 (ns robogene.frontend.views.frame-page
   (:require [re-frame.core :as rf]
-            [robogene.frontend.views.frame-card :as frame-card]))
+            [robogene.frontend.views.frame-view :as frame-view]))
 
 (defn detail-controls [frames idx]
   (let [prev-frame (when (> idx 0) (nth frames (dec idx)))
@@ -14,27 +14,27 @@
       {:type "button"
        :disabled (nil? prev-frame)
        :on-click #(when prev-frame
-                    (rf/dispatch [:navigate-frame (:sceneNumber prev-frame)]))}
+                    (rf/dispatch [:navigate-frame (:frameNumber prev-frame)]))}
       "Previous"]
      [:button.btn
       {:type "button"
        :disabled (nil? next-frame)
        :on-click #(when next-frame
-                    (rf/dispatch [:navigate-frame (:sceneNumber next-frame)]))}
+                    (rf/dispatch [:navigate-frame (:frameNumber next-frame)]))}
       "Next"]]))
 
 (defn frame-page [route gallery frame-inputs]
-  (let [scene-number (:scene-number route)
-        ordered (->> gallery (sort-by :sceneNumber) vec)
+  (let [frame-number (:frame-number route)
+        ordered (->> gallery (sort-by :frameNumber) vec)
         idx (first (keep-indexed (fn [i f]
-                                   (when (= (:sceneNumber f) scene-number) i))
+                                   (when (= (:frameNumber f) frame-number) i))
                                  ordered))
         frame (when (some? idx) (nth ordered idx))]
     [:section
      (if frame
        [:div.detail-page
         [detail-controls ordered idx]
-        [frame-card/frame-card frame (get frame-inputs (:frameId frame) "") {:clickable? false}]
+        [frame-view/frame-view frame (get frame-inputs (:frameId frame) "") {:clickable? false}]
         [:div.detail-share
          [:label "Share URL"]
          [:input
