@@ -70,6 +70,7 @@ const state = {
   model: process.env.ROBOGENE_IMAGE_MODEL || 'gpt-image-1',
   referenceImageBytes: null,
 };
+const stateWaiters = [];
 
 function sceneBeatText(sceneNumber) {
   const beat = state.beats.find((b) => b.index === sceneNumber);
@@ -119,6 +120,36 @@ function initializeState() {
 }
 
 initializeState();
+
+function clearStateWaiter(waiter) {
+  const idx = stateWaiters.indexOf(waiter);
+  if (idx >= 0) stateWaiters.splice(idx, 1);
+}
+
+function notifyStateChanged() {
+  if (!stateWaiters.length) return;
+  const waiters = stateWaiters.splice(0, stateWaiters.length);
+  for (const waiter of waiters) {
+    clearTimeout(waiter.timerId);
+    waiter.resolve(json(200, { changed: true, revision: state.revision }, waiter.request));
+  }
+}
+
+function bumpRevision() {
+  state.revision += 1;
+  notifyStateChanged();
+}
+
+function parseIntQuery(request, name, fallback) {
+  try {
+    const raw = new URL(request.url).searchParams.get(name);
+    if (raw == null || raw === '') return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
 
 function continuityWindow(limit = 6) {
   const tail = state.history.slice(-limit);
@@ -225,7 +256,7 @@ async function processQueue() {
 
       job.status = 'processing';
       job.startedAt = new Date().toISOString();
-      state.revision += 1;
+      bumpRevision();
 
       try {
         const scene = await generateImage(job.sceneNumber, job.beatText, job.directionText);
@@ -233,7 +264,7 @@ async function processQueue() {
         state.history.sort((a, b) => a.sceneNumber - b.sceneNumber);
         job.status = 'completed';
         job.completedAt = new Date().toISOString();
-        state.revision += 1;
+        bumpRevision();
       } catch (err) {
         job.status = 'failed';
         job.error = String(err.message || err);
@@ -263,7 +294,7 @@ function cleanupPendingJobs() {
     const age = now - Date.parse(job.completedAt);
     return age < holdMs;
   });
-  if (state.pendingJobs.length !== before) state.revision += 1;
+  if (state.pendingJobs.length !== before) bumpRevision();
 }
 
 function allowedOrigins() {
@@ -327,6 +358,33 @@ app.http('state', {
   },
 });
 
+app.http('wait-state', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'wait-state',
+  handler: async (request) => {
+    cleanupPendingJobs();
+    const since = parseIntQuery(request, 'since', 0);
+    const timeoutMs = Math.max(2000, Math.min(30000, parseIntQuery(request, 'timeoutMs', 25000)));
+
+    if (state.revision > since) {
+      return json(200, { changed: true, revision: state.revision }, request);
+    }
+
+    return await new Promise((resolve) => {
+      const waiter = {
+        request,
+        resolve,
+        timerId: setTimeout(() => {
+          clearStateWaiter(waiter);
+          resolve(json(200, { changed: false, revision: state.revision }, request));
+        }, timeoutMs),
+      };
+      stateWaiters.push(waiter);
+    });
+  },
+});
+
 app.http('generate-next', {
   methods: ['POST'],
   authLevel: 'anonymous',
@@ -358,7 +416,7 @@ app.http('generate-next', {
       };
 
       state.pendingJobs.push(job);
-      state.revision += 1;
+      bumpRevision();
       processQueue();
 
       return json(202, {

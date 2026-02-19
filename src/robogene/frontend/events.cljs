@@ -18,6 +18,12 @@
 (defn state-url []
   (str (api-url "/api/state") "?t=" (.now js/Date)))
 
+(defn wait-state-url [since timeout-ms]
+  (str (api-url "/api/wait-state")
+       "?since=" since
+       "&timeoutMs=" timeout-ms
+       "&t=" (.now js/Date)))
+
 (defn response->map [res]
   (-> (.text res)
       (.then (fn [text]
@@ -141,6 +147,20 @@
                  (rf/dispatch [:state-failed (str (.-message e))]))))))
 
 (rf/reg-fx
+ :await-state-change
+ (fn [{:keys [since timeout-ms]}]
+   (-> (js/fetch (wait-state-url (or since 0) (or timeout-ms 25000))
+                 (clj->js {:cache "no-store"}))
+       (.then response->map)
+       (.then (fn [{:keys [ok status text]}]
+                (let [data (parse-json-safe text)]
+                  (if ok
+                    (rf/dispatch [:state-change-signal data])
+                    (rf/dispatch [:wait-failed (or (:error data) (str "HTTP " status))])))))
+       (.catch (fn [e]
+                 (rf/dispatch [:wait-failed (str (.-message e))]))))))
+
+(rf/reg-fx
  :post-generate-frame
  (fn [{:keys [frame-id direction]}]
    (-> (js/fetch (api-url "/api/generate-frame")
@@ -192,13 +212,32 @@
                            :gallery-items (to-gallery-items frames))
                     (assoc :frame-inputs (merged-frame-inputs (:frame-inputs db) frames)))]
      {:db new-db
-      :schedule-poll {:ms (if (pos? (or (:pendingCount state) 0)) 1200 3500)
-                      :dispatch [:fetch-state]}})))
+      :await-state-change {:since revision
+                           :timeout-ms 25000}})))
+
+(rf/reg-event-fx
+ :state-change-signal
+ (fn [{:keys [db]} [_ data]]
+   (let [latest (or (:last-rendered-revision db) 0)
+         changed? (or (:changed data) (> (or (:revision data) 0) latest))]
+     (if changed?
+       {:db db
+        :dispatch [:fetch-state]}
+       {:db db
+        :await-state-change {:since latest
+                             :timeout-ms 25000}}))))
+
+(rf/reg-event-fx
+ :wait-failed
+ (fn [{:keys [db]} [_ _msg]]
+   {:db db
+    :schedule-poll {:ms 5000
+                    :dispatch [:fetch-state]}}))
 
 (rf/reg-event-db
  :state-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Load failed: " msg))))
+  (assoc db :status (str "Load failed: " msg))))
 
 (rf/reg-event-db
  :frame-direction-changed
