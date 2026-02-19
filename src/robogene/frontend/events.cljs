@@ -7,6 +7,16 @@
 
 (def legacy-draft-id "__legacy_draft__")
 
+(defn parse-hash-route [hash]
+  (if-let [[_ episode scene] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
+    {:view :frame
+     :episode episode
+     :scene-number (js/Number scene)}
+    {:view :index}))
+
+(defn frame-hash [episode scene-number]
+  (str "#/episode/" episode "/frame/" scene-number))
+
 (defn api-base []
   (let [base (or (.-ROBOGENE_API_BASE js/window) "")]
     (str/replace base #"/+$" "")))
@@ -139,6 +149,11 @@
            (js/setTimeout #(rf/dispatch dispatch) ms))))
 
 (rf/reg-fx
+ :set-hash
+ (fn [hash]
+   (set! (.-hash js/location) hash)))
+
+(rf/reg-fx
  :fetch-state
  (fn [_]
    (-> (js/fetch (state-url) (clj->js {:cache "no-store"}))
@@ -192,7 +207,13 @@
  :initialize
  (fn [_ _]
    {:db db/default-db
-    :dispatch [:fetch-state]}))
+    :dispatch-n [[:hash-changed (.-hash js/location)]
+                 [:fetch-state]]}))
+
+(rf/reg-event-db
+ :hash-changed
+ (fn [db [_ hash]]
+   (assoc db :route (parse-hash-route hash))))
 
 (rf/reg-event-fx
  :fetch-state
@@ -276,3 +297,35 @@
  (fn [{:keys [db]} _]
    {:db db
     :dispatch [:fetch-state]}))
+
+(rf/reg-event-fx
+ :navigate-frame
+ (fn [{:keys [db]} [_ scene-number]]
+   (let [episode (or (get-in db [:latest-state :storyId]) "local")]
+     {:db db
+      :set-hash (frame-hash episode scene-number)})))
+
+(rf/reg-event-fx
+ :navigate-index
+ (fn [{:keys [db]} _]
+   {:db db
+    :set-hash ""}))
+
+(rf/reg-event-fx
+ :navigate-relative-frame
+ (fn [{:keys [db]} [_ delta]]
+   (let [route (:route db)]
+     (if (= :frame (:view route))
+       (let [ordered (->> (:gallery-items db) (sort-by :sceneNumber) vec)
+             current-scene (:scene-number route)
+             idx (first (keep-indexed (fn [i frame]
+                                        (when (= (:sceneNumber frame) current-scene) i))
+                                      ordered))
+             target-idx (when (number? idx) (+ idx delta))]
+         (if (and (number? target-idx)
+                  (<= 0 target-idx)
+                  (< target-idx (count ordered)))
+           {:db db
+            :dispatch [:navigate-frame (:sceneNumber (nth ordered target-idx))]}
+           {:db db}))
+       {:db db}))))

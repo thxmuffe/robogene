@@ -6,4 +6,5 @@
    :frame-inputs {}
    :last-rendered-revision nil
    :gallery-items []
-   :latest-state nil})
+   :latest-state nil
+   :route {:view :index}})

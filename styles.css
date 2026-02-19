@@ -94,6 +94,15 @@ h2 { margin: 24px 0 10px; }
   animation: rise 320ms ease;
 }
 
+.card-clickable {
+  cursor: pointer;
+}
+
+.card-clickable:focus-visible {
+  outline: 3px solid #20639b;
+  outline-offset: 2px;
+}
+
 .card img {
   width: 100%;
   display: block;
@@ -180,6 +189,36 @@ h2 { margin: 24px 0 10px; }
 
 .badge.queue {
   background: #697a8b;
+}
+
+.detail-page {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-page .card {
+  max-width: 840px;
+}
+
+.detail-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detail-share {
+  display: grid;
+  gap: 6px;
+  max-width: 840px;
+}
+
+.detail-share input {
+  width: 100%;
+  border: 2px solid #1f2a44;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fff8ed;
 }
 
 @keyframes rise {
