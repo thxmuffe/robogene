@@ -17,8 +17,19 @@ APP="$3"
 PLAN="${4:-${APP}-plan}"
 ST="${5:-${APP//-/}st}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "OPENAI_API_KEY env var is required."
+  for ENV_PATH in "$SCRIPT_DIR/../.env" "$SCRIPT_DIR/../../pop.env"; do
+    if [[ -f "$ENV_PATH" ]]; then
+      # shellcheck disable=SC1090
+      set -a; source "$ENV_PATH"; set +a
+      break
+    fi
+  done
+fi
+
+if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+  echo "OPENAI_API_KEY is required (not found in env, ../.env, or ../../pop.env)."
   exit 1
 fi
 

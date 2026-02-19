@@ -86,6 +86,15 @@ cd backend
 ./deploy_azure.sh robogene-rg eastus robogene-func-prod
 ```
 
+If your subscription has no Basic plan quota, use Consumption deploy:
+
+```bash
+export AZURE_CONFIG_DIR=/Users/penpa/Desktop/PDFs/robogene/.azure
+export OPENAI_API_KEY="<your_key>"
+cd backend
+./deploy_azure_consumption.sh robogene-rg eastus robogene-func-prod
+```
+
 ## Notes
 - This backend stores story state in-memory per function instance.
 - Generated images are returned as `scene.imageDataUrl` (base64) for portability.
