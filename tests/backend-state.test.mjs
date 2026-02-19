@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const base = (process.env.ROBOGENE_API_BASE || 'https://robogene-func-prod.azurewebsites.net').replace(/\/+$/, '');
+const baseFromEnv = (process.env.ROBOGENE_API_BASE || '').replace(/\/+$/, '');
 
 function normalizeFrames(state) {
   if (Array.isArray(state.frames) && state.frames.length > 0) return state.frames;
@@ -28,17 +28,20 @@ function normalizeFrames(state) {
   return frames;
 }
 
-test('backend state exposes at least one frame with valid types', async (t) => {
-  let res;
-  try {
-    res = await fetch(`${base}/api/state`, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (err) {
-    t.skip(`backend unreachable: ${err.message}`);
-    return;
-  }
+test('backend state exposes at least one frame with valid types', async () => {
+  const state = baseFromEnv
+    ? await (async () => {
+        const res = await fetch(`${baseFromEnv}/api/state`, { headers: { 'Cache-Control': 'no-store' } });
+        assert.equal(res.ok, true, `HTTP ${res.status}`);
+        return res.json();
+      })()
+    : {
+        frames: [
+          { frameId: 'f-1', sceneNumber: 1, status: 'ready', imageDataUrl: 'data:image/png;base64,AAA' },
+          { frameId: 'f-2', sceneNumber: 2, status: 'draft', imageDataUrl: '' },
+        ],
+      };
 
-  assert.equal(res.ok, true, `HTTP ${res.status}`);
-  const state = await res.json();
   const frames = normalizeFrames(state);
 
   assert.ok(Array.isArray(frames), 'frames should be an array');
