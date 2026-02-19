@@ -1,5 +1,6 @@
 (ns robogene.frontend.events.handlers
   (:require [re-frame.core :as rf]
+            [clojure.string :as str]
             [robogene.frontend.db :as db]
             [robogene.frontend.events.effects]
             [robogene.frontend.events.model :as model]))
@@ -31,7 +32,19 @@
                      :status (model/status-line state frames)
                      :last-rendered-revision (:revision state)
                      :gallery-items frames)
-              (assoc :frame-inputs (model/merged-frame-inputs (:frame-inputs db) frames)))})))
+              (assoc :frame-inputs
+                     (reduce (fn [acc frame]
+                               (let [frame-id (:frameId frame)
+                                     existing-val (get-in db [:frame-inputs frame-id])
+                                     backend-val (or (:directionText frame)
+                                                     (:suggestedDirection frame)
+                                                     "")]
+                                 (assoc acc frame-id
+                                        (if (str/blank? (or existing-val ""))
+                                          backend-val
+                                          existing-val))))
+                             {}
+                             frames)))})))
 
 (rf/reg-event-db
  :state-failed

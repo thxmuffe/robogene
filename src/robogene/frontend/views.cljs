@@ -11,7 +11,6 @@
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]
-      [:p "Shared episode timeline. Each frame is generated independently by frame ID."]
       [:div.status status]]
      (if (= :frame (:view route))
        [frame-page/frame-page route gallery frame-inputs]

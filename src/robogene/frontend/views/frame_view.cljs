@@ -8,16 +8,11 @@
 (defn frame-image [{:keys [imageDataUrl frameNumber]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
 
-(defn generic-frame-label? [{:keys [beatText frameNumber]}]
-  (let [beat (str/trim (or beatText ""))]
-    (or (str/blank? beat)
-        (= (str/lower-case beat) (str "frame " frameNumber)))))
-
 (defn frame-editor [{:keys [frameId status error]} frame-input]
   (let [busy? (or (= status "queued") (= status "processing"))]
     [:div.frame-editor
      [:textarea.direction-input
-      {:value frame-input
+      {:value (or frame-input "")
        :placeholder "Describe this frame..."
        :disabled busy?
        :on-click #(.stopPropagation %)
@@ -76,13 +71,9 @@
          [frame-image frame]
          [frame-placeholder frame])
        [frame-action-button frame]]
-      [:div.meta
+     [:div.meta
        [:strong
         (frame-label frame)
-        (when (:reference frame) [:span.badge "Reference"])
         (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
           [:span.badge.queue "In Queue"])]
-       (when-not (generic-frame-label? frame)
-         [:div (or (:beatText frame) "")])
-       (when-not has-image?
-         [frame-editor frame frame-input])]])))
+       [frame-editor frame frame-input]]])))

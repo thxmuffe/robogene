@@ -27,6 +27,19 @@ Build backend (ClojureScript -> Azure Functions JS):
 npm run build:backend
 ```
 
+Run tests:
+
+```bash
+# fast unit/integration tests
+npm test
+
+# backend end-to-end test (starts Azure Functions locally on a test port)
+npm run test:e2e
+
+# everything
+npm run test:all
+```
+
 For local dev watch:
 
 ```bash
@@ -78,6 +91,9 @@ func start
 API endpoints (local):
 - `GET http://localhost:7071/api/state`
 - `POST http://localhost:7071/api/generate-frame` with body `{ "frameId": "...", "direction": "..." }`
+
+Note:
+- `npm run build:backend` is defined in the repo root `package.json`, not in `backend/package.json`.
 
 ## Deploy backend to Azure Functions
 Use a writable Azure CLI config path in this workspace:
@@ -147,3 +163,10 @@ cd backend
 - Generated images are returned as `frame.imageDataUrl` (base64) for portability.
 - Deploy package must include `node_modules` for this zip-deploy flow.
 - `js/` build artifacts are not committed; CI builds them for Pages.
+
+## Troubleshooting
+- `500` with message like `... is not a function` on backend routes:
+  - Stop all `func start` processes.
+  - Rebuild backend from repo root: `npm run build:backend`.
+  - Restart backend from `backend/`: `npm run start -- --verbose`.
+- If `func start` fails because port `7071` is in use, stop the existing process first or pass `--port`.
