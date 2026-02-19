@@ -115,6 +115,15 @@ test('backend API e2e: state and generate-frame flow', { skip: !shouldRun || !ha
     const state = await stateRes.json();
     assert.ok(Array.isArray(state.frames), 'state.frames should be an array');
     assert.ok(state.frames.length >= 1, 'state should include at least one frame');
+    const frame1 = state.frames.find((f) => f.frameNumber === 1);
+    if (frame1) {
+      const description = String(frame1.description || '').trim().toLowerCase();
+      assert.notEqual(description, 'frame 1', 'frame 1 description should come from storyboard markdown, not generic fallback');
+    }
+    const frame2 = state.frames.find((f) => f.frameNumber === 2);
+    if (frame2) {
+      assert.ok(String(frame2.description || '').trim().length > 0, 'frame 2 description should be prefilled from backend prompts');
+    }
 
     const candidate = state.frames.find((f) => typeof f.frameId === 'string' && f.frameId.length > 0);
     assert.ok(candidate, 'state should include a frame with frameId');

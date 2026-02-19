@@ -5,11 +5,8 @@ function genericFrameText(text, frameNumber) {
   return (text || '').trim().toLowerCase() === `frame ${frameNumber}`;
 }
 
-function firstUsefulLine(text) {
-  return (text || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line && !line.toLowerCase().startsWith('keep continuity'));
+function genericFrameLabel(text) {
+  return /^frame\s+\d+$/i.test((text || '').trim());
 }
 
 function clampText(text, limit) {
@@ -19,41 +16,31 @@ function clampText(text, limit) {
 
 function frameDescription(frame) {
   const frameNumber = frame.frameNumber;
-  const beat = (frame.beatText || '').trim();
+  const description = (frame.description || '').trim();
   const preferred =
-    beat && !genericFrameText(beat, frameNumber)
-      ? beat
-      : firstUsefulLine(frame.directionText) ||
-        firstUsefulLine(frame.suggestedDirection) ||
-        'No description yet.';
+    description && !genericFrameText(description, frameNumber)
+      ? description
+      : 'No description yet.';
   return clampText(preferred, 180);
-}
-
-function defaultSuggestedDirection(beatText, pagePrompt) {
-  return [beatText, pagePrompt, 'Keep continuity with previous frames.'].filter(Boolean).join('\n');
 }
 
 function enrichFrame(state, frame) {
   const frameNumber = frame.frameNumber;
-  const beatFallback = (state.beats || []).find((b) => b.index === frameNumber)?.text?.trim();
+  const descriptionFallback = (state.descriptions || []).find((b) => b.index === frameNumber)?.text?.trim();
   const pagePrompt = state.visual?.pagePrompts?.[frameNumber]?.trim();
   const base = { ...frame, frameNumber };
-  const beat = (base.beatText || '').trim();
-  const withBeat =
-    !beat || genericFrameText(beat, frameNumber)
-      ? { ...base, beatText: beatFallback || beat }
-      : base;
-  const suggested = (withBeat.suggestedDirection || '').trim();
-  return !suggested
-    ? { ...withBeat, suggestedDirection: defaultSuggestedDirection(withBeat.beatText, pagePrompt) }
-    : withBeat;
+  const description = (base.description || '').trim();
+  return !description || genericFrameText(description, frameNumber)
+    ? { ...base, description: pagePrompt || descriptionFallback || description }
+    : base;
 }
 
 function hydrateFrameInputs(existing, frames) {
   return frames.reduce((acc, frame) => {
     const frameId = frame.frameId;
     const existingVal = existing[frameId];
-    const backendVal = frame.directionText || frame.suggestedDirection || '';
+    const description = (frame.description || '').trim();
+    const backendVal = (description && !genericFrameLabel(description) && description) || '';
     acc[frameId] = !(existingVal || '').trim() ? backendVal : existingVal;
     return acc;
   }, {});
@@ -90,23 +77,19 @@ test('frame description uses stable non-blank fallback and stays concise', () =>
       {
         frameId: 'a',
         frameNumber: 1,
-        beatText: 'Frame 1',
-        suggestedDirection: 'Robot enters hall.\nKeep continuity with previous frames.',
+        description: 'Frame 1',
         status: 'draft',
       },
       {
         frameId: 'b',
         frameNumber: 2,
-        beatText: '',
-        directionText: '',
-        suggestedDirection: '',
+        description: '',
         status: 'draft',
       },
       {
         frameId: 'c',
         frameNumber: 3,
-        beatText: 'Frame 3',
-        directionText: 'A'.repeat(240),
+        description: 'A'.repeat(240),
         status: 'draft',
       },
     ],
@@ -115,32 +98,43 @@ test('frame description uses stable non-blank fallback and stays concise', () =>
   const frames = normalizeFrames(state);
   const map = Object.fromEntries(frames.map((f) => [f.frameId, f]));
 
-  assert.equal(map.a.frameDescription, 'Robot enters hall.');
+  assert.equal(map.a.frameDescription, 'No description yet.');
   assert.equal(map.b.frameDescription, 'No description yet.');
   assert.ok(map.c.frameDescription.length <= 183);
 });
 
-test('frame inputs prefill from suggestion when current value is blank', () => {
+test('frame inputs prefill from description when current value is blank', () => {
   const frames = [
-    { frameId: 'f1', directionText: '', suggestedDirection: 'Suggested one' },
-    { frameId: 'f2', directionText: '', suggestedDirection: 'Suggested two' },
+    { frameId: 'f1', description: 'Prompt one' },
+    { frameId: 'f2', description: 'Prompt two' },
   ];
   const existing = { f1: '', f2: 'Custom text' };
 
   const merged = hydrateFrameInputs(existing, frames);
-  assert.equal(merged.f1, 'Suggested one');
+  assert.equal(merged.f1, 'Prompt one');
   assert.equal(merged.f2, 'Custom text');
 });
 
-test('normalize uses beats/prompts fallback for generic frame text', () => {
+test('frame input prefill avoids generic frame labels', () => {
+  const frames = [
+    {
+      frameId: 'f1',
+      description: 'Frame 1',
+    },
+  ];
+
+  const merged = hydrateFrameInputs({}, frames);
+  assert.equal(merged.f1, '');
+});
+
+test('normalize uses descriptions/prompts fallback for generic frame text', () => {
   const state = {
-    beats: [{ index: 1, text: 'Cold open with stuck traffic lights.' }],
-    visual: { pagePrompts: { 1: 'Yellow lights forever.' } },
-    frames: [{ frameId: 'f1', frameNumber: 1, beatText: 'Frame 1', suggestedDirection: '' }],
+    descriptions: [{ index: 1, text: 'Cold open with stuck traffic lights.' }],
+    visual: { pagePrompts: { 1: 'City intersection gridlock prompt.' } },
+    frames: [{ frameId: 'f1', frameNumber: 1, description: 'Frame 1' }],
   };
 
   const [frame] = normalizeFrames(state);
-  assert.equal(frame.beatText, 'Cold open with stuck traffic lights.');
-  assert.ok(frame.suggestedDirection.includes('Yellow lights forever.'));
-  assert.equal(frame.frameDescription, 'Cold open with stuck traffic lights.');
+  assert.equal(frame.description, 'City intersection gridlock prompt.');
+  assert.equal(frame.frameDescription, 'City intersection gridlock prompt.');
 });

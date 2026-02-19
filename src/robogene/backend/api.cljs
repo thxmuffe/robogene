@@ -33,25 +33,25 @@
 (defn read-bytes [file-path]
   (read-file-or file-path nil))
 
-(defn parse-beats [markdown]
-  (let [section (or (second (re-find #"(?is)##\\s*Page-by-page beats([\\s\\S]*?)(?:\\n##\\s|$)" markdown))
+(defn parse-descriptions [markdown]
+  (let [section (or (second (re-find #"(?is)##\s*Page-by-page descriptions([\s\S]*?)(?:\n##\s|$)" markdown))
                     markdown)]
     (->> (str/split-lines section)
          (keep (fn [line]
-                 (when-let [[_ idx txt] (re-find #"^\\s*(\\d+)\\.\\s+(.+)$" line)]
+                 (when-let [[_ idx txt] (re-find #"^\s*(\d+)\.\s+(.+)$" line)]
                    {:index (js/Number idx) :text (str/trim txt)})))
          (sort-by :index)
          vec)))
 
 (defn parse-visual-prompts [markdown]
-  (let [global-style (or (some-> (re-find #"(?is)##\\s*Global style prompt.*?\\n([^\\n]+)" markdown)
+  (let [global-style (or (some-> (re-find #"(?is)##\s*Global style prompt.*?\n([^\n]+)" markdown)
                                  second
                                  str/trim)
                          "")
-        section (or (second (re-find #"(?is)##\\s*Page prompts([\\s\\S]*)" markdown)) markdown)
+        section (or (second (re-find #"(?is)##\s*Page prompts([\s\S]*)" markdown)) markdown)
         page-prompts (->> (str/split-lines section)
                           (keep (fn [line]
-                                  (when-let [[_ idx txt] (re-find #"^\\s*(\\d+)\\.\\s+(.+)$" line)]
+                                  (when-let [[_ idx txt] (re-find #"^\s*(\d+)\.\s+(.+)$" line)]
                                     [(js/Number idx) (str/trim txt)])))
                           (into {}))]
     {:globalStyle global-style :pagePrompts page-prompts}))
@@ -64,7 +64,7 @@
 
 (defonce state
   (atom {:storyId nil
-         :beats []
+         :descriptions []
          :visual {:globalStyle "" :pagePrompts {}}
          :frames []
          :failedJobs []
@@ -73,29 +73,33 @@
          :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
          :referenceImageBytes nil}))
 
-(defn frame-beat-text [frame-number]
-  (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) (:beats @state))
+(defn frame-description-text [frame-number]
+  (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) (:descriptions @state))
       (str "Frame " frame-number)))
 
-(defn default-frame-direction-text [frame-number]
-  (let [beat-text (frame-beat-text frame-number)
+(defn default-frame-description [frame-number]
+  (let [description-text (frame-description-text frame-number)
         page-prompt (get-in @state [:visual :pagePrompts frame-number] "")]
-    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous frames."]))))
+    (or (some-> page-prompt str/trim not-empty)
+        (some-> description-text str/trim not-empty)
+        (str "Frame " frame-number))))
 
-(defn direction-text-for [beats visual frame-number]
-  (let [beat-text (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) beats)
-                      (str "Frame " frame-number))
+(defn description-for [descriptions visual frame-number]
+  (let [description-text (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) descriptions)
+                             (str "Frame " frame-number))
         page-prompt (get-in visual [:pagePrompts frame-number] "")]
-    (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous frames."]))))
+    (or (some-> page-prompt str/trim not-empty)
+        (some-> description-text str/trim not-empty)
+        (str "Frame " frame-number))))
 
 (defn make-draft-frame [frame-number]
+  (let [page-prompt (str/trim (or (get-in @state [:visual :pagePrompts frame-number]) ""))]
   {:frameId (new-uuid)
    :frameNumber frame-number
-   :beatText (frame-beat-text frame-number)
-   :suggestedDirection (default-frame-direction-text frame-number)
-   :directionText ""
+   :description (or (not-empty page-prompt)
+                    (default-frame-description frame-number))
    :status "draft"
-   :createdAt (.toISOString (js/Date.))})
+   :createdAt (.toISOString (js/Date.))}))
 
 (defn next-frame-number [frames]
   (inc (reduce max 0 (map :frameNumber frames))))
@@ -114,31 +118,25 @@
 (defn initialize-state! []
   (let [storyboard-text (read-text default-storyboard)
         prompts-text (read-text default-prompts)
-        beats (parse-beats storyboard-text)
+        descriptions (parse-descriptions storyboard-text)
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
-        frame1-beat (or (some (fn [b] (when (= (:index b) 1) (:text b))) beats) "Frame 1")
         frame1 {:frameId (new-uuid)
                 :frameNumber 1
-                :beatText frame1-beat
-                :suggestedDirection (direction-text-for beats visual 1)
-                :directionText frame1-beat
+                :description (description-for descriptions visual 1)
                 :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
                 :status (if page1-bytes "ready" "draft")
                 :reference true
                 :createdAt (.toISOString (js/Date.))}
         frames (if page1-bytes
                  [frame1 (assoc (make-draft-frame 2)
-                               :beatText (or (some (fn [b] (when (= (:index b) 2) (:text b))) beats)
-                                             "Frame 2")
-                               :suggestedDirection (direction-text-for beats visual 2))]
+                               :description (description-for descriptions visual 2))]
                  [(assoc (make-draft-frame 1)
-                         :beatText frame1-beat
-                         :suggestedDirection (direction-text-for beats visual 1))])]
+                         :description (description-for descriptions visual 1))])]
     (reset! state
             {:storyId (new-uuid)
-             :beats beats
+             :descriptions descriptions
              :visual visual
              :frames frames
              :failedJobs []
@@ -159,7 +157,7 @@
   (let [tail (take-last limit (completed-frames))]
     (if (empty? tail)
       "No previous frames yet."
-      (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:beatText s) ".")) tail)))))
+      (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:description s) ".")) tail)))))
 
 (defn build-prompt-for-frame [frame]
   (str/join
@@ -168,10 +166,8 @@
            ["Create ONE comic story image for the next frame."
             "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
             (get-in @state [:visual :globalStyle] "")
-            (str "Storyboard beat for this frame: " (:beatText frame))
-            (str "User direction for this frame:\n" (or (:directionText frame)
-                                                         (:suggestedDirection frame)
-                                                         ""))
+            (str "Storyboard description for this frame: " (:description frame))
+            (str "User direction for this frame:\n" (or (:description frame) ""))
             (str "Story continuity memory:\n" (continuity-window 6))
             "Keep this image as the next chronological frame in the same story world."
             "Avoid title/header text overlays."])))
@@ -260,7 +256,7 @@
            (let [failed {:jobId (new-uuid)
                          :frameId (:frameId frame)
                          :frameNumber (:frameNumber frame)
-                         :beatText (:beatText frame)
+                         :description (:description frame)
                          :error message
                          :createdAt (.toISOString (js/Date.))}]
              (-> s
@@ -395,9 +391,9 @@
                                                      (assoc-in [:frames idx :status] "queued")
                                                      (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
                                                      (assoc-in [:frames idx :error] nil)
-                                                     (assoc-in [:frames idx :directionText]
+                                                    (assoc-in [:frames idx :description]
                                                                (if (str/blank? (or direction ""))
-                                                                 (or (get-in s [:frames idx :suggestedDirection]) "")
+                                                                 (or (get-in s [:frames idx :description]) "")
                                                                  direction))
                                                      (update :revision inc))))
                                         (process-queue!)

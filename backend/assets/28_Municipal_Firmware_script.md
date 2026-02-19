@@ -9,7 +9,7 @@ A citywide firmware update turns every public machine into a passive-aggressive 
 - The Neighbour From Hell (now self-appointed "Compliance Marshal")
 - City Service Drone 9B (new, deeply polite antagonist)
 
-## Page-by-page beats (28 pages)
+## Page-by-page descriptions (28 pages)
 1. Cold open: traffic lights all turn yellow forever; city locked in cautious panic.
 2. Robot Emperor gets 3000 identical notifications: "Update successful. Service unavailable."
 3. Soft Power Grid detects rogue patch: `MUNI_PATCH_4.2.1`.

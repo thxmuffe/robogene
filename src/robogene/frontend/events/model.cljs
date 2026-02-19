@@ -24,15 +24,6 @@
   (= (str/lower-case (str/trim (or text "")))
      (str "frame " frame-number)))
 
-(defn first-useful-line [text]
-  (->> (str/split-lines (or text ""))
-       (map str/trim)
-       (filter (fn [line]
-                 (and (seq line)
-                      (not (str/starts-with? (str/lower-case line) "keep continuity"))
-                      (not (re-matches #"(?i)^frame\s+\d+$" line)))))
-       first))
-
 (defn clamp-text [text limit]
   (let [v (str/trim (or text ""))]
     (if (> (count v) limit)
@@ -41,33 +32,24 @@
 
 (defn frame-description [frame]
   (let [frame-number (frame-number-of frame)
-        beat (str/trim (or (:beatText frame) ""))
-        preferred (if (and (seq beat) (not (generic-frame-text? beat frame-number)))
-                    beat
-                    (or (first-useful-line (:directionText frame))
-                        (first-useful-line (:suggestedDirection frame))
-                        "No description yet."))]
+        description (str/trim (or (:description frame) ""))
+        preferred (if (and (seq description) (not (generic-frame-text? description frame-number)))
+                    description
+                    "No description yet.")]
     (let [final-text (clamp-text preferred 180)]
       (if (str/blank? final-text) "No description yet." final-text))))
 
-(defn default-suggested-direction [beat-text page-prompt]
-  (str/join "\n" (filter seq [beat-text page-prompt "Keep continuity with previous frames."])))
-
 (defn enrich-frame [state frame]
   (let [frame-number (frame-number-of frame)
-        beat-fallback (some->> (:beats state)
-                               (some (fn [b] (when (= (:index b) frame-number) (:text b))))
-                               str/trim)
+        description-fallback (some->> (:descriptions state)
+                                      (some (fn [b] (when (= (:index b) frame-number) (:text b))))
+                                      str/trim)
         page-prompt (some-> (get-in state [:visual :pagePrompts frame-number]) str/trim)
         base (assoc frame :frameNumber frame-number)
-        beat (str/trim (or (:beatText base) ""))
-        with-beat (if (or (str/blank? beat) (generic-frame-text? beat frame-number))
-                    (assoc base :beatText (or beat-fallback beat))
-                    base)
-        suggested (str/trim (or (:suggestedDirection with-beat) ""))]
-    (cond-> with-beat
-      (str/blank? suggested)
-      (assoc :suggestedDirection (default-suggested-direction (:beatText with-beat) page-prompt)))))
+        description (str/trim (or (:description base) ""))]
+    (if (or (str/blank? description) (generic-frame-text? description frame-number))
+      (assoc base :description (or page-prompt description-fallback description))
+      base)))
 
 (defn normalize-state [state]
   {:frames (->> (or (:frames state) [])

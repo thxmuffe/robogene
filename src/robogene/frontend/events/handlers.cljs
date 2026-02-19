@@ -5,6 +5,9 @@
             [robogene.frontend.events.effects]
             [robogene.frontend.events.model :as model]))
 
+(defn generic-frame-label? [text]
+  (boolean (re-matches #"(?i)^frame\s+\d+$" (str/trim (or text "")))))
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -36,8 +39,10 @@
                      (reduce (fn [acc frame]
                                (let [frame-id (:frameId frame)
                                      existing-val (get-in db [:frame-inputs frame-id])
-                                     backend-val (or (:directionText frame)
-                                                     (:suggestedDirection frame)
+                                     description (str/trim (or (:description frame) ""))
+                                     backend-val (or (when (and (seq description)
+                                                                (not (generic-frame-label? description)))
+                                                       description)
                                                      "")]
                                  (assoc acc frame-id
                                         (if (str/blank? (or existing-val ""))
