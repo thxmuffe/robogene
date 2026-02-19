@@ -229,7 +229,7 @@
                              b64 (when first-item (gobj/get first-item "b64_json"))]
                          (if (not b64)
                            (throw (js/Error. (str "Unexpected OpenAI response: " (.stringify js/JSON body))))
-                           (str "data:image/png;base64," b64))))))))))
+                           (str "data:image/png;base64," b64)))))))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
@@ -337,20 +337,6 @@
        :jsonBody (clj->js data)
        :headers (cors-headers request)})
 
-(defn state-response [request]
-  (ensure-draft-frame!)
-  (let [snapshot @state
-        frames (:frames snapshot)
-        pending-count (active-queue-count frames)]
-    (json-response 200
-                   {:storyId (:storyId snapshot)
-                    :revision (:revision snapshot)
-                    :processing (:processing snapshot)
-                    :pendingCount pending-count
-                    :frames frames
-                    :failed (:failedJobs snapshot)}
-                   request)))
-
 (defn request-json [request]
   (-> (.json request)
       (.catch (fn [_] #js {}))))
@@ -360,60 +346,68 @@
                          (when (= (:frameId frame) frame-id) idx))
                        frames)))
 
-(defn queue-frame-response [request]
-  (-> (request-json request)
-      (.then
-       (fn [body]
-         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
-               direction (some-> (gobj/get body "direction") str str/trim)]
-           (if (str/blank? frame-id)
-             (json-response 400 {:error "Missing frameId."} request)
-             (let [snapshot @state
-                   frames (:frames snapshot)
-                   idx (find-frame-index frames frame-id)]
-               (cond
-                 (nil? idx)
-                 (json-response 404 {:error "Frame not found."} request)
-
-                 (or (= "queued" (:status (get frames idx)))
-                     (= "processing" (:status (get frames idx))))
-                 (json-response 409 {:error "Frame already in queue."} request)
-
-                 :else
-                 (do
-                   (swap! state
-                          (fn [s]
-                            (-> s
-                                (assoc-in [:frames idx :status] "queued")
-                                (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
-                                (assoc-in [:frames idx :error] nil)
-                                (assoc-in [:frames idx :directionText]
-                                          (if (str/blank? (or direction ""))
-                                            (or (get-in s [:frames idx :suggestedDirection]) "")
-                                            direction))
-                                (update :revision inc))))
-                   (process-queue!)
-                   (let [post @state]
-                     (json-response 202
-                                    {:accepted true
-                                     :frame (get (:frames post) idx)
-                                     :revision (:revision post)
-                                     :pendingCount (active-queue-count (:frames post))}
-                                    request))))))))))))
-
 (.http app "get-state"
        #js {:methods #js ["GET"]
             :authLevel "anonymous"
             :route "state"
             :handler (fn [request]
-                       (state-response request))})
+                       (ensure-draft-frame!)
+                       (let [snapshot @state
+                             frames (:frames snapshot)
+                             pending-count (active-queue-count frames)]
+                         (json-response 200
+                                        {:storyId (:storyId snapshot)
+                                         :revision (:revision snapshot)
+                                         :processing (:processing snapshot)
+                                         :pendingCount pending-count
+                                         :frames frames
+                                         :failed (:failedJobs snapshot)}
+                                        request)))})
 
 (.http app "post-generate-frame"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "generate-frame"
             :handler (fn [request]
-                       (queue-frame-response request))})
+                       (-> (request-json request)
+                           (.then
+                            (fn [body]
+                              (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+                                    direction (some-> (gobj/get body "direction") str str/trim)]
+                                (if (str/blank? frame-id)
+                                  (json-response 400 {:error "Missing frameId."} request)
+                                  (let [snapshot @state
+                                        frames (:frames snapshot)
+                                        idx (find-frame-index frames frame-id)]
+                                    (cond
+                                      (nil? idx)
+                                      (json-response 404 {:error "Frame not found."} request)
+
+                                      (or (= "queued" (:status (get frames idx)))
+                                          (= "processing" (:status (get frames idx))))
+                                      (json-response 409 {:error "Frame already in queue."} request)
+
+                                      :else
+                                      (do
+                                        (swap! state
+                                               (fn [s]
+                                                 (-> s
+                                                     (assoc-in [:frames idx :status] "queued")
+                                                     (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
+                                                     (assoc-in [:frames idx :error] nil)
+                                                     (assoc-in [:frames idx :directionText]
+                                                               (if (str/blank? (or direction ""))
+                                                                 (or (get-in s [:frames idx :suggestedDirection]) "")
+                                                                 direction))
+                                                     (update :revision inc))))
+                                        (process-queue!)
+                                        (let [post @state]
+                                          (json-response 202
+                                                         {:accepted true
+                                                          :frame (get (:frames post) idx)
+                                                          :revision (:revision post)
+                                                          :pendingCount (active-queue-count (:frames post))}
+                                                         request)))))))))))})
 
 (.http app "options-preflight"
        #js {:methods #js ["OPTIONS"]
