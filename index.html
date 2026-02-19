@@ -10,26 +10,11 @@
 <body>
   <div class="bg-shape bg-a"></div>
   <div class="bg-shape bg-b"></div>
-
-  <main class="app">
-    <header class="hero">
-      <h1>RoboGene</h1>
-      <p>Episode timeline with shared queue and story memory.</p>
-      <label for="directionInput" class="dir-label">Scene Direction (editable)</label>
-      <textarea id="directionInput" class="direction-input" placeholder="Loading default scene direction..."></textarea>
-      <button id="nextBtn" class="btn btn-primary">Generate Next</button>
-      <div id="status" class="status">Loading existing frames...</div>
-    </header>
-
-    <section>
-      <h2>Gallery (Most Recent First)</h2>
-      <div id="gallery" class="gallery"></div>
-    </section>
-  </main>
+  <div id="app"></div>
 
   <script>
     window.ROBOGENE_API_BASE = "https://robogene-func-prod.azurewebsites.net";
   </script>
-  <script src="./app.js"></script>
+  <script src="./js/main.js"></script>
 </body>
 </html>

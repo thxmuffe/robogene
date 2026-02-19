@@ -2,8 +2,28 @@
 
 Interactive story-to-image app.
 
-- Frontend is static at repo root: `index.html`, `app.js`, `styles.css`
+- Frontend is ClojureScript + Re-frame/Reagent.
+- Frontend sources: `src/robogene/frontend/`
+- Frontend build output: `js/main.js`
 - Backend is Azure Functions app in `backend/`
+
+## Frontend build
+Prereqs:
+- Node 20+
+- Java + Clojure CLI (needed by `shadow-cljs`)
+
+From repo root:
+
+```bash
+npm install
+npm run build
+```
+
+For local dev watch:
+
+```bash
+npm run watch
+```
 
 ## Frontend host (GitHub Pages)
 Set backend origin in `index.html`:

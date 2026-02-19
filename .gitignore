@@ -8,6 +8,13 @@ pop.env
 
 # Node
 node_modules/
+.shadow-cljs/
+.cpcache/
+.clj-cache/
+.clojure/
+.m2/
+.npm/
+npm-debug.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
