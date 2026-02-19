@@ -19,6 +19,11 @@ function apiUrl(path) {
   return `${API_BASE}${path}`;
 }
 
+function apiStateUrl() {
+  const sep = API_BASE.includes('?') ? '&' : '?';
+  return `${apiUrl('/api/state')}${sep}t=${Date.now()}`;
+}
+
 async function readJsonSafe(res) {
   const raw = await res.text();
   try {
@@ -75,13 +80,13 @@ function renderFromState(state) {
     setStatus(`Next scene: ${state.nextSceneNumber}/${state.totalScenes}${queueText}`);
   }
 
-  if (!directionDirty) {
+  if (!directionDirty || !el.directionInput.value.trim()) {
     el.directionInput.value = state.nextDefaultDirection || '';
   }
 }
 
 async function loadState() {
-  const res = await fetch(apiUrl('/api/state'));
+  const res = await fetch(apiStateUrl(), { cache: 'no-store' });
   const data = await readJsonSafe(res);
   if (!res.ok) {
     setStatus(`Load failed: ${data.error || 'Unknown error'}`);
@@ -102,6 +107,7 @@ async function generateNext() {
     const res = await fetch(apiUrl('/api/generate-next'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify({ direction }),
     });
     const data = await readJsonSafe(res);
@@ -124,10 +130,21 @@ async function generateNext() {
 }
 
 function startPolling() {
-  if (pollHandle) clearInterval(pollHandle);
-  pollHandle = setInterval(() => {
-    loadState().catch((err) => setStatus(`Load failed: ${err.message}`));
-  }, 4000);
+  if (pollHandle) clearTimeout(pollHandle);
+
+  const tick = async () => {
+    try {
+      await loadState();
+    } catch (err) {
+      setStatus(`Load failed: ${err.message}`);
+    } finally {
+      const fast = latestState && latestState.pendingCount > 0;
+      const delay = fast ? 1200 : 3500;
+      pollHandle = setTimeout(tick, delay);
+    }
+  };
+
+  tick();
 }
 
 el.directionInput.addEventListener('input', () => {
@@ -141,3 +158,13 @@ el.nextBtn.addEventListener('click', () => {
 loadState()
   .then(() => startPolling())
   .catch((err) => setStatus(`Load failed: ${err.message}`));
+
+window.addEventListener('focus', () => {
+  loadState().catch((err) => setStatus(`Load failed: ${err.message}`));
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loadState().catch((err) => setStatus(`Load failed: ${err.message}`));
+  }
+});

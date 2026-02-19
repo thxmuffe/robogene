@@ -11,6 +11,7 @@ body {
   color: var(--ink);
   background: radial-gradient(circle at 20% 20%, #ffe8c2 0%, #ffd9a8 35%, #ffc58b 60%, #ffb06f 100%);
   min-height: 100vh;
+  isolation: isolate;
 }
 
 .bg-shape {
@@ -19,6 +20,7 @@ body {
   filter: blur(30px);
   opacity: 0.35;
   pointer-events: none;
+  z-index: 0;
 }
 .bg-a { width: 360px; height: 360px; background: #3caea3; top: -100px; right: 8%; }
 .bg-b { width: 420px; height: 420px; background: #20639b; bottom: -150px; left: -100px; }
@@ -27,6 +29,8 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  position: relative;
+  z-index: 1;
 }
 
 .hero h1 {
