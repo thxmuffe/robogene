@@ -88,9 +88,12 @@
           frames (vec (concat ready pending))
           frames-with-draft (if (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)
                               frames
-                              (conj frames (legacy-draft-frame state frames)))]
+                              (conj frames (legacy-draft-frame state frames)))
+          ensured (if (seq frames-with-draft)
+                    frames-with-draft
+                    [(legacy-draft-frame state [])])]
       {:backend-mode :legacy
-       :frames frames-with-draft})))
+       :frames ensured})))
 
 (defn to-gallery-items [frames]
   (->> frames
@@ -186,8 +189,8 @@
                     (assoc :latest-state state
                            :backend-mode backend-mode
                            :status (status-line state frames)
-                           :last-rendered-revision revision)
-                    (cond-> changed? (assoc :gallery-items (to-gallery-items frames)))
+                           :last-rendered-revision revision
+                           :gallery-items (to-gallery-items frames))
                     (assoc :frame-inputs (merged-frame-inputs (:frame-inputs db) frames)))]
      {:db new-db
       :schedule-poll {:ms (if (pos? (or (:pendingCount state) 0)) 1200 3500)
