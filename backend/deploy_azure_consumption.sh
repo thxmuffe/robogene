@@ -76,12 +76,13 @@ fi
 az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
   OPENAI_API_KEY="$OPENAI_API_KEY" \
   ROBOGENE_IMAGE_MODEL="gpt-image-1" \
-  ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io" >/dev/null
+  ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io" \
+  AzureWebJobsFeatureFlags="EnableWorkerIndexing" >/dev/null
 
 cd "$SCRIPT_DIR"
 npm install >/dev/null
 rm -f deploy.zip
-zip -rq deploy.zip . -x '*.git*' 'local.settings.json' 'node_modules/*'
+zip -rq deploy.zip . -x '*.git*' 'local.settings.json'
 az functionapp deployment source config-zip -g "$RG" -n "$APP" --src deploy.zip >/dev/null
 
 echo ""

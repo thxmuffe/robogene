@@ -41,11 +41,12 @@ az functionapp create -g "$RG" -p "$PLAN" -n "$APP" -s "$ST" --runtime node --ru
 az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
   OPENAI_API_KEY="$OPENAI_API_KEY" \
   ROBOGENE_IMAGE_MODEL="gpt-image-1" \
-  ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io" >/dev/null
+  ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io" \
+  AzureWebJobsFeatureFlags="EnableWorkerIndexing" >/dev/null
 
 npm install
 rm -f deploy.zip
-zip -r deploy.zip . -x '*.git*' 'local.settings.json' 'node_modules/*' >/dev/null
+zip -r deploy.zip . -x '*.git*' 'local.settings.json' >/dev/null
 az functionapp deployment source config-zip -g "$RG" -n "$APP" --src deploy.zip >/dev/null
 
 echo "Deployed backend: https://${APP}.azurewebsites.net"

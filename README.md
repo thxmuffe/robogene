@@ -98,3 +98,4 @@ cd backend
 ## Notes
 - This backend stores story state in-memory per function instance.
 - Generated images are returned as `scene.imageDataUrl` (base64) for portability.
+- Deploy package must include `node_modules` for this zip-deploy flow.
