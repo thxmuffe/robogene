@@ -66,6 +66,7 @@ const state = {
   failedJobs: [],
   cursor: 2,
   processing: false,
+  revision: 0,
   model: process.env.ROBOGENE_IMAGE_MODEL || 'gpt-image-1',
   referenceImageBytes: null,
 };
@@ -99,6 +100,7 @@ function initializeState() {
   state.failedJobs = [];
   state.cursor = 2;
   state.processing = false;
+  state.revision = 1;
 
   const ref = readBytes(DEFAULT_REFERENCE_IMAGE);
   if (ref) state.referenceImageBytes = ref;
@@ -223,27 +225,45 @@ async function processQueue() {
 
       job.status = 'processing';
       job.startedAt = new Date().toISOString();
+      state.revision += 1;
 
       try {
         const scene = await generateImage(job.sceneNumber, job.beatText, job.directionText);
         state.history.push(scene);
         state.history.sort((a, b) => a.sceneNumber - b.sceneNumber);
+        job.status = 'completed';
+        job.completedAt = new Date().toISOString();
+        state.revision += 1;
       } catch (err) {
+        job.status = 'failed';
+        job.error = String(err.message || err);
+        job.completedAt = new Date().toISOString();
         state.failedJobs.unshift({
           jobId: job.jobId,
           sceneNumber: job.sceneNumber,
           beatText: job.beatText,
-          error: String(err.message || err),
+          error: job.error,
           createdAt: new Date().toISOString(),
         });
         state.failedJobs = state.failedJobs.slice(0, 20);
-      } finally {
-        state.pendingJobs = state.pendingJobs.filter((j) => j.jobId !== job.jobId);
       }
     }
   } finally {
     state.processing = false;
   }
+}
+
+function cleanupPendingJobs() {
+  const now = Date.now();
+  const holdMs = 9000;
+  const before = state.pendingJobs.length;
+  state.pendingJobs = state.pendingJobs.filter((job) => {
+    if (job.status === 'queued' || job.status === 'processing') return true;
+    if (!job.completedAt) return true;
+    const age = now - Date.parse(job.completedAt);
+    return age < holdMs;
+  });
+  if (state.pendingJobs.length !== before) state.revision += 1;
 }
 
 function corsHeaders() {
@@ -271,8 +291,10 @@ app.http('state', {
   authLevel: 'anonymous',
   route: 'state',
   handler: async () => {
+    cleanupPendingJobs();
     return json(200, {
       storyId: state.storyId,
+      revision: state.revision,
       cursor: state.cursor,
       totalScenes: state.beats.length,
       nextSceneNumber: state.cursor,
@@ -292,6 +314,7 @@ app.http('generate-next', {
   route: 'generate-next',
   handler: async (request) => {
     try {
+      cleanupPendingJobs();
       if (state.cursor > state.beats.length) {
         return json(409, { done: true, error: 'Storyboard complete.', history: state.history });
       }
@@ -316,11 +339,13 @@ app.http('generate-next', {
       };
 
       state.pendingJobs.push(job);
+      state.revision += 1;
       processQueue();
 
       return json(202, {
         accepted: true,
         job,
+        revision: state.revision,
         pendingCount: state.pendingJobs.length,
         nextSceneNumber: state.cursor,
         nextDefaultDirection: state.cursor <= state.beats.length ? defaultDirectionText(state.cursor) : '',

@@ -9,6 +9,7 @@ const API_BASE = (window.ROBOGENE_API_BASE || '').replace(/\/+$/, '');
 let latestState = null;
 let directionDirty = false;
 let pollHandle = null;
+let lastRenderedRevision = null;
 
 function setStatus(text) {
   el.status.textContent = text;
@@ -50,7 +51,10 @@ function cardHTML(scene) {
 }
 
 function pendingCardHTML(job) {
-  const label = job.status === 'processing' ? 'Processing' : 'Queued';
+  let label = 'Queued';
+  if (job.status === 'processing') label = 'Processing';
+  if (job.status === 'completed') label = 'Finalizing';
+  if (job.status === 'failed') label = 'Failed';
   return `
     <article class="card pending" data-job="${job.jobId}">
       <div class="placeholder-img">
@@ -70,7 +74,11 @@ function renderFromState(state) {
   const pending = (state.pending || []).map((p) => ({ type: 'pending', sceneNumber: p.sceneNumber, html: pendingCardHTML(p) }));
 
   const combined = [...history, ...pending].sort((a, b) => b.sceneNumber - a.sceneNumber);
-  el.gallery.innerHTML = combined.map((x) => x.html).join('');
+  const changed = state.revision !== lastRenderedRevision;
+  if (changed) {
+    el.gallery.innerHTML = combined.map((x) => x.html).join('');
+    lastRenderedRevision = state.revision;
+  }
 
   const pendingCount = state.pendingCount || 0;
   if (state.cursor > state.totalScenes && pendingCount === 0) {
@@ -95,6 +103,9 @@ async function loadState() {
 
   latestState = data;
   renderFromState(data);
+  if (!el.directionInput.value.trim() && data.nextDefaultDirection) {
+    el.directionInput.value = data.nextDefaultDirection;
+  }
   return data;
 }
 
