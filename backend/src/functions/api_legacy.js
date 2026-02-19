@@ -277,6 +277,7 @@ async function processQueue() {
           createdAt: new Date().toISOString(),
         });
         state.failedJobs = state.failedJobs.slice(0, 20);
+        bumpRevision();
       }
     }
   } finally {

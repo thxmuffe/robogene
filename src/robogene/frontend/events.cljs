@@ -68,6 +68,7 @@
    :beatText (:beatText p)
    :suggestedDirection (:directionText p)
    :directionText (:directionText p)
+   :error (:error p)
    :status (or (:status p) "queued")
    :createdAt (:queuedAt p)})
 
@@ -247,15 +248,12 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id]]
-   (let [direction (get-in db [:frame-inputs frame-id] "")
+  (let [direction (get-in db [:frame-inputs frame-id] "")
          legacy? (= :legacy (:backend-mode db))]
      (cond
-       (and legacy? (= frame-id legacy-draft-id))
+       legacy?
        {:db (assoc db :status "Queueing frame...")
         :post-generate-next direction}
-
-       legacy?
-       {:db (assoc db :status "This legacy frame is already fixed; generate from the draft card.")}
 
        :else
        {:db (assoc db :status "Queueing frame...")

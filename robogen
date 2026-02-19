@@ -3,6 +3,24 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+ENV_FILE=""
+if [ -f "./pop.env" ]; then
+  ENV_FILE="./pop.env"
+elif [ -f "../pop.env" ]; then
+  ENV_FILE="../pop.env"
+fi
+
+if [ -n "${ENV_FILE}" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${ENV_FILE}"
+  set +a
+fi
+
+if [ -z "${OPENAI_API_KEY:-}" ]; then
+  echo "Warning: OPENAI_API_KEY is not set in environment."
+fi
+
 if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   echo "Port 7071 is already in use. Stop that process first."
   lsof -iTCP:7071 -sTCP:LISTEN -n -P || true
