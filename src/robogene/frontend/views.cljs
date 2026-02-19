@@ -10,8 +10,7 @@
         route @(rf/subscribe [:route])]
     [:main.app
      [:header.hero
-      [:h1 "RoboGene"]
-      [:div.status status]]
+      [:h1 "RoboGene"]]
      (if (= :frame (:view route))
        [frame-page/frame-page route gallery frame-inputs]
        [gallery-page/main-gallery-page gallery frame-inputs])]))
