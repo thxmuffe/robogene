@@ -401,25 +401,21 @@
                                      :pendingCount (active-queue-count (:frames post))}
                                     request))))))))))))
 
-(.http app "state"
+(.http app "get-state"
        #js {:methods #js ["GET"]
             :authLevel "anonymous"
             :route "state"
-            :handler state-response})
+            :handler (fn [request]
+                       (state-response request))})
 
-(.http app "generate-frame"
+(.http app "post-generate-frame"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "generate-frame"
-            :handler queue-frame-response})
+            :handler (fn [request]
+                       (queue-frame-response request))})
 
-(.http app "generate-next"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "generate-next"
-            :handler queue-frame-response})
-
-(.http app "preflight"
+(.http app "options-preflight"
        #js {:methods #js ["OPTIONS"]
             :authLevel "anonymous"
             :route "{*path}"

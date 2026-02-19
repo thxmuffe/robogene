@@ -25,10 +25,9 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [backend-mode frames]} (model/normalize-state state)]
+   (let [{:keys [frames]} (model/normalize-state state)]
      {:db (-> db
               (assoc :latest-state state
-                     :backend-mode backend-mode
                      :status (model/status-line state frames)
                      :last-rendered-revision (:revision state)
                      :gallery-items frames)
@@ -47,13 +46,9 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id]]
-   (let [direction (get-in db [:frame-inputs frame-id] "")]
-     (if (= :legacy (:backend-mode db))
-       {:db (assoc db :status "Queueing frame...")
-        :post-generate-next direction}
-       {:db (assoc db :status "Queueing frame...")
-        :post-generate-frame {:frame-id frame-id
-                              :direction direction}}))))
+   {:db (assoc db :status "Queueing frame...")
+    :post-generate-frame {:frame-id frame-id
+                          :direction (get-in db [:frame-inputs frame-id] "")}}))
 
 (rf/reg-event-fx
  :generate-accepted

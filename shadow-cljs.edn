@@ -9,4 +9,5 @@
   :backend {:target :node-script
             :main robogene.backend.api/init!
             :output-to "backend/src/functions/api_compiled.js"
-            :compiler-options {:warnings-as-errors false}}}}
+            :compiler-options {:warnings-as-errors false
+                               :optimizations :simple}}}}

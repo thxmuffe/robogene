@@ -64,9 +64,4 @@
  :post-generate-frame
  (fn [{:keys [frame-id direction]}]
    (post-json "/api/generate-frame" {:frameId frame-id
-                                      :direction direction})))
-
-(rf/reg-fx
- :post-generate-next
- (fn [direction]
-   (post-json "/api/generate-next" {:direction direction})))
+                                     :direction direction})))
