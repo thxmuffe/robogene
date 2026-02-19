@@ -6,7 +6,8 @@
     "watch": "shadow-cljs watch app",
     "build": "shadow-cljs release app",
     "build:backend": "shadow-cljs release backend",
-    "build:all": "shadow-cljs release app backend"
+    "build:all": "shadow-cljs release app backend",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@azure/functions": "^4.11.2",

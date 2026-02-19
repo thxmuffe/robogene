@@ -71,7 +71,7 @@
         next-num (or (:nextSceneNumber state) (inc max-scene))]
     {:frameId legacy-draft-id
      :sceneNumber next-num
-     :beatText (if (str/blank? suggested) (str "Scene " next-num) suggested)
+     :beatText (str "Scene " next-num)
      :suggestedDirection suggested
      :directionText suggested
      :status "draft"
@@ -183,7 +183,6 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [revision (:revision state)
-         changed? (not= revision (:last-rendered-revision db))
          {:keys [backend-mode frames]} (frame-model state)
          new-db (-> db
                     (assoc :latest-state state
