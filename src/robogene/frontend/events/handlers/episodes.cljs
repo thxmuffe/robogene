@@ -35,8 +35,7 @@
                :new-episode-panel-open? false
                :show-episode-celebration? true
                :status "Episode created.")
-    :start-episode-celebration true
-    :dispatch [:fetch-state]}))
+    :start-episode-celebration true}))
 
 (rf/reg-event-db
  :add-episode-failed
