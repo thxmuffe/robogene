@@ -90,6 +90,43 @@
       (json-response 400 {:error missing-msg} request)
       (handler value))))
 
+(defn queueable-frame-outcome [frame-id]
+  (let [snapshot @story/state
+        frames (:frames snapshot)
+        idx (story/find-frame-index frames frame-id)]
+    (cond
+      (nil? idx)
+      {:ok false :status 404 :error "Frame not found."}
+
+      (or (= "queued" (:status (get frames idx)))
+          (= "processing" (:status (get frames idx))))
+      {:ok false :status 409 :error "Frame already in queue."}
+
+      :else
+      {:ok true :idx idx :frames frames})))
+
+(defn queue-frame! [idx direction]
+  (swap! story/state
+         (fn [s]
+           (-> s
+               (assoc-in [:frames idx :status] "queued")
+               (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
+               (assoc-in [:frames idx :error] nil)
+               (assoc-in [:frames idx :description]
+                         (if (str/blank? (or direction ""))
+                           (or (get-in s [:frames idx :description]) "")
+                           direction))
+               (update :revision inc)))))
+
+(defn queue-success-response [request idx]
+  (let [post @story/state]
+    (json-response 202
+                   {:accepted true
+                    :frame (get (:frames post) idx)
+                    :revision (:revision post)
+                    :pendingCount (story/active-queue-count (:frames post))}
+                   request)))
+
 (.http app "get-state"
        #js {:methods #js ["GET"]
             :authLevel "anonymous"
@@ -122,52 +159,27 @@
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "generate-frame"
-            :handler (with-error-handling
-                      "generate-frame"
-                      (fn [request]
-                        (-> (story/sync-state-from-storage!)
-                            (.then (fn [_] (request-json request)))
-                            (.then
-                             (fn [body]
-                               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
-                                     direction (some-> (gobj/get body "direction") str str/trim)]
-                                 (if (str/blank? frame-id)
-                                   (json-response 400 {:error "Missing frameId."} request)
-                                   (let [snapshot @story/state
-                                         frames (:frames snapshot)
-                                         idx (story/find-frame-index frames frame-id)]
-                                     (cond
-                                       (nil? idx)
-                                       (json-response 404 {:error "Frame not found."} request)
-
-                                       (or (= "queued" (:status (get frames idx)))
-                                           (= "processing" (:status (get frames idx))))
-                                       (json-response 409 {:error "Frame already in queue."} request)
-
-                                       :else
-                                       (do
-                                         (swap! story/state
-                                                (fn [s]
-                                                  (-> s
-                                                      (assoc-in [:frames idx :status] "queued")
-                                                      (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
-                                                      (assoc-in [:frames idx :error] nil)
-                                                      (assoc-in [:frames idx :description]
-                                                                (if (str/blank? (or direction ""))
-                                                                  (or (get-in s [:frames idx :description]) "")
-                                                                  direction))
-                                                      (update :revision inc))))
-                                         (-> (story/persist-state!)
-                                             (.then (fn [_]
-                                                      (story/emit-state-changed! "queued")
-                                                      (story/process-queue!)
-                                                      (let [post @story/state]
-                                                        (json-response 202
-                                                                       {:accepted true
-                                                                        :frame (get (:frames post) idx)
-                                                                        :revision (:revision post)
-                                                                        :pendingCount (story/active-queue-count (:frames post))}
-                                                                       request)))))))))))))))} )
+            :handler
+            (with-error-handling
+             "generate-frame"
+             (fn [request]
+               (with-synced-body
+                request
+                (fn [body]
+                  (with-required-string
+                   request body "frameId" "Missing frameId."
+                   (fn [frame-id]
+                     (let [direction (some-> (gobj/get body "direction") str str/trim)
+                           outcome (queueable-frame-outcome frame-id)]
+                       (if-not (:ok outcome)
+                         (json-response (:status outcome) {:error (:error outcome)} request)
+                         (do
+                           (queue-frame! (:idx outcome) direction)
+                           (-> (story/persist-state!)
+                               (.then (fn [_]
+                                        (story/emit-state-changed! "queued")
+                                        (story/process-queue!)
+                                        (queue-success-response request (:idx outcome))))))))))))))})
 
 (.http app "post-add-episode"
        #js {:methods #js ["POST"]
