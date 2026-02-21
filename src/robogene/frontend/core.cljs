@@ -7,6 +7,7 @@
             [robogene.frontend.views :as views]))
 
 (defonce root* (atom nil))
+(defonce initialized?* (atom false))
 
 (defn typing-target? [el]
   (let [tag (some-> el .-tagName str/lower-case)]
@@ -28,29 +29,31 @@
   (rf/dispatch [:fetch-state]))
 
 (defn ^:export init! []
-  (rf/dispatch-sync [:initialize])
-  (.addEventListener js/window "focus" #(rf/dispatch [:force-refresh]))
-  (.addEventListener js/window "hashchange"
-                     #(rf/dispatch [:hash-changed (.-hash js/location)]))
-  (.addEventListener js/window "keydown"
-                     (fn [e]
-                       (when-not (typing-target? (.-target e))
-                         (case (.-key e)
-                           "Escape" (rf/dispatch [:navigate-index])
-                           "ArrowLeft" (do
+  (when-not @initialized?*
+    (reset! initialized?* true)
+    (rf/dispatch-sync [:initialize])
+    (.addEventListener js/window "focus" #(rf/dispatch [:force-refresh]))
+    (.addEventListener js/window "hashchange"
+                       #(rf/dispatch [:hash-changed (.-hash js/location)]))
+    (.addEventListener js/window "keydown"
+                       (fn [e]
+                         (when-not (typing-target? (.-target e))
+                           (case (.-key e)
+                             "Escape" (rf/dispatch [:navigate-index])
+                             "ArrowLeft" (do
+                                           (.preventDefault e)
+                                           (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
+                             "ArrowRight" (do
+                                            (.preventDefault e)
+                                            (rf/dispatch [:keyboard-arrow "ArrowRight"]))
+                             "ArrowUp" (do
                                          (.preventDefault e)
-                                         (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
-                           "ArrowRight" (do
-                                          (.preventDefault e)
-                                          (rf/dispatch [:keyboard-arrow "ArrowRight"]))
-                           "ArrowUp" (do
-                                       (.preventDefault e)
-                                       (rf/dispatch [:keyboard-arrow "ArrowUp"]))
-                           "ArrowDown" (do
-                                         (.preventDefault e)
-                                         (rf/dispatch [:keyboard-arrow "ArrowDown"]))
-                           nil))))
-  (.addEventListener js/document "visibilitychange"
-                     #(when-not (.-hidden js/document)
-                        (rf/dispatch [:force-refresh])))
+                                         (rf/dispatch [:keyboard-arrow "ArrowUp"]))
+                             "ArrowDown" (do
+                                           (.preventDefault e)
+                                           (rf/dispatch [:keyboard-arrow "ArrowDown"]))
+                             nil))))
+    (.addEventListener js/document "visibilitychange"
+                       #(when-not (.-hidden js/document)
+                          (rf/dispatch [:force-refresh]))))
   (mount-root))

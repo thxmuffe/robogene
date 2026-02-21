@@ -2,10 +2,13 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [robogene.frontend.events.model :as model]
+            ["./fetch_coalescer.js" :as fetch-coalescer]
             ["@microsoft/signalr" :as signalr]))
 
 (defonce realtime-conn* (atom nil))
 (defonce realtime-connected?* (atom false))
+(defonce realtime-starting?* (atom false))
+(defonce realtime-epoch* (atom 0))
 (defonce fallback-poll-timer* (atom nil))
 (defonce fallback-poll-ms* (atom nil))
 ;; Legacy vars kept intentionally to clear intervals created by earlier builds
@@ -13,6 +16,7 @@
 (defonce state-poll-timer* (atom nil))
 (defonce state-poll-interval-ms* (atom nil))
 (defonce refresh-timer* (atom nil))
+(defonce coalesced-fetch-state!* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -124,14 +128,19 @@
                  (throw (js/Error. (str "Negotiate failed: HTTP " status))))))))
 
 (defn start-realtime! []
-  (when-not @realtime-conn*
+  (when (and (nil? @realtime-conn*)
+             (not @realtime-starting?*))
+    (reset! realtime-starting?* true)
+    (let [epoch (swap! realtime-epoch* inc)
+          current? (fn [] (= epoch @realtime-epoch*))]
     (-> (negotiate-realtime!)
         (.then (fn [info]
                  (if (true? (:disabled info))
                    (do
-                     (reset! realtime-connected?* false)
-                     (rf/dispatch [:set-fallback-polling :idle])
-                     (rf/dispatch [:fetch-state]))
+                     (when (current?)
+                       (reset! realtime-connected?* false)
+                       (rf/dispatch [:set-fallback-polling :idle])
+                       (rf/dispatch [:fetch-state])))
                    (let [url (or (:url info) (get info "url"))
                          access-token (or (:accessToken info) (get info "accessToken"))]
                       (when (str/blank? (or url ""))
@@ -143,36 +152,47 @@
                                      (.build))]
                         (.onreconnecting conn
                                          (fn [_]
-                                           (reset! realtime-connected?* false)))
+                                           (when (current?)
+                                             (reset! realtime-connected?* false))))
                         (.onclose conn
                                   (fn [_]
-                                    (reset! realtime-connected?* false)))
+                                    (when (current?)
+                                      (reset! realtime-connected?* false)
+                                      (reset! realtime-conn* nil))))
                         (.onreconnected conn
                                         (fn [_]
-                                          (reset! realtime-connected?* true)
-                                          (rf/dispatch [:set-fallback-polling :off])
-                                          (rf/dispatch [:fetch-state])))
+                                          (when (current?)
+                                            (reset! realtime-connected?* true)
+                                            (rf/dispatch [:set-fallback-polling :off]))))
                         (.on conn "stateChanged"
                              (fn [_]
-                               (rf/dispatch [:fetch-state])))
+                               (when (current?)
+                                 (reset! realtime-connected?* true)
+                                 (rf/dispatch [:set-fallback-polling :off])
+                                 (rf/dispatch [:fetch-state]))))
                         (-> (.start conn)
                             (.then (fn []
-                                     (reset! realtime-conn* conn)
-                                     (reset! realtime-connected?* true)
-                                     (rf/dispatch [:set-fallback-polling :off])
-                                     (rf/dispatch [:fetch-state])))
+                                     (when (current?)
+                                       (reset! realtime-conn* conn)
+                                       (reset! realtime-connected?* true)
+                                       (rf/dispatch [:set-fallback-polling :off]))))
                             (.catch (fn [err]
-                                      (reset! realtime-connected?* false)
-                                      (rf/dispatch [:set-fallback-polling :idle])
+                                      (when (current?)
+                                        (reset! realtime-connected?* false)
+                                        (reset! realtime-conn* nil)
+                                        (rf/dispatch [:set-fallback-polling :idle]))
                                       (js/console.warn
                                        (str "[robogene] SignalR start failed: "
                                             (or (.-message err) err)))))))))))
         (.catch (fn [err]
-                  (reset! realtime-connected?* false)
-                  (rf/dispatch [:set-fallback-polling :idle])
+                  (when (current?)
+                    (reset! realtime-connected?* false)
+                    (rf/dispatch [:set-fallback-polling :idle]))
                   (js/console.warn
                    (str "[robogene] SignalR negotiate failed: "
-                        (or (.-message err) err))))))))
+                        (or (.-message err) err)))))
+        (.finally (fn []
+                    (reset! realtime-starting?* false)))))))
 
 (defn stop-legacy-state-polling! []
   (when-let [timer-id @refresh-timer*]
@@ -226,11 +246,17 @@
 (rf/reg-fx
  :fetch-state
  (fn [_]
-   (request-json (state-url)
-                 {:cache "no-store"}
-                 :state-loaded
-                 :state-failed
-                 (fn [ok _] ok))))
+   (when-not @coalesced-fetch-state!*
+     (reset! coalesced-fetch-state!*
+             (.createCoalescedRunner
+              fetch-coalescer
+              (fn []
+                (request-json (state-url)
+                              {:cache "no-store"}
+                              :state-loaded
+                              :state-failed
+                              (fn [ok _] ok))))))
+   (@coalesced-fetch-state!*)))
 
 (rf/reg-fx
  :post-generate-frame
