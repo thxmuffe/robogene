@@ -106,6 +106,21 @@
       (json-response 400 {:error missing-msg} request)
       (handler value))))
 
+(defn with-synced-required-string [request field-key missing-msg handler]
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string request body field-key missing-msg handler))))
+
+(defn with-synced-required-string+body [request field-key missing-msg handler]
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string
+      request body field-key missing-msg
+      (fn [value]
+        (handler value body))))))
+
 (defn queueable-frame-outcome [frame-id]
   (let [snapshot @story/state
         frames (:frames snapshot)
@@ -166,23 +181,22 @@
                                 request))))))
 
 (defn handle-generate-frame [request]
-  (with-synced-body
+  (with-synced-required-string+body
    request
-   (fn [body]
-     (with-required-string
-      request body "frameId" "Missing frameId."
-      (fn [frame-id]
-        (let [direction (some-> (gobj/get body "direction") str str/trim)
-              outcome (queueable-frame-outcome frame-id)]
-          (if-not (:ok outcome)
-            (json-response (:status outcome) {:error (:error outcome)} request)
-            (do
-              (queue-frame! (:idx outcome) direction)
-              (-> (story/persist-state!)
-                  (.then (fn [_]
-                           (story/emit-state-changed! "queued")
-                           (story/process-queue!)
-                           (queue-success-response request (:idx outcome)))))))))))))
+   "frameId"
+   "Missing frameId."
+   (fn [frame-id body]
+     (let [direction (some-> (gobj/get body "direction") str str/trim)
+           outcome (queueable-frame-outcome frame-id)]
+       (if-not (:ok outcome)
+         (json-response (:status outcome) {:error (:error outcome)} request)
+         (do
+           (queue-frame! (:idx outcome) direction)
+           (-> (story/persist-state!)
+               (.then (fn [_]
+                        (story/emit-state-changed! "queued")
+                        (story/process-queue!)
+                        (queue-success-response request (:idx outcome)))))))))))
 
 (defn emit-persist-and-respond [request emit-reason status response-body]
   (story/emit-state-changed! emit-reason)
@@ -211,7 +225,7 @@
           (with-revision {:created true
                           :episode episode
                           :frame frame}
-                         snapshot))))))
+                         snapshot)))))))
 
 (defn run-mutation [request {:keys [mutate! default-error status-by-message on-success]}]
   (let [outcome (try
@@ -226,26 +240,25 @@
       (:response outcome))))
 
 (defn handle-add-frame [request]
-  (with-synced-body
+  (with-synced-required-string
    request
-   (fn [body]
-     (with-required-string
-      request body "episodeId" "Missing episodeId."
-      (fn [episode-id]
-        (run-mutation
-         request
-         {:mutate! #(story/add-frame! episode-id)
-          :default-error "Episode not found."
-          :status-by-message {"Episode not found." 404}
-          :on-success (fn [frame]
-                         (emit-persist-and-respond
-                          request
-                          "frame-added"
-                          201
-                          (fn [snapshot]
-                            (with-revision {:created true
-                                            :frame frame}
-                                           snapshot))))})))))))
+   "episodeId"
+   "Missing episodeId."
+   (fn [episode-id]
+     (run-mutation
+      request
+      {:mutate! #(story/add-frame! episode-id)
+       :default-error "Episode not found."
+       :status-by-message {"Episode not found." 404}
+       :on-success (fn [frame]
+                     (emit-persist-and-respond
+                      request
+                      "frame-added"
+                      201
+                      (fn [snapshot]
+                        (with-revision {:created true
+                                        :frame frame}
+                                       snapshot))))}))))
 
 (defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
   (run-mutation
@@ -263,13 +276,12 @@
 
 (defn make-frame-mutation-handler [mutation-options]
   (fn [request]
-    (with-synced-body
+    (with-synced-required-string
      request
-     (fn [body]
-       (with-required-string
-        request body "frameId" "Missing frameId."
-        (fn [frame-id]
-          (run-frame-mutation request frame-id mutation-options)))))))
+     "frameId"
+     "Missing frameId."
+     (fn [frame-id]
+       (run-frame-mutation request frame-id mutation-options)))))
 
 (def handle-delete-frame
   (make-frame-mutation-handler
