@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@azure/functions": "^4.11.2",
+    "@microsoft/signalr": "^9.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

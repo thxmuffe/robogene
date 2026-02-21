@@ -1,10 +1,10 @@
 (ns robogene.frontend.events.effects
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [robogene.frontend.events.model :as model]))
+            [robogene.frontend.events.model :as model]
+            ["@microsoft/signalr" :as signalr]))
 
-(defonce state-poll-timer* (atom nil))
-(defonce state-poll-interval-ms* (atom nil))
+(defonce realtime-conn* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -48,38 +48,49 @@
  (fn [hash]
    (set! (.-hash js/location) hash)))
 
+(defn negotiate-realtime! []
+  (-> (js/fetch (api-url "/api/negotiate")
+                #js {:method "POST"
+                     :cache "no-store"})
+      (.then response->map)
+      (.then (fn [{:keys [ok status text]}]
+               (if ok
+                 (model/parse-json-safe text)
+                 (throw (js/Error. (str "Negotiate failed: HTTP " status))))))))
+
+(defn start-realtime! []
+  (when-not @realtime-conn*
+    (-> (negotiate-realtime!)
+        (.then (fn [info]
+                 (let [url (or (:url info) (get info "url"))
+                       access-token (or (:accessToken info) (get info "accessToken"))]
+                   (when (str/blank? (or url ""))
+                     (throw (js/Error. "Negotiate response missing SignalR URL.")))
+                   (let [builder (signalr/HubConnectionBuilder.)
+                         conn (-> builder
+                                  (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
+                                  (.withAutomaticReconnect)
+                                  (.build))]
+                     (.on conn "stateChanged"
+                          (fn [_]
+                            (rf/dispatch [:fetch-state])))
+                     (-> (.start conn)
+                         (.then (fn []
+                                  (reset! realtime-conn* conn)
+                                  (rf/dispatch [:fetch-state])))
+                         (.catch (fn [err]
+                                   (js/console.warn
+                                    (str "[robogene] SignalR start failed: "
+                                         (or (.-message err) err))))))))))
+        (.catch (fn [err]
+                  (js/console.warn
+                   (str "[robogene] SignalR negotiate failed: "
+                        (or (.-message err) err))))))))
+
 (rf/reg-fx
- :dispatch-after
- (fn [entries]
-   (doseq [{:keys [ms event]} (if (sequential? entries) entries [entries])]
-     (js/setTimeout #(rf/dispatch event) ms))))
-
-(defn stop-state-polling! []
-  (when-let [timer-id @state-poll-timer*]
-    (js/clearInterval timer-id)
-    (reset! state-poll-timer* nil)
-    (reset! state-poll-interval-ms* nil)))
-
-(defn start-state-polling! [interval-ms]
-  (when (or (nil? @state-poll-timer*)
-            (not= @state-poll-interval-ms* interval-ms))
-    (stop-state-polling!)
-    (reset! state-poll-interval-ms* interval-ms)
-    (reset! state-poll-timer*
-            (js/setInterval
-             (fn []
-               (when-not (.-hidden js/document)
-                 (rf/dispatch [:fetch-state])))
-             interval-ms))))
-
-(rf/reg-fx
- :set-state-polling
- (fn [mode]
-   (case mode
-     :active (start-state-polling! 2500)
-     :idle (start-state-polling! 15000)
-     :off (stop-state-polling!)
-     nil)))
+ :realtime-connect
+ (fn [_]
+   (start-realtime!)))
 
 (rf/reg-fx
  :fetch-state

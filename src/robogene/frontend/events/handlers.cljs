@@ -9,7 +9,7 @@
  :initialize
  (fn [_ _]
    {:db db/default-db
-    :set-state-polling :idle
+    :realtime-connect true
     :dispatch-n [[:hash-changed (.-hash js/location)]
                  [:fetch-state]]}))
 
@@ -27,10 +27,7 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [frames]} (model/normalize-state state)
-         pending (or (:pendingCount state) 0)
-         processing? (true? (:processing state))
-         poll-mode (if (or processing? (pos? pending)) :active :idle)]
+   (let [{:keys [frames]} (model/normalize-state state)]
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state frames)
@@ -51,8 +48,7 @@
                                          backend-val
                                           existing-val))))
                              {}
-                             frames)))
-      :set-state-polling poll-mode})))
+                             frames)))})))
 
 (rf/reg-event-db
  :state-failed
@@ -75,11 +71,7 @@
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
    {:db db
-    :set-state-polling :active
-    :dispatch [:fetch-state]
-    :dispatch-after [{:ms 1000 :event [:fetch-state]}
-                     {:ms 2500 :event [:fetch-state]}
-                     {:ms 5000 :event [:fetch-state]}]}))
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :generate-failed

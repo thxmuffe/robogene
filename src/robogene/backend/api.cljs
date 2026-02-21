@@ -7,6 +7,7 @@
             ["path" :as path]))
 
 (def app (.-app azf))
+(def realtime (js/require "./realtime"))
 
 (def backend-root (.resolve path js/__dirname ".." ".."))
 (def assets-dir (.join path backend-root "assets"))
@@ -276,6 +277,20 @@
 (defn colorize [ansi-color text]
   (str ansi-color text ansi-reset))
 
+(defn emit-state-changed! [reason]
+  (let [snapshot @state
+        payload (clj->js {:reason reason
+                          :storyId (:storyId snapshot)
+                          :revision (:revision snapshot)
+                          :processing (:processing snapshot)
+                          :pendingCount (active-queue-count (:frames snapshot))
+                          :emittedAt (.toISOString (js/Date.))})]
+    (-> (.publishStateUpdate realtime payload)
+        (.catch (fn [err]
+                  (js/console.warn
+                   (str "[robogene] SignalR publish skipped/failed: "
+                        (or (some-> err .-message) err))))))))
+
 (defn log-generation-start! [frame queue-size]
   (js/console.log
    (colorize ansi-white
@@ -305,22 +320,28 @@
   (let [snapshot @state
         idx (next-queued-frame-index (:frames snapshot))]
     (if (nil? idx)
-      (swap! state assoc :processing false)
+      (let [previously-processing? (:processing snapshot)]
+        (swap! state assoc :processing false)
+        (when previously-processing?
+          (emit-state-changed! "queue-idle")))
       (let [frame (get (:frames snapshot) idx)
             started-ms (.now js/Date)
             queue-size (active-queue-count (:frames snapshot))]
         (log-generation-start! frame queue-size)
         (mark-frame-processing! idx)
+        (emit-state-changed! "processing")
         (-> (generate-image! frame)
             (.then (fn [image-data-url]
                      (log-generation-success! frame (- (.now js/Date) started-ms))
                      (mark-frame-ready! idx image-data-url)
                      (ensure-draft-frame!)
+                     (emit-state-changed! "ready")
                      (process-step!)
                      nil))
             (.catch (fn [err]
                       (log-generation-failed! frame (- (.now js/Date) started-ms) err)
                       (mark-frame-failed! idx frame (str (or (.-message err) err)))
+                      (emit-state-changed! "failed")
                       (process-step!)
                       nil)))))))
 
@@ -459,9 +480,9 @@
 
                                        :else
                                        (do
-                                         (swap! state
-                                                (fn [s]
-                                                  (-> s
+                                       (swap! state
+                                               (fn [s]
+                                                 (-> s
                                                       (assoc-in [:frames idx :status] "queued")
                                                       (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
                                                       (assoc-in [:frames idx :error] nil)
@@ -470,6 +491,7 @@
                                                                   (or (get-in s [:frames idx :description]) "")
                                                                   direction))
                                                       (update :revision inc))))
+                                         (emit-state-changed! "queued")
                                          (process-queue!)
                                          (let [post @state]
                                            (json-response 202
