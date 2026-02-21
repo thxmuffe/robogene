@@ -21,30 +21,24 @@
                 :status (.-status res)
                 :text text}))))
 
-(defn handle-state-response [{:keys [ok status text]}]
+(defn dispatch-api-response
+  [{:keys [ok status text]} success-event fail-event ok?]
   (let [data (model/parse-json-safe text)]
-    (if ok
-      (rf/dispatch [:state-loaded data])
-      (rf/dispatch [:state-failed (or (:error data)
-                                      (str "HTTP " status))]))))
+    (if (ok? ok status)
+      (rf/dispatch [success-event data])
+      (rf/dispatch [fail-event (or (:error data)
+                                   (str "HTTP " status))]))))
 
-(defn handle-generate-response [{:keys [ok status text]}]
-  (let [data (model/parse-json-safe text)]
-    (if (or ok (= 409 status))
-      (rf/dispatch [:generate-accepted data])
-      (rf/dispatch [:generate-failed (or (:error data)
-                                         (str "HTTP " status))]))))
+(defn dispatch-network-error [fail-event e]
+  (rf/dispatch [fail-event (str (.-message e))]))
 
-(defn post-json [path body]
-  (-> (js/fetch (api-url path)
-                (clj->js {:method "POST"
-                          :cache "no-store"
-                          :headers {"Content-Type" "application/json"}
-                          :body (.stringify js/JSON (clj->js body))}))
+(defn request-json
+  [url request-options success-event fail-event ok?]
+  (-> (js/fetch url
+                (clj->js request-options))
       (.then response->map)
-      (.then handle-generate-response)
-      (.catch (fn [e]
-                (rf/dispatch [:generate-failed (str (.-message e))])))))
+      (.then #(dispatch-api-response % success-event fail-event ok?))
+      (.catch #(dispatch-network-error fail-event %))))
 
 (rf/reg-fx
  :set-hash
@@ -54,14 +48,22 @@
 (rf/reg-fx
  :fetch-state
  (fn [_]
-   (-> (js/fetch (state-url) (clj->js {:cache "no-store"}))
-       (.then response->map)
-       (.then handle-state-response)
-       (.catch (fn [e]
-                 (rf/dispatch [:state-failed (str (.-message e))]))))))
+   (request-json (state-url)
+                 {:cache "no-store"}
+                 :state-loaded
+                 :state-failed
+                 (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-generate-frame
  (fn [{:keys [frame-id direction]}]
-   (post-json "/api/generate-frame" {:frameId frame-id
-                                     :direction direction})))
+   (request-json (api-url "/api/generate-frame")
+                 {:method "POST"
+                  :cache "no-store"
+                  :headers {"Content-Type" "application/json"}
+                  :body (.stringify js/JSON
+                                    (clj->js {:frameId frame-id
+                                              :direction direction}))}
+                 :generate-accepted
+                 :generate-failed
+                 (fn [ok status] (or ok (= 409 status))))))
