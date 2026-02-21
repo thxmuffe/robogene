@@ -1,12 +1,11 @@
 (ns robogene.backend.story
   (:require [clojure.string :as str]
             [goog.object :as gobj]
+            [robogene.backend.realtime :as realtime]
             [robogene.backend.azure-store :as store]
             ["crypto" :as crypto]
             ["fs" :as fs]
             ["path" :as path]))
-
-(def realtime (js/require "./realtime"))
 
 (def backend-root (.resolve path js/__dirname ".." ".."))
 (def assets-dir (.join path backend-root "assets"))
@@ -467,7 +466,7 @@
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
                           :emittedAt (.toISOString (js/Date.))})]
-    (-> (.publishStateUpdate realtime payload)
+    (-> (realtime/publish-state-update! payload)
         (.catch (fn [err]
                   (js/console.warn
                    (str "[robogene] SignalR publish skipped/failed: "

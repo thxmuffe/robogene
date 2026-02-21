@@ -16,7 +16,8 @@
 (rf/reg-event-fx
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db db}))
+   {:db db
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :generate-failed
@@ -32,7 +33,8 @@
 (rf/reg-event-fx
  :add-frame-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame added.")}))
+   {:db (assoc db :status "Frame added.")
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :add-frame-failed
@@ -48,7 +50,8 @@
 (rf/reg-event-fx
  :delete-frame-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame deleted.")}))
+   {:db (assoc db :status "Frame deleted.")
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :delete-frame-failed
@@ -64,7 +67,8 @@
 (rf/reg-event-fx
  :clear-frame-image-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame image removed.")}))
+   {:db (assoc db :status "Frame image removed.")
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :clear-frame-image-failed

@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [robogene.backend.story :as story]
+            [robogene.backend.realtime :as realtime]
             ["@azure/functions" :as azf]))
 
 (def app (.-app azf))
@@ -288,6 +289,20 @@
             :authLevel "anonymous"
             :route "clear-frame-image"
             :handler (with-error-handling "clear-frame-image" handle-clear-frame-image)})
+
+(.http app "signalr-negotiate"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "negotiate"
+            :handler (with-error-handling
+                      "negotiate"
+                      (fn [request]
+                        (if-let [info (realtime/create-client-connection-info)]
+                          (json-response 200 info request)
+                          (json-response 200
+                                         {:disabled true
+                                          :reason (str "Missing " realtime/connection-setting-name)}
+                                         request))))})
 
 (.http app "options-preflight"
        #js {:methods #js ["OPTIONS"]
