@@ -16,8 +16,7 @@
 (rf/reg-event-fx
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db db
-    :set-fallback-polling :active}))
+   {:db db}))
 
 (rf/reg-event-db
  :generate-failed

@@ -9,21 +9,11 @@
 (defonce realtime-connected?* (atom false))
 (defonce realtime-starting?* (atom false))
 (defonce realtime-epoch* (atom 0))
-(defonce fallback-poll-timer* (atom nil))
-(defonce fallback-poll-ms* (atom nil))
-;; Legacy vars kept intentionally to clear intervals created by earlier builds
-;; during shadow-cljs hot-reload sessions.
-(defonce state-poll-timer* (atom nil))
-(defonce state-poll-interval-ms* (atom nil))
-(defonce refresh-timer* (atom nil))
 (defonce coalesced-fetch-state!* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
       (str/replace #"/+$" "")))
-
-(defn fallback-polling-enabled? []
-  (= "1" (some-> (.-ROBOGENE_ENABLE_FALLBACK_POLLING js/window) str)))
 
 (defn api-url [path]
   (let [base (api-base)]
@@ -139,7 +129,6 @@
                    (do
                      (when (current?)
                        (reset! realtime-connected?* false)
-                       (rf/dispatch [:set-fallback-polling :idle])
                        (rf/dispatch [:fetch-state])))
                    (let [url (or (:url info) (get info "url"))
                          access-token (or (:accessToken info) (get info "accessToken"))]
@@ -163,85 +152,40 @@
                                         (fn [_]
                                           (when (current?)
                                             (reset! realtime-connected?* true)
-                                            (rf/dispatch [:set-fallback-polling :off]))))
+                                            (rf/dispatch [:fetch-state]))))
                         (.on conn "stateChanged"
                              (fn [_]
                                (when (current?)
                                  (reset! realtime-connected?* true)
-                                 (rf/dispatch [:set-fallback-polling :off])
                                  (rf/dispatch [:fetch-state]))))
                         (-> (.start conn)
                             (.then (fn []
                                      (when (current?)
                                        (reset! realtime-conn* conn)
                                        (reset! realtime-connected?* true)
-                                       (rf/dispatch [:set-fallback-polling :off]))))
+                                       (rf/dispatch [:fetch-state]))))
                             (.catch (fn [err]
                                       (when (current?)
                                         (reset! realtime-connected?* false)
                                         (reset! realtime-conn* nil)
-                                        (rf/dispatch [:set-fallback-polling :idle]))
+                                        (rf/dispatch [:fetch-state]))
                                       (js/console.warn
                                        (str "[robogene] SignalR start failed: "
                                             (or (.-message err) err)))))))))))
         (.catch (fn [err]
                   (when (current?)
                     (reset! realtime-connected?* false)
-                    (rf/dispatch [:set-fallback-polling :idle]))
+                    (rf/dispatch [:fetch-state]))
                   (js/console.warn
                    (str "[robogene] SignalR negotiate failed: "
                         (or (.-message err) err)))))
         (.finally (fn []
                     (reset! realtime-starting?* false)))))))
 
-(defn stop-legacy-state-polling! []
-  (when-let [timer-id @refresh-timer*]
-    (js/clearInterval timer-id)
-    (reset! refresh-timer* nil))
-  (when-let [timer-id @state-poll-timer*]
-    (js/clearInterval timer-id)
-    (reset! state-poll-timer* nil)
-    (reset! state-poll-interval-ms* nil)))
-
 (rf/reg-fx
  :realtime-connect
  (fn [_]
-   (stop-legacy-state-polling!)
    (start-realtime!)))
-
-(defn stop-fallback-polling! []
-  (when-let [timer-id @fallback-poll-timer*]
-    (js/clearInterval timer-id)
-    (reset! fallback-poll-timer* nil)
-    (reset! fallback-poll-ms* nil)))
-
-(defn start-fallback-polling! [interval-ms]
-  (when (or (nil? @fallback-poll-timer*)
-            (not= @fallback-poll-ms* interval-ms))
-    (stop-fallback-polling!)
-    (reset! fallback-poll-ms* interval-ms)
-    (reset! fallback-poll-timer*
-            (js/setInterval
-             (fn []
-               (when-not (.-hidden js/document)
-                 (rf/dispatch [:fetch-state])))
-             interval-ms))))
-
-(rf/reg-fx
- :set-fallback-polling
- (fn [mode]
-   (if @realtime-connected?*
-     (stop-fallback-polling!)
-     (case mode
-       ;; Always allow active polling while generation is in progress so
-       ;; completion updates arrive when SignalR is unavailable.
-       :active (start-fallback-polling! 3000)
-       ;; Idle polling remains opt-in to avoid constant background noise.
-       :idle (if (fallback-polling-enabled?)
-               (start-fallback-polling! 15000)
-               (stop-fallback-polling!))
-       :off (stop-fallback-polling!)
-       nil))))
 
 (rf/reg-fx
  :fetch-state
