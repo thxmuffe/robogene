@@ -16,6 +16,7 @@
        :placeholder "Describe this frame..."
        :disabled busy?
        :on-click #(.stopPropagation %)
+       :on-key-down #(.stopPropagation %)
        :on-change #(rf/dispatch [:frame-direction-changed frameId (.. % -target -value)])}]
      (when (and (seq (or error "")) (not busy?))
        [:div.error-line (str "Last error: " error)])]))
