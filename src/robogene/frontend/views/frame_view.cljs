@@ -1,9 +1,7 @@
 (ns robogene.frontend.views.frame-view
   (:require [re-frame.core :as rf]
-            [clojure.string :as str]))
-
-(defn frame-label [frame]
-  (str "Frame " (:frameNumber frame)))
+            [clojure.string :as str]
+            ["sweetalert2" :as Swal]))
 
 (defn frame-image [{:keys [imageDataUrl frameNumber]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
@@ -40,8 +38,8 @@
         has-image? (not (str/blank? (or imageDataUrl "")))
         button-label (if busy?
                        (if (= status "processing") "Generating..." "Queued...")
-                       (if has-image? "Regenerate" "Generate"))]
-    [:button.btn.btn-primary.overlay-generate-btn
+                       (if has-image? "Regenerate Frame" "Generate Frame"))]
+    [:button.btn.btn-primary
      {:type "button"
       :disabled busy?
       :on-mouse-down #(.stopPropagation %)
@@ -49,6 +47,35 @@
                   (.stopPropagation e)
                   (rf/dispatch [:generate-frame frameId]))}
      button-label]))
+
+(defn frame-actions-menu [frame]
+  (let [{:keys [frameId frameNumber status]} frame
+        busy? (or (= status "queued") (= status "processing"))]
+    [:details.frame-danger-zone
+     {:on-click #(.stopPropagation %)}
+     [:summary "Frame actions"]
+     [:div.frame-actions
+      [frame-action-button frame]
+      [:button.btn.btn-danger
+       {:type "button"
+        :disabled busy?
+        :title (if busy?
+                 "Cannot delete while queued/processing"
+                 "Delete this frame")
+        :on-click (fn [e]
+                    (.stopPropagation e)
+                    (-> (.fire Swal
+                              (clj->js {:title (str "Delete Frame " frameNumber "?")
+                                        :text "This cannot be undone."
+                                        :icon "warning"
+                                        :showCancelButton true
+                                        :confirmButtonText "Delete"
+                                        :cancelButtonText "Cancel"
+                                        :confirmButtonColor "#8b1e3f"}))
+                        (.then (fn [result]
+                                 (when (true? (.-isConfirmed result))
+                                   (rf/dispatch [:delete-frame frameId]))))))}
+       "Delete Frame"]]]))
 
 (defn frame-view
   ([frame frame-input]
@@ -70,11 +97,9 @@
       [:div.media-shell
        (if has-image?
          [frame-image frame]
-         [frame-placeholder frame])
-       [frame-action-button frame]]
-     [:div.meta
-       [:strong
-        (frame-label frame)
-        (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
-          [:span.badge.queue "In Queue"])]
-       [frame-editor frame frame-input]]])))
+         [frame-placeholder frame])]
+      [:div.meta
+       (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+         [:span.badge.queue "In Queue"])
+       [frame-editor frame frame-input]
+       [frame-actions-menu frame]]])))

@@ -166,3 +166,20 @@
  :add-frame-failed
  (fn [db [_ msg]]
    (assoc db :status (str "Add frame failed: " msg))))
+
+(rf/reg-event-fx
+ :delete-frame
+ (fn [{:keys [db]} [_ frame-id]]
+   {:db (assoc db :status "Deleting frame...")
+    :post-delete-frame {:frame-id frame-id}}))
+
+(rf/reg-event-fx
+ :delete-frame-accepted
+ (fn [{:keys [db]} [_ _data]]
+   {:db (assoc db :status "Frame deleted.")
+    :dispatch [:fetch-state]}))
+
+(rf/reg-event-db
+ :delete-frame-failed
+ (fn [db [_ msg]]
+   (assoc db :status (str "Delete frame failed: " msg))))

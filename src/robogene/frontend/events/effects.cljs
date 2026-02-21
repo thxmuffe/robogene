@@ -217,3 +217,16 @@
                  :add-frame-accepted
                  :add-frame-failed
                  (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-frame
+ (fn [{:keys [frame-id]}]
+   (request-json (api-url "/api/delete-frame")
+                 {:method "POST"
+                  :cache "no-store"
+                  :headers {"Content-Type" "application/json"}
+                  :body (.stringify js/JSON
+                                    (clj->js {:frameId frame-id}))}
+                 :delete-frame-accepted
+                 :delete-frame-failed
+                 (fn [ok _] ok))))

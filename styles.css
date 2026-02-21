@@ -81,6 +81,16 @@ body {
   color: #1d1d1d;
 }
 
+.btn-danger {
+  background: #8b1e3f;
+  color: #ffffff;
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .status {
   margin-top: 10px;
   font-weight: 700;
@@ -111,10 +121,6 @@ h2 { margin: 24px 0 10px; }
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-}
-
-.episode-header h2 {
-  margin: 0;
 }
 
 .episode-description {
@@ -200,14 +206,6 @@ h2 { margin: 24px 0 10px; }
   opacity: 0.9;
 }
 
-.overlay-generate-btn {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 2;
-  box-shadow: 0 6px 14px rgba(16, 42, 67, 0.25);
-}
-
 .meta {
   padding: 10px;
   font-size: 0.95rem;
@@ -222,6 +220,28 @@ h2 { margin: 24px 0 10px; }
 .frame-editor .direction-input {
   min-height: 110px;
   margin: 0;
+}
+
+.frame-danger-zone {
+  margin-top: 8px;
+}
+
+.frame-danger-zone summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #334e68;
+}
+
+.frame-danger-zone[open] {
+  display: grid;
+  gap: 8px;
+}
+
+.frame-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .error-line {

@@ -6,7 +6,6 @@
   [:section.episode-block
    [:div.episode-separator]
    [:div.episode-header
-    [:h2 (str "Episode " (:episodeNumber episode))]
     [:p.episode-description (:description episode)]
     [:button.btn
      {:type "button"

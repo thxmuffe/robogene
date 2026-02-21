@@ -93,6 +93,7 @@ API endpoints (local):
 - `POST http://localhost:7071/api/generate-frame` with body `{ "frameId": "...", "direction": "..." }`
 - `POST http://localhost:7071/api/add-frame` with body `{ "episodeId": "..." }`
 - `POST http://localhost:7071/api/add-episode` with body `{ "description": "..." }`
+- `POST http://localhost:7071/api/delete-frame` with body `{ "frameId": "..." }`
 
 Note:
 - `npm run build:backend` is defined in the repo root `package.json`, not in `backend/package.json`.

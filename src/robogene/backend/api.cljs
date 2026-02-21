@@ -121,7 +121,7 @@
 (defn ensure-draft-frame-for-episode! [episode-id]
   (let [frames (frames-for-episode (:frames @state) episode-id)
         missing-image? (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)]
-    (when (and (seq frames) (not missing-image?))
+    (when (or (empty? frames) (not missing-image?))
       (let [frame-number (next-frame-number (:frames @state) episode-id)]
         (swap! state
                (fn [s]
@@ -162,6 +162,32 @@
                    (update :frames conj frame)
                    (update :revision inc))))
       frame)))
+
+(declare find-frame-index)
+
+(defn deletable-frame-status? [status]
+  (not (or (= status "queued")
+           (= status "processing"))))
+
+(defn delete-frame! [frame-id]
+  (let [snapshot @state
+        frames (:frames snapshot)
+        idx (find-frame-index frames frame-id)
+        frame (when (number? idx) (get frames idx))]
+    (when (nil? idx)
+      (throw (js/Error. "Frame not found.")))
+    (when-not (deletable-frame-status? (:status frame))
+      (throw (js/Error. "Cannot delete frame while queued or processing.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :frames (fn [rows]
+                                   (vec (concat (subvec rows 0 idx)
+                                                (subvec rows (inc idx)))))
+                 )
+                 (update :revision inc))))
+    (ensure-draft-frame-for-episode! (:episodeId frame))
+    frame))
 
 (defn initialize-state! []
   (let [storyboard-text (read-text default-storyboard)
@@ -628,6 +654,36 @@
                                        (json-response 404
                                                       {:error (or (some-> err .-message str) "Episode not found.")}
                                                       request))))))))))})
+
+(.http app "post-delete-frame"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "delete-frame"
+            :handler (with-error-handling
+                      "delete-frame"
+                      (fn [request]
+                        (-> (request-json request)
+                            (.then
+                             (fn [body]
+                               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+                                 (if (str/blank? frame-id)
+                                   (json-response 400 {:error "Missing frameId."} request)
+                                   (try
+                                     (let [deleted-frame (delete-frame! frame-id)
+                                           snapshot @state]
+                                       (emit-state-changed! "frame-deleted")
+                                       (json-response 200
+                                                      {:deleted true
+                                                       :frame deleted-frame
+                                                       :revision (:revision snapshot)}
+                                                      request))
+                                     (catch :default err
+                                       (let [msg (or (some-> err .-message str) "Delete failed.")
+                                             status (if (or (= msg "Frame not found.")
+                                                            (= msg "Cannot delete frame while queued or processing."))
+                                                      409
+                                                      500)]
+                                         (json-response status {:error msg} request)))))))))))})
 
 (.http app "options-preflight"
        #js {:methods #js ["OPTIONS"]
