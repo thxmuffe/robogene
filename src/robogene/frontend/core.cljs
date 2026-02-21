@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
             [reagent.dom.client :as rdom]
-            [robogene.frontend.events]
+            [robogene.frontend.events.handlers]
             [robogene.frontend.subs]
             [robogene.frontend.views :as views]))
 

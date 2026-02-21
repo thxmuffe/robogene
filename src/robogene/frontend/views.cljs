@@ -4,8 +4,7 @@
             [robogene.frontend.views.frame-page :as frame-page]))
 
 (defn main-view []
-  (let [status @(rf/subscribe [:status])
-        gallery @(rf/subscribe [:gallery-items])
+  (let [gallery @(rf/subscribe [:gallery-items])
         frame-inputs @(rf/subscribe [:frame-inputs])
         route @(rf/subscribe [:route])]
     [:main.app
