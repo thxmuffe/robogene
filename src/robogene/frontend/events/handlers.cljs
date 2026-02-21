@@ -30,13 +30,22 @@
    (let [{:keys [episodes frames]} (model/normalize-state state)
          pending (or (:pendingCount state) 0)
          processing? (true? (:processing state))
+         existing-active-id (:active-frame-id db)
+         frame-ids (set (map :frameId frames))
+         active-frame-id (cond
+                           (and (some? existing-active-id) (contains? frame-ids existing-active-id))
+                           existing-active-id
+                           (seq frames)
+                           (:frameId (first frames))
+                           :else nil)
          poll-mode (if (or processing? (pos? pending)) :active :idle)]
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state episodes frames)
                      :last-rendered-revision (:revision state)
                      :episodes episodes
-                     :gallery-items frames)
+                     :gallery-items frames
+                     :active-frame-id active-frame-id)
               (assoc :frame-inputs
                      (reduce (fn [acc frame]
                                (let [frame-id (:frameId frame)
@@ -54,6 +63,19 @@
                              {}
                              frames)))
       :set-fallback-polling poll-mode})))
+
+(defn frame-index-by-id [frames frame-id]
+  (first (keep-indexed (fn [idx frame]
+                         (when (= (:frameId frame) frame-id) idx))
+                       frames)))
+
+(rf/reg-event-fx
+ :set-active-frame
+ (fn [{:keys [db]} [_ frame-id]]
+   (if (= frame-id (:active-frame-id db))
+     {:db db}
+     {:db (assoc db :active-frame-id frame-id)
+      :scroll-frame-into-view frame-id})))
 
 (rf/reg-event-db
  :state-failed
@@ -128,6 +150,47 @@
             :dispatch [:navigate-frame episode-id (model/frame-number-of (nth ordered target-idx))]}
            {:db db}))
        {:db db}))))
+
+(rf/reg-event-fx
+ :move-active-frame-horizontal
+ (fn [{:keys [db]} [_ delta]]
+   (let [ordered (model/ordered-frames (:gallery-items db))
+         current-id (:active-frame-id db)
+         idx (frame-index-by-id ordered current-id)
+         safe-idx (if (number? idx) idx 0)
+         target-idx (-> (+ safe-idx delta)
+                        (max 0)
+                        (min (max 0 (dec (count ordered)))))
+         next-frame (nth ordered target-idx nil)]
+     (if next-frame
+       {:db db
+        :dispatch [:set-active-frame (:frameId next-frame)]}
+       {:db db}))))
+
+(rf/reg-event-fx
+ :move-active-frame-vertical
+ (fn [{:keys [db]} [_ direction]]
+   (if (some? (:active-frame-id db))
+     {:db db
+      :move-active-frame-vertical {:frame-id (:active-frame-id db)
+                                   :direction direction}}
+     {:db db})))
+
+(rf/reg-event-fx
+ :keyboard-arrow
+ (fn [{:keys [db]} [_ key]]
+   (let [view (get-in db [:route :view])]
+     (if (= :frame view)
+       (case key
+         "ArrowLeft" {:db db :dispatch [:navigate-relative-frame -1]}
+         "ArrowRight" {:db db :dispatch [:navigate-relative-frame 1]}
+         {:db db})
+       (case key
+         "ArrowLeft" {:db db :dispatch [:move-active-frame-horizontal -1]}
+         "ArrowRight" {:db db :dispatch [:move-active-frame-horizontal 1]}
+         "ArrowUp" {:db db :dispatch [:move-active-frame-vertical :up]}
+         "ArrowDown" {:db db :dispatch [:move-active-frame-vertical :down]}
+         {:db db})))))
 
 (rf/reg-event-db
  :new-episode-description-changed

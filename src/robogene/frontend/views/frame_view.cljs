@@ -10,16 +10,25 @@
   (let [busy? (or (= status "queued") (= status "processing"))]
     [:div.frame-editor
      [:textarea.direction-input
-      {:value (or frame-input "")
+     {:value (or frame-input "")
        :placeholder "Describe this frame..."
        :disabled busy?
        :on-click #(.stopPropagation %)
-       :on-key-down #(.stopPropagation %)
+       :on-key-down (fn [e]
+                      (if (and (= "Enter" (.-key e))
+                               (not (.-shiftKey e)))
+                        (do
+                          (.preventDefault e)
+                          (.stopPropagation e)
+                          (rf/dispatch [:generate-frame frameId]))
+                        (.stopPropagation e)))
        :on-change #(rf/dispatch [:frame-direction-changed frameId (.. % -target -value)])}]
      (when (and (seq (or error "")) (not busy?))
        [:div.error-line (str "Last error: " error)])]))
 
-(defn frame-placeholder [{:keys [status]}]
+(declare frame-action-button)
+
+(defn frame-placeholder [{:keys [status] :as frame}]
   (let [label (case status
                 "processing" "Generating..."
                 "queued" "Queued..."
@@ -29,11 +38,10 @@
     [:div.placeholder-img
      (when (or (= status "queued") (= status "processing"))
        [:div.spinner])
-     [:div.placeholder-text label]
-     (when cta?
-       [:div.placeholder-clue
-        [:span.placeholder-arrow "↘"]
-        [:span "Open Frame actions"]])]))
+     (if cta?
+       [:div.placeholder-action-inline
+        [frame-action-button frame]]
+       [:div.placeholder-text label])]))
 
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
@@ -109,27 +117,31 @@
 (defn frame-view
   ([frame frame-input]
    [frame-view frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable?]
-                       :or {clickable? true}}]
+  ([frame frame-input {:keys [clickable? active?]
+                       :or {clickable? true active? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
          attrs (cond-> {:data-frame-id (:frameId frame)
-                        :class (if clickable? "frame frame-clickable" "frame")}
+                        :class (str "frame"
+                                    (when clickable? " frame-clickable")
+                                    (when active? " frame-active"))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-click #(rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])
+                                   :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
+                                   :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
+                                   :on-click #(do
+                                                (rf/dispatch [:set-active-frame (:frameId frame)])
+                                                (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)]))
                                    :on-key-down (fn [e]
                                                   (when (or (= "Enter" (.-key e))
                                                             (= " " (.-key e)))
                                                     (.preventDefault e)
+                                                    (rf/dispatch [:set-active-frame (:frameId frame)])
                                                     (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?
          [frame-image frame]
-         [:div
-          [frame-placeholder frame]
-          [:div.placeholder-action
-           [frame-action-button frame]]])]
+         [frame-placeholder frame])]
       [:div.meta
        (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
          [:span.badge.queue "In Queue"])

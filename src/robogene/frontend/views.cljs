@@ -6,6 +6,7 @@
 (defn main-view []
   (let [episodes @(rf/subscribe [:episodes])
         frame-inputs @(rf/subscribe [:frame-inputs])
+        active-frame-id @(rf/subscribe [:active-frame-id])
         new-episode-description @(rf/subscribe [:new-episode-description])
         route @(rf/subscribe [:route])]
     [:main.app
@@ -13,4 +14,4 @@
       [:h1 "RoboGene"]]
      (if (= :frame (:view route))
        [frame-page/frame-page route episodes frame-inputs]
-       [gallery-page/main-gallery-page episodes frame-inputs new-episode-description])]))
+       [gallery-page/main-gallery-page episodes frame-inputs active-frame-id new-episode-description])]))

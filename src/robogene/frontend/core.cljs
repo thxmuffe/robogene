@@ -39,10 +39,16 @@
                            "Escape" (rf/dispatch [:navigate-index])
                            "ArrowLeft" (do
                                          (.preventDefault e)
-                                         (rf/dispatch [:navigate-relative-frame -1]))
+                                         (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
                            "ArrowRight" (do
                                           (.preventDefault e)
-                                          (rf/dispatch [:navigate-relative-frame 1]))
+                                          (rf/dispatch [:keyboard-arrow "ArrowRight"]))
+                           "ArrowUp" (do
+                                       (.preventDefault e)
+                                       (rf/dispatch [:keyboard-arrow "ArrowUp"]))
+                           "ArrowDown" (do
+                                         (.preventDefault e)
+                                         (rf/dispatch [:keyboard-arrow "ArrowDown"]))
                            nil))))
   (.addEventListener js/document "visibilitychange"
                      #(when-not (.-hidden js/document)

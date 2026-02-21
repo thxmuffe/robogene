@@ -4,6 +4,7 @@
   {:status "Loading episodes..."
    :frame-inputs {}
    :last-rendered-revision nil
+   :active-frame-id nil
    :episodes []
    :gallery-items []
    :new-episode-description ""

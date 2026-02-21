@@ -145,15 +145,31 @@ h2 { margin: 24px 0 10px; }
 
 .new-episode-panel {
   margin-top: 26px;
+  width: min(760px, 100%);
+  margin-left: auto;
+  margin-right: auto;
   padding: 16px;
   border-radius: 14px;
-  border: 2px solid #1f2a44;
-  background: #fff9f0;
-  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.12);
+  border: 1px solid rgba(220, 235, 255, 0.35);
+  background: rgba(16, 34, 52, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 14px 32px rgba(9, 20, 32, 0.38);
+  color: #f2f7ff;
 }
 
 .new-episode-panel h3 {
   margin-top: 0;
+  color: #f2f7ff;
+}
+
+.new-episode-panel .dir-label {
+  color: #d9e9ff;
+}
+
+.new-episode-panel .direction-input {
+  background: rgba(236, 244, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .frame {
@@ -172,6 +188,11 @@ h2 { margin: 24px 0 10px; }
 .frame-clickable:focus-visible {
   outline: 3px solid #20639b;
   outline-offset: 2px;
+}
+
+.frame-active {
+  border-color: #20639b;
+  box-shadow: 0 0 0 3px rgba(32, 99, 155, 0.2), 0 12px 28px rgba(16, 42, 67, 0.2);
 }
 
 .frame img {
@@ -220,12 +241,8 @@ h2 { margin: 24px 0 10px; }
   gap: 6px;
 }
 
-.placeholder-action {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 2;
-  box-shadow: 0 6px 14px rgba(16, 42, 67, 0.25);
+.placeholder-action-inline {
+  margin-top: 4px;
 }
 
 .placeholder-arrow {
