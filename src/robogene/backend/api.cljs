@@ -199,7 +199,10 @@
   (with-synced-body
    request
    (fn [body]
-     (let [description (some-> (gobj/get body "description") str str/trim)
+     (let [raw-description (gobj/get body "description")
+           description (if (some? raw-description)
+                         (some-> raw-description str str/trim)
+                         nil)
            {:keys [episode frame]} (story/add-episode! description)]
        (emit-persist-and-respond
         request
@@ -211,6 +214,18 @@
            :frame frame
            :revision (:revision snapshot)}))))))
 
+(defn run-mutation [request {:keys [mutate! default-error status-by-message on-success]}]
+  (let [outcome (try
+                  {:ok true :value (mutate!)}
+                  (catch :default err
+                    (let [msg (or (some-> err .-message str) default-error)
+                          status (get status-by-message msg 500)]
+                      {:ok false
+                       :response (json-response status {:error msg} request)})))]
+    (if (:ok outcome)
+      (on-success (:value outcome))
+      (:response outcome))))
+
 (defn handle-add-frame [request]
   (with-synced-body
    request
@@ -218,42 +233,34 @@
      (with-required-string
       request body "episodeId" "Missing episodeId."
       (fn [episode-id]
-        (let [outcome (try
-                        {:ok true :frame (story/add-frame! episode-id)}
-                        (catch :default err
-                          {:ok false
-                           :response (json-response 404
-                                                    {:error (or (some-> err .-message str) "Episode not found.")}
-                                                    request)}))]
-          (if-not (:ok outcome)
-            (:response outcome)
-            (let [frame (:frame outcome)]
-              (emit-persist-and-respond
-               request
-               "frame-added"
-               201
-               (fn [snapshot]
-                 {:created true
-                  :frame frame
-                  :revision (:revision snapshot)}))))))))))
+        (run-mutation
+         request
+         {:mutate! #(story/add-frame! episode-id)
+          :default-error "Episode not found."
+          :status-by-message {"Episode not found." 404}
+          :on-success (fn [frame]
+                        (emit-persist-and-respond
+                         request
+                         "frame-added"
+                         201
+                         (fn [snapshot]
+                           {:created true
+                            :frame frame
+                            :revision (:revision snapshot)})))}))))))
 
 (defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
-  (let [outcome (try
-                  {:ok true :frame (mutate! frame-id)}
-                  (catch :default err
-                    (let [msg (or (some-> err .-message str) default-error)
-                          status (if (contains? conflict-messages msg) 409 500)]
-                      {:ok false
-                       :response (json-response status {:error msg} request)})))]
-    (if-not (:ok outcome)
-      (:response outcome)
-      (let [frame (:frame outcome)]
+  (run-mutation
+   request
+   {:mutate! #(mutate! frame-id)
+    :default-error default-error
+    :status-by-message (into {} (map (fn [msg] [msg 409]) conflict-messages))
+    :on-success (fn [frame]
         (emit-persist-and-respond
          request
          emit-reason
          success-status
          (fn [snapshot]
-           (success-body frame snapshot)))))))
+           (success-body frame snapshot))))}))
 
 (defn handle-delete-frame [request]
   (with-synced-body
