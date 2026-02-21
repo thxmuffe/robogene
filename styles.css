@@ -145,7 +145,7 @@ h2 { margin: 24px 0 10px; }
 
 .new-episode-panel {
   margin-top: 26px;
-  width: min(760px, 100%);
+  width: min(420px, 100%);
   margin-left: auto;
   margin-right: auto;
   padding: 16px;
@@ -163,6 +163,15 @@ h2 { margin: 24px 0 10px; }
   color: #f2f7ff;
 }
 
+.new-episode-close {
+  float: right;
+  border: 0;
+  background: transparent;
+  color: #d9e9ff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .new-episode-panel .dir-label {
   color: #d9e9ff;
 }
@@ -170,6 +179,87 @@ h2 { margin: 24px 0 10px; }
 .new-episode-panel .direction-input {
   background: rgba(236, 244, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.new-episode-teaser {
+  position: relative;
+  width: min(360px, 100%);
+  aspect-ratio: 3 / 2;
+  margin: 26px auto 0;
+  border-radius: 14px;
+  border: 1px solid rgba(220, 235, 255, 0.45);
+  background: linear-gradient(145deg, rgba(20, 40, 64, 0.7), rgba(36, 62, 94, 0.55));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 16px 34px rgba(8, 20, 34, 0.42);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.new-episode-teaser:focus-visible {
+  outline: 3px solid #7ec8ff;
+  outline-offset: 3px;
+}
+
+.new-episode-teaser .teaser-content {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: #f2f7ff;
+  z-index: 2;
+}
+
+.teaser-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.teaser-sub {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  opacity: 0.92;
+}
+
+.sparkles {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.75) 0 2px, transparent 3px),
+    radial-gradient(circle at 72% 28%, rgba(255,255,255,0.65) 0 1.8px, transparent 3px),
+    radial-gradient(circle at 42% 72%, rgba(255,255,255,0.8) 0 2px, transparent 3px),
+    radial-gradient(circle at 84% 68%, rgba(255,255,255,0.7) 0 1.8px, transparent 3px);
+  animation: sparkle-drift 1800ms ease-in-out infinite;
+  opacity: 0.9;
+}
+
+.episode-celebration {
+  width: min(820px, 100%);
+  margin: 10px auto 8px;
+  pointer-events: none;
+  animation: fade-celebration 2200ms ease-out forwards;
+}
+
+.rainbow-band {
+  height: 12px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 24px rgba(16, 42, 67, 0.2);
+}
+
+.band-1 { background: linear-gradient(90deg, #ff3e6c, #ff8f3e); }
+.band-2 { background: linear-gradient(90deg, #ffcf3e, #8fe33f); }
+.band-3 { background: linear-gradient(90deg, #37d2ff, #5a7bff); }
+.band-4 { background: linear-gradient(90deg, #aa64ff, #ff79d4); }
+
+.rainbow-stars {
+  text-align: center;
+  color: #ffeaa7;
+  font-size: 1.1rem;
+  letter-spacing: 0.35rem;
+  animation: sparkle-pop 650ms ease-in-out infinite alternate;
 }
 
 .frame {
@@ -355,4 +445,20 @@ h2 { margin: 24px 0 10px; }
 @keyframes nudge-arrow {
   0%, 100% { transform: translate(0, 0); opacity: 0.65; }
   50% { transform: translate(4px, 3px); opacity: 1; }
+}
+
+@keyframes sparkle-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.72; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes sparkle-pop {
+  from { transform: scale(1); opacity: 0.72; }
+  to { transform: scale(1.12); opacity: 1; }
+}
+
+@keyframes fade-celebration {
+  0% { opacity: 0; transform: translateY(-6px); }
+  20% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
 }

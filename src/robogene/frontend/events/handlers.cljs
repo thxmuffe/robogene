@@ -5,6 +5,8 @@
             [robogene.frontend.events.effects]
             [robogene.frontend.events.model :as model]))
 
+(def new-episode-frame-id "__new_episode__")
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -32,8 +34,15 @@
          processing? (true? (:processing state))
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
+         old-open-map (:open-frame-actions db)
+         open-frame-actions (into {}
+                                 (for [[frame-id open?] old-open-map
+                                       :when (contains? frame-ids frame-id)]
+                                   [frame-id open?]))
          active-frame-id (cond
                            (and (some? existing-active-id) (contains? frame-ids existing-active-id))
+                           existing-active-id
+                           (= existing-active-id new-episode-frame-id)
                            existing-active-id
                            (seq frames)
                            (:frameId (first frames))
@@ -45,6 +54,7 @@
                      :last-rendered-revision (:revision state)
                      :episodes episodes
                      :gallery-items frames
+                     :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)
               (assoc :frame-inputs
                      (reduce (fn [acc frame]
@@ -76,6 +86,11 @@
      {:db db}
      {:db (assoc db :active-frame-id frame-id)
       :scroll-frame-into-view frame-id})))
+
+(rf/reg-event-db
+ :set-frame-actions-open
+ (fn [db [_ frame-id open?]]
+   (assoc-in db [:open-frame-actions frame-id] (true? open?))))
 
 (rf/reg-event-db
  :state-failed
@@ -142,29 +157,50 @@
              ordered (model/ordered-frames frames-in-episode)
              current-frame (:frame-number route)
              idx (model/frame-index-by-number ordered current-frame)
-             target-idx (when (number? idx) (+ idx delta))]
-         (if (and (number? target-idx)
-                  (<= 0 target-idx)
-                  (< target-idx (count ordered)))
+             count-frames (count ordered)
+             safe-idx (if (number? idx) idx 0)
+             target-idx (when (pos? count-frames)
+                          (mod (+ safe-idx delta) count-frames))]
+         (if (and (number? target-idx) (pos? count-frames))
            {:db db
             :dispatch [:navigate-frame episode-id (model/frame-number-of (nth ordered target-idx))]}
            {:db db}))
        {:db db}))))
 
+(defn frame-by-id [frames frame-id]
+  (some (fn [frame] (when (= (:frameId frame) frame-id) frame)) frames))
+
 (rf/reg-event-fx
  :move-active-frame-horizontal
  (fn [{:keys [db]} [_ delta]]
-   (let [ordered (model/ordered-frames (:gallery-items db))
+   (let [all-frames (model/ordered-frames (:gallery-items db))
          current-id (:active-frame-id db)
-         idx (frame-index-by-id ordered current-id)
-         safe-idx (if (number? idx) idx 0)
-         target-idx (-> (+ safe-idx delta)
-                        (max 0)
-                        (min (max 0 (dec (count ordered)))))
-         next-frame (nth ordered target-idx nil)]
-     (if next-frame
+         current-frame (frame-by-id all-frames current-id)]
+     (cond
+       (and (= current-id new-episode-frame-id) (seq all-frames))
        {:db db
-        :dispatch [:set-active-frame (:frameId next-frame)]}
+        :dispatch [:set-active-frame (if (neg? delta)
+                                       (:frameId (last all-frames))
+                                       (:frameId (first all-frames)))]}
+
+       (some? current-frame)
+       (let [episode-id (:episodeId current-frame)
+             episode-frames (->> all-frames
+                                 (filter (fn [frame] (= (:episodeId frame) episode-id)))
+                                 model/ordered-frames)
+             count-frames (count episode-frames)
+             idx (frame-index-by-id episode-frames (:frameId current-frame))
+             safe-idx (if (number? idx) idx 0)
+             target-idx (when (pos? count-frames)
+                          (mod (+ safe-idx delta) count-frames))
+             next-frame (when (number? target-idx)
+                          (nth episode-frames target-idx nil))]
+         (if next-frame
+           {:db db
+            :dispatch [:set-active-frame (:frameId next-frame)]}
+           {:db db}))
+
+       :else
        {:db db}))))
 
 (rf/reg-event-fx
@@ -197,18 +233,35 @@
  (fn [db [_ value]]
    (assoc db :new-episode-description value)))
 
+(rf/reg-event-db
+ :set-new-episode-panel-open
+ (fn [db [_ open?]]
+   (assoc db :new-episode-panel-open? (true? open?))))
+
+(rf/reg-event-db
+ :episode-celebration-ended
+ (fn [db _]
+   (assoc db :show-episode-celebration? false)))
+
 (rf/reg-event-fx
  :add-episode
  (fn [{:keys [db]} _]
-   {:db (assoc db :status "Creating episode...")
-    :post-add-episode {:description (:new-episode-description db)}}))
+   (if (str/blank? (or (:new-episode-description db) ""))
+     {:db (assoc db
+                 :new-episode-panel-open? true
+                 :status "Add an episode theme first.")}
+     {:db (assoc db :status "Creating episode...")
+      :post-add-episode {:description (:new-episode-description db)}})))
 
 (rf/reg-event-fx
  :add-episode-accepted
  (fn [{:keys [db]} [_ _data]]
    {:db (assoc db
                :new-episode-description ""
+               :new-episode-panel-open? false
+               :show-episode-celebration? true
                :status "Episode created.")
+    :start-episode-celebration true
     :dispatch [:fetch-state]}))
 
 (rf/reg-event-db

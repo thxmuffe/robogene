@@ -9,5 +9,7 @@
    :episodes []
    :gallery-items []
    :new-episode-description ""
+   :new-episode-panel-open? false
+   :show-episode-celebration? false
    :latest-state nil
    :route {:view :index}})

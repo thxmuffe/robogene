@@ -86,7 +86,11 @@
                                       :dy dy
                                       :dx dx})))
                             (sort-by (fn [{:keys [dy dx]}] [dy dx])))]
-        (:id (first candidates))))))
+        (or (:id (first candidates))
+            (case direction
+              :up (some-> nodes last frame-id-of)
+              :down (some-> nodes first frame-id-of)
+              nil))))))
 
 (rf/reg-fx
  :set-hash
@@ -99,7 +103,7 @@
    (when (seq (or frame-id ""))
      (when-let [el (.querySelector js/document (str ".frame[data-frame-id=\"" frame-id "\"]"))]
        (.scrollIntoView el #js {:behavior "smooth"
-                                :block "nearest"
+                                :block (if (= frame-id "__new_episode__") "center" "nearest")
                                 :inline "nearest"})))))
 
 (rf/reg-fx
@@ -293,3 +297,11 @@
                  :clear-frame-image-accepted
                  :clear-frame-image-failed
                  (fn [ok _] ok))))
+
+(rf/reg-fx
+ :start-episode-celebration
+ (fn [_]
+   (js/setTimeout
+    (fn []
+      (rf/dispatch [:episode-celebration-ended]))
+    2200)))

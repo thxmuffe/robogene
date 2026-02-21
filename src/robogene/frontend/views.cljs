@@ -9,10 +9,18 @@
         open-frame-actions @(rf/subscribe [:open-frame-actions])
         active-frame-id @(rf/subscribe [:active-frame-id])
         new-episode-description @(rf/subscribe [:new-episode-description])
+        new-episode-panel-open? @(rf/subscribe [:new-episode-panel-open?])
+        show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
         route @(rf/subscribe [:route])]
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]]
      (if (= :frame (:view route))
        [frame-page/frame-page route episodes frame-inputs open-frame-actions]
-       [gallery-page/main-gallery-page episodes frame-inputs open-frame-actions active-frame-id new-episode-description])]))
+       [gallery-page/main-gallery-page episodes
+        frame-inputs
+        open-frame-actions
+        active-frame-id
+        new-episode-description
+        new-episode-panel-open?
+        show-episode-celebration?])]))
