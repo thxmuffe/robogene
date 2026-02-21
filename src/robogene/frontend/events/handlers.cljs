@@ -70,7 +70,10 @@
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
    {:db db
-    :dispatch [:fetch-state]}))
+    :dispatch [:fetch-state]
+    :dispatch-after [{:ms 1000 :event [:fetch-state]}
+                     {:ms 2500 :event [:fetch-state]}
+                     {:ms 5000 :event [:fetch-state]}]}))
 
 (rf/reg-event-db
  :generate-failed

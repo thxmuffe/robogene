@@ -46,6 +46,12 @@
    (set! (.-hash js/location) hash)))
 
 (rf/reg-fx
+ :dispatch-after
+ (fn [entries]
+   (doseq [{:keys [ms event]} (if (sequential? entries) entries [entries])]
+     (js/setTimeout #(rf/dispatch event) ms))))
+
+(rf/reg-fx
  :fetch-state
  (fn [_]
    (request-json (state-url)
