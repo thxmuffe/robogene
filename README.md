@@ -123,7 +123,9 @@ Set app settings:
 ```bash
 az functionapp config appsettings set -g $RG -n $APP --settings \
   OPENAI_API_KEY="<your_key>" \
-  ROBOGENE_IMAGE_MODEL="gpt-image-1" \
+  ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
+  ROBOGENE_IMAGE_QUALITY="low" \
+  ROBOGENE_IMAGE_SIZE="1024x1024" \
   AzureSignalRConnectionString="<your_signalr_connection_string>" \
   ROBOGENE_SIGNALR_HUB="robogene" \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"

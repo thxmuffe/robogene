@@ -71,7 +71,9 @@
          :failedJobs []
          :processing false
          :revision 0
-         :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
+         :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1-mini")
+         :quality (or (.. js/process -env -ROBOGENE_IMAGE_QUALITY) "low")
+         :size (or (.. js/process -env -ROBOGENE_IMAGE_SIZE) "1024x1024")
          :referenceImageBytes nil}))
 
 (defn best-frame-description [descriptions visual frame-number]
@@ -134,7 +136,9 @@
              :failedJobs []
              :processing false
              :revision 1
-             :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
+             :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1-mini")
+             :quality (or (.. js/process -env -ROBOGENE_IMAGE_QUALITY) "low")
+             :size (or (.. js/process -env -ROBOGENE_IMAGE_SIZE) "1024x1024")
              :referenceImageBytes ref-bytes})))
 
 (initialize-state!)
@@ -201,7 +205,8 @@
     (let [form (js/FormData.)]
       (.append form "model" (:model @state))
       (.append form "prompt" prompt)
-      (.append form "size" "1536x1024")
+      (.append form "quality" (:quality @state))
+      (.append form "size" (:size @state))
       (doseq [ref refs]
         (append-reference-image! form ref))
       (fetch-json "https://api.openai.com/v1/images/edits"
@@ -215,7 +220,8 @@
                      :body (.stringify js/JSON
                                        (clj->js {:model (:model @state)
                                                  :prompt prompt
-                                                 :size "1536x1024"}))})))
+                                                 :quality (:quality @state)
+                                                 :size (:size @state)}))})))
 
 (defn generate-image! [frame]
   (let [api-key (.. js/process -env -OPENAI_API_KEY)]
