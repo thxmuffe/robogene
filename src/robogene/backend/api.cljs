@@ -1,6 +1,7 @@
 (ns robogene.backend.api
   (:require [clojure.string :as str]
             [goog.object :as gobj]
+            [robogene.backend.azure-store :as store]
             ["@azure/functions" :as azf]
             ["crypto" :as crypto]
             ["fs" :as fs]
@@ -246,6 +247,48 @@
 
 (initialize-state!)
 
+(defn apply-persisted-state! [raw]
+  (let [current @state
+        persisted (js->clj raw :keywordize-keys true)]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc :storyId (:storyId persisted))
+                 (assoc :revision (or (:revision persisted) 1))
+                 (assoc :failedJobs (or (:failedJobs persisted) []))
+                 (assoc :episodes (or (:episodes persisted) []))
+                 (assoc :frames (or (:frames persisted) []))
+                 (assoc :descriptions (:descriptions current))
+                 (assoc :visual (:visual current))
+                 (assoc :referenceImageBytes (:referenceImageBytes current))
+                 (assoc :model (:model current))
+                 (assoc :quality (:quality current))
+                 (assoc :size (:size current)))))
+    @state))
+
+(defn sync-state-from-storage! []
+  (-> (store/load-or-init-state
+       (clj->js (select-keys @state
+                             [:storyId :revision :failedJobs :episodes :frames
+                              :descriptions :visual :model :quality :size])))
+      (.then apply-persisted-state!)
+      (.catch (fn [err]
+                (js/console.error "[robogene] storage sync failed" err)
+                (throw err)))))
+
+(defn persist-state! []
+  (-> (store/save-state
+       (clj->js (select-keys @state
+                             [:storyId :revision :failedJobs :episodes :frames])))
+      (.then apply-persisted-state!)
+      (.catch (fn [err]
+                (js/console.error "[robogene] storage persist failed" err)
+                (throw err)))))
+
+(-> (sync-state-from-storage!)
+    (.catch (fn [err]
+              (js/console.warn "[robogene] startup storage sync skipped" err))))
+
 (defn episode-order-map [episodes]
   (into {} (map (fn [episode] [(:episodeId episode) (:episodeNumber episode)]) episodes)))
 
@@ -341,6 +384,19 @@
                                                  :quality (:quality @state)
                                                  :size (:size @state)}))})))
 
+(defn invalid-second-reference? [status body]
+  (let [err (gobj/get body "error")
+        code (some-> err (gobj/get "code"))
+        message (some-> err (gobj/get "message") str)]
+    (and (= status 400)
+         (= code "invalid_image_file")
+         (str/includes? (or message "") "image 2"))))
+
+(defn openai-response->result [{:keys [ok status body]}]
+  (if-not ok
+    (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
+    (openai-image-response->data-url body)))
+
 (defn generate-image! [frame]
   (let [api-key (.. js/process -env -OPENAI_API_KEY)]
     (if (not (seq api-key))
@@ -349,9 +405,13 @@
             refs (reference-images)]
         (-> (openai-image-request! api-key prompt refs)
             (.then (fn [{:keys [ok status body]}]
-                     (if-not ok
-                       (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
-                       (openai-image-response->data-url body)))))))))
+                     (if (and (not ok) (invalid-second-reference? status body) (> (count refs) 1))
+                       (do
+                         (js/console.warn
+                          "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
+                         (-> (openai-image-request! api-key prompt (vec (take 1 refs)))
+                             (.then openai-response->result)))
+                       (openai-response->result {:ok ok :status status :body body})))))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
@@ -446,33 +506,58 @@
     (if (nil? idx)
       (let [previously-processing? (:processing snapshot)]
         (swap! state assoc :processing false)
-        (when previously-processing?
-          (emit-state-changed! "queue-idle")))
+        (if previously-processing?
+          (-> (persist-state!)
+              (.then (fn [_]
+                       (emit-state-changed! "queue-idle")
+                       nil))
+              (.catch (fn [err]
+                        (js/console.error "[robogene] persist failed while queue-idle" err)
+                        nil)))
+          nil))
       (let [frame (get (:frames snapshot) idx)
             started-ms (.now js/Date)
             queue-size (active-queue-count (:frames snapshot))]
         (log-generation-start! frame queue-size)
         (mark-frame-processing! idx)
-        (emit-state-changed! "processing")
-        (-> (generate-image! frame)
+        (-> (persist-state!)
+            (.then (fn [_]
+                     (emit-state-changed! "processing")
+                     (generate-image! frame)))
             (.then (fn [image-data-url]
                      (log-generation-success! frame (- (.now js/Date) started-ms))
                      (mark-frame-ready! idx image-data-url)
                      (ensure-draft-frame-for-episode! (:episodeId frame))
-                     (emit-state-changed! "ready")
-                     (process-step!)
-                     nil))
+                     (-> (persist-state!)
+                         (.then (fn [_]
+                                  (emit-state-changed! "ready")
+                                  (process-step!)
+                                  nil)))))
             (.catch (fn [err]
                       (log-generation-failed! frame (- (.now js/Date) started-ms) err)
                       (mark-frame-failed! idx frame (str (or (.-message err) err)))
-                      (emit-state-changed! "failed")
-                      (process-step!)
-                      nil)))))))
+                      (-> (persist-state!)
+                          (.then (fn [_]
+                                   (emit-state-changed! "failed")
+                                   (process-step!)
+                                   nil))
+                          (.catch (fn [persist-err]
+                                    (js/console.error "[robogene] persist failed after generation error" persist-err)
+                                    (emit-state-changed! "failed")
+                                    (process-step!)
+                                    nil))))))))))
 
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)
-    (process-step!)))
+    (-> (persist-state!)
+        (.then (fn [_]
+                 (process-step!)
+                 nil))
+        (.catch (fn [err]
+                  (js/console.error "[robogene] persist failed when queue started" err)
+                  (process-step!)
+                  nil)))))
 
 (defn active-queue-count [frames]
   (count (filter (fn [f]
@@ -564,19 +649,26 @@
             :handler (with-error-handling
                       "state"
                       (fn [request]
-                        (ensure-draft-frames!)
-                        (let [snapshot @state
-                              frames (:frames snapshot)
-                              pending-count (active-queue-count frames)]
-                          (json-response 200
-                                         {:storyId (:storyId snapshot)
-                                          :revision (:revision snapshot)
-                                          :processing (:processing snapshot)
-                                          :pendingCount pending-count
-                                          :episodes (:episodes snapshot)
-                                          :frames frames
-                                          :failed (:failedJobs snapshot)}
-                                         request))))})
+                        (-> (sync-state-from-storage!)
+                            (.then (fn [_]
+                                     (let [before-revision (:revision @state)]
+                                       (ensure-draft-frames!)
+                                       (if (not= before-revision (:revision @state))
+                                         (persist-state!)
+                                         (js/Promise.resolve @state)))))
+                            (.then (fn [_]
+                                     (let [snapshot @state
+                                           frames (:frames snapshot)
+                                           pending-count (active-queue-count frames)]
+                                       (json-response 200
+                                                      {:storyId (:storyId snapshot)
+                                                       :revision (:revision snapshot)
+                                                       :processing (:processing snapshot)
+                                                       :pendingCount pending-count
+                                                       :episodes (:episodes snapshot)
+                                                       :frames frames
+                                                       :failed (:failedJobs snapshot)}
+                                                      request)))))))})
 
 (.http app "post-generate-frame"
        #js {:methods #js ["POST"]
@@ -585,7 +677,8 @@
             :handler (with-error-handling
                       "generate-frame"
                       (fn [request]
-                        (-> (request-json request)
+                        (-> (sync-state-from-storage!)
+                            (.then (fn [_] (request-json request)))
                             (.then
                              (fn [body]
                                (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
@@ -605,9 +698,9 @@
 
                                        :else
                                        (do
-                                       (swap! state
-                                               (fn [s]
-                                                 (-> s
+                                         (swap! state
+                                                (fn [s]
+                                                  (-> s
                                                       (assoc-in [:frames idx :status] "queued")
                                                       (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
                                                       (assoc-in [:frames idx :error] nil)
@@ -616,15 +709,17 @@
                                                                   (or (get-in s [:frames idx :description]) "")
                                                                   direction))
                                                       (update :revision inc))))
-                                         (emit-state-changed! "queued")
-                                         (process-queue!)
-                                         (let [post @state]
-                                           (json-response 202
-                                                          {:accepted true
-                                                           :frame (get (:frames post) idx)
-                                                           :revision (:revision post)
-                                                           :pendingCount (active-queue-count (:frames post))}
-                                                          request))))))))))))})
+                                         (-> (persist-state!)
+                                             (.then (fn [_]
+                                                      (emit-state-changed! "queued")
+                                                      (process-queue!)
+                                                      (let [post @state]
+                                                        (json-response 202
+                                                                       {:accepted true
+                                                                        :frame (get (:frames post) idx)
+                                                                        :revision (:revision post)
+                                                                        :pendingCount (active-queue-count (:frames post))}
+                                                                       request)))))))))))))))})
 
 (.http app "post-add-episode"
        #js {:methods #js ["POST"]
@@ -633,106 +728,130 @@
             :handler (with-error-handling
                       "add-episode"
                       (fn [request]
-                        (-> (request-json request)
+                        (-> (sync-state-from-storage!)
+                            (.then (fn [_] (request-json request)))
                             (.then
                              (fn [body]
                                (let [description (some-> (gobj/get body "description") str str/trim)
                                      {:keys [episode frame]} (add-episode! description)
-                                     snapshot @state]
-                                 (emit-state-changed! "episode-added")
-                                 (json-response 201
-                                                {:created true
-                                                 :episode episode
-                                                 :frame frame
-                                                 :revision (:revision snapshot)}
-                                                request)))))))})
+                                     _ (emit-state-changed! "episode-added")]
+                                 (-> (persist-state!)
+                                     (.then (fn [_]
+                                              (let [snapshot @state]
+                                                (json-response 201
+                                                               {:created true
+                                                                :episode episode
+                                                                :frame frame
+                                                                :revision (:revision snapshot)}
+                                                               request)))))))))))})
+
+(defn handle-add-frame [request]
+  (-> (sync-state-from-storage!)
+      (.then (fn [_] (request-json request)))
+      (.then (fn [body]
+               (let [episode-id (some-> (gobj/get body "episodeId") str str/trim)]
+                 (if (str/blank? episode-id)
+                   (json-response 400 {:error "Missing episodeId."} request)
+                   (let [outcome (try
+                                   {:ok true :frame (add-frame! episode-id)}
+                                   (catch :default err
+                                     {:ok false
+                                      :response (json-response 404
+                                                               {:error (or (some-> err .-message str) "Episode not found.")}
+                                                               request)}))]
+                     (if-not (:ok outcome)
+                       (:response outcome)
+                       (let [frame (:frame outcome)]
+                         (emit-state-changed! "frame-added")
+                         (-> (persist-state!)
+                             (.then (fn [_]
+                                      (let [snapshot @state]
+                                        (json-response 201
+                                                       {:created true
+                                                        :frame frame
+                                                        :revision (:revision snapshot)}
+                                                       request)))))))))))))
+  )
+
+(defn handle-delete-frame [request]
+  (-> (sync-state-from-storage!)
+      (.then (fn [_] (request-json request)))
+      (.then (fn [body]
+               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+                 (if (str/blank? frame-id)
+                   (json-response 400 {:error "Missing frameId."} request)
+                   (let [outcome (try
+                                   {:ok true :frame (delete-frame! frame-id)}
+                                   (catch :default err
+                                     (let [msg (or (some-> err .-message str) "Delete failed.")
+                                           status (if (or (= msg "Frame not found.")
+                                                          (= msg "Cannot delete frame while queued or processing."))
+                                                    409
+                                                    500)]
+                                       {:ok false
+                                        :response (json-response status {:error msg} request)})))]
+                     (if-not (:ok outcome)
+                       (:response outcome)
+                       (let [deleted-frame (:frame outcome)]
+                         (emit-state-changed! "frame-deleted")
+                         (-> (persist-state!)
+                             (.then (fn [_]
+                                      (let [snapshot @state]
+                                        (json-response 200
+                                                       {:deleted true
+                                                        :frame deleted-frame
+                                                        :revision (:revision snapshot)}
+                                                       request)))))))))))))
+  )
+
+(defn handle-clear-frame-image [request]
+  (-> (sync-state-from-storage!)
+      (.then (fn [_] (request-json request)))
+      (.then (fn [body]
+               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+                 (if (str/blank? frame-id)
+                   (json-response 400 {:error "Missing frameId."} request)
+                   (let [outcome (try
+                                   {:ok true :frame (clear-frame-image! frame-id)}
+                                   (catch :default err
+                                     (let [msg (or (some-> err .-message str) "Clear image failed.")
+                                           status (if (or (= msg "Frame not found.")
+                                                          (= msg "Cannot clear image while queued or processing."))
+                                                    409
+                                                    500)]
+                                       {:ok false
+                                        :response (json-response status {:error msg} request)})))]
+                     (if-not (:ok outcome)
+                       (:response outcome)
+                       (let [frame (:frame outcome)]
+                         (emit-state-changed! "frame-image-cleared")
+                         (-> (persist-state!)
+                             (.then (fn [_]
+                                      (let [snapshot @state]
+                                        (json-response 200
+                                                       {:cleared true
+                                                        :frame frame
+                                                        :revision (:revision snapshot)}
+                                                       request)))))))))))))
+  )
 
 (.http app "post-add-frame"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "add-frame"
-            :handler (with-error-handling
-                      "add-frame"
-                      (fn [request]
-                        (-> (request-json request)
-                            (.then
-                             (fn [body]
-                               (let [episode-id (some-> (gobj/get body "episodeId") str str/trim)]
-                                 (if (str/blank? episode-id)
-                                   (json-response 400 {:error "Missing episodeId."} request)
-                                   (try
-                                     (let [frame (add-frame! episode-id)
-                                           snapshot @state]
-                                       (emit-state-changed! "frame-added")
-                                       (json-response 201
-                                                      {:created true
-                                                       :frame frame
-                                                       :revision (:revision snapshot)}
-                                                      request))
-                                     (catch :default err
-                                       (json-response 404
-                                                      {:error (or (some-> err .-message str) "Episode not found.")}
-                                                      request))))))))))})
+            :handler (with-error-handling "add-frame" handle-add-frame)})
 
 (.http app "post-delete-frame"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "delete-frame"
-            :handler (with-error-handling
-                      "delete-frame"
-                      (fn [request]
-                        (-> (request-json request)
-                            (.then
-                             (fn [body]
-                               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-                                 (if (str/blank? frame-id)
-                                   (json-response 400 {:error "Missing frameId."} request)
-                                   (try
-                                     (let [deleted-frame (delete-frame! frame-id)
-                                           snapshot @state]
-                                       (emit-state-changed! "frame-deleted")
-                                       (json-response 200
-                                                      {:deleted true
-                                                       :frame deleted-frame
-                                                       :revision (:revision snapshot)}
-                                                      request))
-                                     (catch :default err
-                                       (let [msg (or (some-> err .-message str) "Delete failed.")
-                                             status (if (or (= msg "Frame not found.")
-                                                            (= msg "Cannot delete frame while queued or processing."))
-                                                      409
-                                                      500)]
-                                         (json-response status {:error msg} request)))))))))))})
+            :handler (with-error-handling "delete-frame" handle-delete-frame)})
 
 (.http app "post-clear-frame-image"
        #js {:methods #js ["POST"]
             :authLevel "anonymous"
             :route "clear-frame-image"
-            :handler (with-error-handling
-                      "clear-frame-image"
-                      (fn [request]
-                        (-> (request-json request)
-                            (.then
-                             (fn [body]
-                               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-                                 (if (str/blank? frame-id)
-                                   (json-response 400 {:error "Missing frameId."} request)
-                                   (try
-                                     (let [frame (clear-frame-image! frame-id)
-                                           snapshot @state]
-                                       (emit-state-changed! "frame-image-cleared")
-                                       (json-response 200
-                                                      {:cleared true
-                                                       :frame frame
-                                                       :revision (:revision snapshot)}
-                                                      request))
-                                     (catch :default err
-                                       (let [msg (or (some-> err .-message str) "Clear image failed.")
-                                             status (if (or (= msg "Frame not found.")
-                                                            (= msg "Cannot clear image while queued or processing."))
-                                                      409
-                                                      500)]
-                                         (json-response status {:error msg} request)))))))))))})
+            :handler (with-error-handling "clear-frame-image" handle-clear-frame-image)})
 
 (.http app "options-preflight"
        #js {:methods #js ["OPTIONS"]

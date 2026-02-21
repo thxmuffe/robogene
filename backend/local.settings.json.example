@@ -1,12 +1,18 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=<storage-account>;AccountKey=<storage-key>;EndpointSuffix=core.windows.net",
+    "ROBOGENE_STORAGE_CONNECTION_STRING": "DefaultEndpointsProtocol=https;AccountName=<storage-account>;AccountKey=<storage-key>;EndpointSuffix=core.windows.net",
+    "AzureSignalRConnectionString": "Endpoint=https://<signalr-name>.service.signalr.net;AccessKey=<signalr-key>;Version=1.0;",
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "OPENAI_API_KEY": "",
     "ROBOGENE_IMAGE_MODEL": "gpt-image-1-mini",
     "ROBOGENE_IMAGE_QUALITY": "low",
     "ROBOGENE_IMAGE_SIZE": "1024x1024",
+    "ROBOGENE_TABLE_META": "robogeneMeta",
+    "ROBOGENE_TABLE_EPISODES": "robogeneEpisodes",
+    "ROBOGENE_TABLE_FRAMES": "robogeneFrames",
+    "ROBOGENE_IMAGE_CONTAINER": "robogene-images",
     "ROBOGENE_ALLOWED_ORIGIN": "https://thxmuffe.github.io"
   }
 }
