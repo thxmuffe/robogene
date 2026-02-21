@@ -7,6 +7,10 @@
 (defonce realtime-conn* (atom nil))
 (defonce fallback-poll-timer* (atom nil))
 (defonce fallback-poll-ms* (atom nil))
+;; Legacy vars kept intentionally to clear intervals created by earlier builds
+;; during shadow-cljs hot-reload sessions.
+(defonce state-poll-timer* (atom nil))
+(defonce state-poll-interval-ms* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -96,9 +100,16 @@
                    (str "[robogene] SignalR negotiate failed: "
                         (or (.-message err) err))))))))
 
+(defn stop-legacy-state-polling! []
+  (when-let [timer-id @state-poll-timer*]
+    (js/clearInterval timer-id)
+    (reset! state-poll-timer* nil)
+    (reset! state-poll-interval-ms* nil)))
+
 (rf/reg-fx
  :realtime-connect
  (fn [_]
+   (stop-legacy-state-polling!)
    (start-realtime!)))
 
 (defn stop-fallback-polling! []
