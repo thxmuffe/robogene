@@ -27,7 +27,10 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [frames]} (model/normalize-state state)]
+   (let [{:keys [frames]} (model/normalize-state state)
+         pending (or (:pendingCount state) 0)
+         processing? (true? (:processing state))
+         poll-mode (if (or processing? (pos? pending)) :active :idle)]
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state frames)
@@ -48,7 +51,8 @@
                                          backend-val
                                           existing-val))))
                              {}
-                             frames)))})))
+                             frames)))
+      :set-fallback-polling poll-mode})))
 
 (rf/reg-event-db
  :state-failed
@@ -71,6 +75,7 @@
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
    {:db db
+    :set-fallback-polling :active
     :dispatch [:fetch-state]}))
 
 (rf/reg-event-db

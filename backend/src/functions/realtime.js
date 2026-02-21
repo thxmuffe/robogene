@@ -41,8 +41,21 @@ function createJwt(audience, accessKey) {
   return `${content}.${signature}`;
 }
 
+function getConnectionConfig() {
+  return parseConnectionString(process.env[CONNECTION_SETTING_NAME]);
+}
+
+function createClientConnectionInfo() {
+  const config = getConnectionConfig();
+  if (!config) return null;
+  const encodedHub = encodeURIComponent(HUB_NAME);
+  const url = `${config.endpoint}/client/?hub=${encodedHub}`;
+  const accessToken = createJwt(url, config.accessKey);
+  return { url, accessToken };
+}
+
 async function publishStateUpdate(data) {
-  const config = parseConnectionString(process.env[CONNECTION_SETTING_NAME]);
+  const config = getConnectionConfig();
   if (!config) return false;
 
   const audience = `${config.endpoint}/api/v1/hubs/${HUB_NAME}`;
@@ -71,5 +84,7 @@ async function publishStateUpdate(data) {
 module.exports = {
   HUB_NAME,
   CONNECTION_SETTING_NAME,
+  getConnectionConfig,
+  createClientConnectionInfo,
   publishStateUpdate,
 };

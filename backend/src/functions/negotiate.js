@@ -1,12 +1,5 @@
-const { app, input } = require('@azure/functions');
+const { app } = require('@azure/functions');
 const realtime = require('./realtime');
-
-const connectionInfo = input.generic({
-  type: 'signalRConnectionInfo',
-  name: 'connectionInfo',
-  hubName: realtime.HUB_NAME,
-  connectionStringSetting: realtime.CONNECTION_SETTING_NAME,
-});
 
 function allowedOrigins() {
   const raw =
@@ -40,10 +33,19 @@ app.http('signalr-negotiate', {
   methods: ['POST'],
   authLevel: 'anonymous',
   route: 'negotiate',
-  extraInputs: [connectionInfo],
-  handler: async (request, context) => {
+  handler: async (request) => {
     try {
-      const info = context.extraInputs.get(connectionInfo);
+      const info = realtime.createClientConnectionInfo();
+      if (!info) {
+        return {
+          status: 200,
+          jsonBody: {
+            disabled: true,
+            reason: `Missing ${realtime.CONNECTION_SETTING_NAME}`,
+          },
+          headers: corsHeaders(request),
+        };
+      }
       return {
         status: 200,
         jsonBody: info,

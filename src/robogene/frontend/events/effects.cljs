@@ -5,6 +5,8 @@
             ["@microsoft/signalr" :as signalr]))
 
 (defonce realtime-conn* (atom nil))
+(defonce fallback-poll-timer* (atom nil))
+(defonce fallback-poll-ms* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -62,27 +64,34 @@
   (when-not @realtime-conn*
     (-> (negotiate-realtime!)
         (.then (fn [info]
-                 (let [url (or (:url info) (get info "url"))
-                       access-token (or (:accessToken info) (get info "accessToken"))]
-                   (when (str/blank? (or url ""))
-                     (throw (js/Error. "Negotiate response missing SignalR URL.")))
-                   (let [builder (signalr/HubConnectionBuilder.)
-                         conn (-> builder
-                                  (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
-                                  (.withAutomaticReconnect)
-                                  (.build))]
-                     (.on conn "stateChanged"
-                          (fn [_]
-                            (rf/dispatch [:fetch-state])))
-                     (-> (.start conn)
-                         (.then (fn []
-                                  (reset! realtime-conn* conn)
-                                  (rf/dispatch [:fetch-state])))
-                         (.catch (fn [err]
-                                   (js/console.warn
-                                    (str "[robogene] SignalR start failed: "
-                                         (or (.-message err) err))))))))))
+                 (if (true? (:disabled info))
+                   (do
+                     (rf/dispatch [:set-fallback-polling :idle])
+                     (rf/dispatch [:fetch-state]))
+                   (let [url (or (:url info) (get info "url"))
+                         access-token (or (:accessToken info) (get info "accessToken"))]
+                      (when (str/blank? (or url ""))
+                        (throw (js/Error. "Negotiate response missing SignalR URL.")))
+                      (let [builder (signalr/HubConnectionBuilder.)
+                            conn (-> builder
+                                     (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
+                                     (.withAutomaticReconnect)
+                                     (.build))]
+                        (.on conn "stateChanged"
+                             (fn [_]
+                               (rf/dispatch [:fetch-state])))
+                        (-> (.start conn)
+                            (.then (fn []
+                                     (reset! realtime-conn* conn)
+                                     (rf/dispatch [:set-fallback-polling :off])
+                                     (rf/dispatch [:fetch-state])))
+                            (.catch (fn [err]
+                                      (rf/dispatch [:set-fallback-polling :idle])
+                                      (js/console.warn
+                                       (str "[robogene] SignalR start failed: "
+                                            (or (.-message err) err)))))))))))
         (.catch (fn [err]
+                  (rf/dispatch [:set-fallback-polling :idle])
                   (js/console.warn
                    (str "[robogene] SignalR negotiate failed: "
                         (or (.-message err) err))))))))
@@ -91,6 +100,33 @@
  :realtime-connect
  (fn [_]
    (start-realtime!)))
+
+(defn stop-fallback-polling! []
+  (when-let [timer-id @fallback-poll-timer*]
+    (js/clearInterval timer-id)
+    (reset! fallback-poll-timer* nil)
+    (reset! fallback-poll-ms* nil)))
+
+(defn start-fallback-polling! [interval-ms]
+  (when (or (nil? @fallback-poll-timer*)
+            (not= @fallback-poll-ms* interval-ms))
+    (stop-fallback-polling!)
+    (reset! fallback-poll-ms* interval-ms)
+    (reset! fallback-poll-timer*
+            (js/setInterval
+             (fn []
+               (when-not (.-hidden js/document)
+                 (rf/dispatch [:fetch-state])))
+             interval-ms))))
+
+(rf/reg-fx
+ :set-fallback-polling
+ (fn [mode]
+   (case mode
+     :active (start-fallback-polling! 3000)
+     :idle (start-fallback-polling! 15000)
+     :off (stop-fallback-polling!)
+     nil)))
 
 (rf/reg-fx
  :fetch-state
