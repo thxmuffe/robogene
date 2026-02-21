@@ -32,11 +32,13 @@ function base64Url(input) {
 
 function createJwt(audience, accessKey) {
   const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const exp = Math.floor(Date.now() / 1000) + 60;
-  const payload = base64Url(JSON.stringify({ aud: audience, exp }));
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 60;
+  const payload = base64Url(JSON.stringify({ aud: audience, iat: now, nbf: now, exp }));
   const content = `${header}.${payload}`;
+  // Azure SignalR AccessKey is used directly as the HMAC secret.
   const signature = base64Url(
-    crypto.createHmac('sha256', Buffer.from(accessKey, 'base64')).update(content).digest()
+    crypto.createHmac('sha256', Buffer.from(accessKey, 'utf8')).update(content).digest()
   );
   return `${content}.${signature}`;
 }
