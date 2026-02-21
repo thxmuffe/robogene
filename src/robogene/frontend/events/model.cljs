@@ -66,7 +66,7 @@
                 (map (fn [f]
                        (let [enriched (enrich-frame state f)]
                          (assoc enriched :frameDescription (frame-description enriched)))))
-                (sort-by frame-number-of >)
+                (sort-by frame-number-of)
                 vec)})
 
 (defn status-line [state frames]

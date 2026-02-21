@@ -52,10 +52,10 @@ function normalizeFrames(state) {
       const enriched = enrichFrame(state, f);
       return { ...enriched, frameDescription: frameDescription(enriched) };
     })
-    .sort((a, b) => b.frameNumber - a.frameNumber);
+    .sort((a, b) => a.frameNumber - b.frameNumber);
 }
 
-test('frame state normalizes and sorts by frame number desc', () => {
+test('frame state normalizes and sorts by frame number asc', () => {
   const state = {
     frames: [
       { frameId: 'a', frameNumber: 1, status: 'ready', imageDataUrl: 'data:image/png;base64,aaa' },
@@ -66,7 +66,7 @@ test('frame state normalizes and sorts by frame number desc', () => {
 
   const frames = normalizeFrames(state);
   assert.equal(frames.length, 3);
-  assert.deepEqual(frames.map((f) => f.frameNumber), [3, 2, 1]);
+  assert.deepEqual(frames.map((f) => f.frameNumber), [1, 2, 3]);
   assert.ok(frames.every((f) => typeof f.frameNumber === 'number'));
   assert.ok(frames.every((f) => typeof f.status === 'string'));
 });
