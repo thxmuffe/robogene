@@ -1,4 +1,5 @@
-@base = http://localhost:7071
+@base = https://robogene-func-prod.azurewebsites.net
+# @base = http://localhost:7071
 @json = application/json
 
 ### 1) Get current episode state (run this first)

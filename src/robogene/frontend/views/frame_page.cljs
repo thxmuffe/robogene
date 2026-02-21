@@ -1,8 +1,9 @@
 (ns robogene.frontend.views.frame-page
   (:require [re-frame.core :as rf]
+            [robogene.frontend.events.model :as model]
             [robogene.frontend.views.frame-view :as frame-view]))
 
-(defn detail-controls [frames idx]
+(defn detail-controls [episode-id frames idx]
   (let [prev-frame (when (> idx 0) (nth frames (dec idx)))
         next-frame (when (< idx (dec (count frames))) (nth frames (inc idx)))]
     [:div.detail-controls
@@ -14,27 +15,30 @@
       {:type "button"
        :disabled (nil? prev-frame)
        :on-click #(when prev-frame
-                    (rf/dispatch [:navigate-frame (:frameNumber prev-frame)]))}
+                    (rf/dispatch [:navigate-frame episode-id (:frameNumber prev-frame)]))}
       "Previous"]
      [:button.btn
       {:type "button"
        :disabled (nil? next-frame)
        :on-click #(when next-frame
-                    (rf/dispatch [:navigate-frame (:frameNumber next-frame)]))}
+                    (rf/dispatch [:navigate-frame episode-id (:frameNumber next-frame)]))}
       "Next"]]))
 
-(defn frame-page [route gallery frame-inputs]
-  (let [frame-number (:frame-number route)
-        ordered (->> gallery (sort-by :frameNumber) vec)
-        idx (first (keep-indexed (fn [i f]
-                                   (when (= (:frameNumber f) frame-number) i))
-                                 ordered))
+(defn frame-page [route episodes frame-inputs open-frame-actions]
+  (let [episode-id (:episode route)
+        episode (some (fn [row] (when (= (:episodeId row) episode-id) row)) episodes)
+        frame-number (:frame-number route)
+        ordered (model/ordered-frames (:frames episode))
+        idx (model/frame-index-by-number ordered frame-number)
         frame (when (some? idx) (nth ordered idx))]
     [:section
      (if frame
        [:div.detail-page
-        [detail-controls ordered idx]
-        [frame-view/frame-view frame (get frame-inputs (:frameId frame) "") {:clickable? false}]
+        [detail-controls episode-id ordered idx]
+        [frame-view/frame-view frame
+         (get frame-inputs (:frameId frame) "")
+         {:clickable? false
+          :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         [:div.detail-share
          [:label "Share URL"]
          [:input

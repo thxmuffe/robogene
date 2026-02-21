@@ -91,6 +91,10 @@ func start
 API endpoints (local):
 - `GET http://localhost:7071/api/state`
 - `POST http://localhost:7071/api/generate-frame` with body `{ "frameId": "...", "direction": "..." }`
+- `POST http://localhost:7071/api/add-frame` with body `{ "episodeId": "..." }`
+- `POST http://localhost:7071/api/add-episode` with body `{ "description": "..." }`
+- `POST http://localhost:7071/api/delete-frame` with body `{ "frameId": "..." }`
+- `POST http://localhost:7071/api/clear-frame-image` with body `{ "frameId": "..." }`
 
 Note:
 - `npm run build:backend` is defined in the repo root `package.json`, not in `backend/package.json`.
@@ -123,7 +127,11 @@ Set app settings:
 ```bash
 az functionapp config appsettings set -g $RG -n $APP --settings \
   OPENAI_API_KEY="<your_key>" \
-  ROBOGENE_IMAGE_MODEL="gpt-image-1" \
+  ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
+  ROBOGENE_IMAGE_QUALITY="low" \
+  ROBOGENE_IMAGE_SIZE="1024x1024" \
+  AzureSignalRConnectionString="<your_signalr_connection_string>" \
+  ROBOGENE_SIGNALR_HUB="robogene" \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
 ```
 
@@ -172,6 +180,7 @@ cd backend
 - This backend stores story state in-memory per function instance.
 - Backend state is frame-centric: every frame has a unique `frameId`.
 - Generated images are returned as `frame.imageDataUrl` (base64) for portability.
+- Realtime UI sync uses Azure SignalR (`/api/negotiate` + `stateChanged` events).
 - Deploy package must include `node_modules` for this zip-deploy flow.
 - `js/` build artifacts are not committed; CI builds them for Pages.
 
@@ -181,3 +190,4 @@ cd backend
   - Rebuild backend from repo root: `npm run build:backend`.
   - Restart backend from `backend/`: `npm run start -- --verbose`.
 - If `func start` fails because port `7071` is in use, stop the existing process first or pass `--port`.
+- If `/api/negotiate` returns `500`, set `AzureSignalRConnectionString` in local/app settings.

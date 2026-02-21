@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
             [reagent.dom.client :as rdom]
-            [robogene.frontend.events]
+            [robogene.frontend.events.handlers]
             [robogene.frontend.subs]
             [robogene.frontend.views :as views]))
 
@@ -23,6 +23,10 @@
                      r))]
       (rdom/render root [views/main-view]))))
 
+(defn ^:dev/after-load after-load! []
+  (mount-root)
+  (rf/dispatch [:fetch-state]))
+
 (defn ^:export init! []
   (rf/dispatch-sync [:initialize])
   (.addEventListener js/window "focus" #(rf/dispatch [:force-refresh]))
@@ -33,8 +37,18 @@
                        (when-not (typing-target? (.-target e))
                          (case (.-key e)
                            "Escape" (rf/dispatch [:navigate-index])
-                           "ArrowLeft" (rf/dispatch [:navigate-relative-frame -1])
-                           "ArrowRight" (rf/dispatch [:navigate-relative-frame 1])
+                           "ArrowLeft" (do
+                                         (.preventDefault e)
+                                         (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
+                           "ArrowRight" (do
+                                          (.preventDefault e)
+                                          (rf/dispatch [:keyboard-arrow "ArrowRight"]))
+                           "ArrowUp" (do
+                                       (.preventDefault e)
+                                       (rf/dispatch [:keyboard-arrow "ArrowUp"]))
+                           "ArrowDown" (do
+                                         (.preventDefault e)
+                                         (rf/dispatch [:keyboard-arrow "ArrowDown"]))
                            nil))))
   (.addEventListener js/document "visibilitychange"
                      #(when-not (.-hidden js/document)
