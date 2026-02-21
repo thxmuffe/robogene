@@ -96,6 +96,13 @@ API endpoints (local):
 - `POST http://localhost:7071/api/delete-frame` with body `{ "frameId": "..." }`
 - `POST http://localhost:7071/api/clear-frame-image` with body `{ "frameId": "..." }`
 
+Storage model:
+- Metadata/state is persisted in Azure Tables (`robogeneMeta`, `robogeneEpisodes`, `robogeneFrames` by default).
+- Generated images are persisted in Azure Blob Storage (`robogene-images` container by default).
+- Blob URLs are returned as `frame.imageDataUrl` for frontend rendering.
+- Tables/container are created automatically on first backend start if missing.
+- `AzureWebJobsStorage` is used unless `ROBOGENE_STORAGE_CONNECTION_STRING` is explicitly set.
+
 Note:
 - `npm run build:backend` is defined in the repo root `package.json`, not in `backend/package.json`.
 
@@ -130,6 +137,10 @@ az functionapp config appsettings set -g $RG -n $APP --settings \
   ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
   ROBOGENE_IMAGE_QUALITY="low" \
   ROBOGENE_IMAGE_SIZE="1024x1024" \
+  ROBOGENE_TABLE_META="robogeneMeta" \
+  ROBOGENE_TABLE_EPISODES="robogeneEpisodes" \
+  ROBOGENE_TABLE_FRAMES="robogeneFrames" \
+  ROBOGENE_IMAGE_CONTAINER="robogene-images" \
   AzureSignalRConnectionString="<your_signalr_connection_string>" \
   ROBOGENE_SIGNALR_HUB="robogene" \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
