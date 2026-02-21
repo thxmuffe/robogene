@@ -47,6 +47,9 @@ cat > backend/local.settings.json <<JSON
 }
 JSON
 
+echo "Building backend..."
+npm run build:backend
+
 npm run watch &
 WATCH_PID=$!
 

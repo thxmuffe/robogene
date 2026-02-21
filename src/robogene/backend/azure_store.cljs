@@ -54,10 +54,9 @@
   (let [list-entities-fn (gobj/get client "listEntities")
         iterable (.call list-entities-fn client #js {:queryOptions
                                                      #js {:filter (str "PartitionKey eq '" partition-key "'")}})
-        iterator ((aget iterable (.-asyncIterator js/Symbol)))
         out (array)]
     (letfn [(step []
-              (-> (.next iterator)
+              (-> (.next iterable)
                   (.then (fn [res]
                            (if (.-done res)
                              (vec out)
