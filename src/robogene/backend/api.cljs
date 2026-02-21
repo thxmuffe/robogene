@@ -267,22 +267,49 @@
                  (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
                  (update :revision inc))))))
 
-(declare process-step!)
+(declare process-step! active-queue-count)
+
+(defn log-generation-start! [frame queue-size]
+  (js/console.info
+   (str "[robogene] generation started"
+        " frameNumber=" (:frameNumber frame)
+        " frameId=" (:frameId frame)
+        " queueSize=" queue-size)))
+
+(defn log-generation-success! [frame duration-ms]
+  (js/console.info
+   (str "[robogene] generation finished"
+        " frameNumber=" (:frameNumber frame)
+        " frameId=" (:frameId frame)
+        " durationMs=" duration-ms)))
+
+(defn log-generation-failed! [frame duration-ms err]
+  (js/console.error
+   (str "[robogene] generation failed"
+        " frameNumber=" (:frameNumber frame)
+        " frameId=" (:frameId frame)
+        " durationMs=" duration-ms
+        " error=" (or (some-> err .-message str) err))))
 
 (defn process-step! []
   (let [snapshot @state
         idx (next-queued-frame-index (:frames snapshot))]
     (if (nil? idx)
       (swap! state assoc :processing false)
-      (let [frame (get (:frames snapshot) idx)]
+      (let [frame (get (:frames snapshot) idx)
+            started-ms (.now js/Date)
+            queue-size (active-queue-count (:frames snapshot))]
+        (log-generation-start! frame queue-size)
         (mark-frame-processing! idx)
         (-> (generate-image! frame)
             (.then (fn [image-data-url]
+                     (log-generation-success! frame (- (.now js/Date) started-ms))
                      (mark-frame-ready! idx image-data-url)
                      (ensure-draft-frame!)
                      (process-step!)
                      nil))
             (.catch (fn [err]
+                      (log-generation-failed! frame (- (.now js/Date) started-ms) err)
                       (mark-frame-failed! idx frame (str (or (.-message err) err)))
                       (process-step!)
                       nil)))))))
