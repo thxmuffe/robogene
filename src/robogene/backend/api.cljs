@@ -181,29 +181,28 @@
                                         (story/process-queue!)
                                         (queue-success-response request (:idx outcome))))))))))))))})
 
-(.http app "post-add-episode"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "add-episode"
-            :handler (with-error-handling
-                      "add-episode"
-                      (fn [request]
-                        (-> (story/sync-state-from-storage!)
-                            (.then (fn [_] (request-json request)))
-                            (.then
-                             (fn [body]
-                               (let [description (some-> (gobj/get body "description") str str/trim)
-                                     {:keys [episode frame]} (story/add-episode! description)
-                                     _ (story/emit-state-changed! "episode-added")]
-                                 (-> (story/persist-state!)
-                                     (.then (fn [_]
-                                              (let [snapshot @story/state]
-                                                (json-response 201
-                                                               {:created true
-                                                                :episode episode
-                                                                :frame frame
-                                                                :revision (:revision snapshot)}
-                                                               request)))))))))))})
+(defn emit-persist-and-respond [request emit-reason status response-body]
+  (story/emit-state-changed! emit-reason)
+  (-> (story/persist-state!)
+      (.then (fn [_]
+               (let [snapshot @story/state]
+                 (json-response status (response-body snapshot) request))))))
+
+(defn handle-add-episode [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [description (some-> (gobj/get body "description") str str/trim)
+           {:keys [episode frame]} (story/add-episode! description)]
+       (emit-persist-and-respond
+        request
+        "episode-added"
+        201
+        (fn [snapshot]
+          {:created true
+           :episode episode
+           :frame frame
+           :revision (:revision snapshot)}))))))
 
 (defn handle-add-frame [request]
   (with-synced-body
@@ -222,15 +221,14 @@
           (if-not (:ok outcome)
             (:response outcome)
             (let [frame (:frame outcome)]
-              (story/emit-state-changed! "frame-added")
-              (-> (story/persist-state!)
-                  (.then (fn [_]
-                           (let [snapshot @story/state]
-                             (json-response 201
-                                            {:created true
-                                             :frame frame
-                                             :revision (:revision snapshot)}
-                                            request)))))))))))))
+              (emit-persist-and-respond
+               request
+               "frame-added"
+               201
+               (fn [snapshot]
+                 {:created true
+                  :frame frame
+                  :revision (:revision snapshot)}))))))))))
 
 (defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
   (let [outcome (try
@@ -243,13 +241,12 @@
     (if-not (:ok outcome)
       (:response outcome)
       (let [frame (:frame outcome)]
-        (story/emit-state-changed! emit-reason)
-        (-> (story/persist-state!)
-            (.then (fn [_]
-                     (let [snapshot @story/state]
-                       (json-response success-status
-                                      (success-body frame snapshot)
-                                      request)))))))))
+        (emit-persist-and-respond
+         request
+         emit-reason
+         success-status
+         (fn [snapshot]
+           (success-body frame snapshot)))))))
 
 (defn handle-delete-frame [request]
   (with-synced-body
@@ -293,6 +290,12 @@
             :authLevel "anonymous"
             :route "add-frame"
             :handler (with-error-handling "add-frame" handle-add-frame)})
+
+(.http app "post-add-episode"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "add-episode"
+            :handler (with-error-handling "add-episode" handle-add-episode)})
 
 (.http app "post-delete-frame"
        #js {:methods #js ["POST"]
