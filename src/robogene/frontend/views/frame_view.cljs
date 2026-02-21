@@ -99,7 +99,7 @@
        [:span.btn-hint "Remove"]])))
 
 (defn frame-actions-menu [frame]
-  (let [{:keys [frameId frameNumber status imageDataUrl actionsOpen]} frame
+  (let [{:keys [frameId frameNumber status actionsOpen]} frame
         busy? (or (= status "queued") (= status "processing"))]
     [:details.frame-danger-zone
      {:open (true? actionsOpen)

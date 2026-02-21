@@ -221,8 +221,7 @@
                                    {:ok true :frame (story/delete-frame! frame-id)}
                                    (catch :default err
                                      (let [msg (or (some-> err .-message str) "Delete failed.")
-                                           status (if (or (= msg "Frame not found.")
-                                                          (= msg "Cannot delete frame while queued or processing."))
+                                           status (if (= msg "Frame not found.")
                                                     409
                                                     500)]
                                        {:ok false
