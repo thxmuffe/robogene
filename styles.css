@@ -97,9 +97,34 @@ body {
 }
 
 .btn-small {
-  padding: 8px 12px;
-  font-size: 0.82rem;
-  white-space: nowrap;
+  padding: 0;
+  width: 56px;
+  min-width: 56px;
+  height: 44px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon {
+  font-weight: 900;
+  font-size: 1.32rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  text-align: center;
+}
+
+.btn-hint {
+  font-weight: 800;
+  font-size: 0.76rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 .status {
@@ -296,6 +321,19 @@ h2 { margin: 24px 0 10px; }
   position: relative;
 }
 
+.media-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #ffffff;
+  background: rgba(16, 42, 67, 0.45);
+  backdrop-filter: blur(1px);
+}
+
 .placeholder-img {
   width: 100%;
   aspect-ratio: 3 / 2;
@@ -355,6 +393,9 @@ h2 { margin: 24px 0 10px; }
 .frame-editor .direction-input {
   min-height: 110px;
   margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.45;
+  font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
 }
 
 .frame-danger-zone {
@@ -363,9 +404,17 @@ h2 { margin: 24px 0 10px; }
 
 .frame-danger-zone summary {
   cursor: pointer;
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 800;
+  font-size: 1.08rem;
+  letter-spacing: 0.01em;
   color: #334e68;
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f0f5fb;
+  border: 1px solid #c5d3e2;
+  user-select: none;
 }
 
 .frame-danger-zone[open] {

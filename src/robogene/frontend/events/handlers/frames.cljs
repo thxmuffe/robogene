@@ -1,5 +1,14 @@
 (ns robogene.frontend.events.handlers.frames
-  (:require [re-frame.core :as rf]))
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]))
+
+(defn deleted-frame-label [frame]
+  (let [frame-number (:frameNumber frame)
+        description (str/trim (or (:description frame) ""))]
+    (cond
+      (some? frame-number) (str "Frame " frame-number)
+      (seq description) (str "\"" description "\"")
+      :else (or (:frameId frame) "frame"))))
 
 (rf/reg-event-db
  :frame-direction-changed
@@ -17,7 +26,7 @@
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
    {:db db
-    :set-fallback-polling :active}))
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :generate-failed
@@ -33,7 +42,8 @@
 (rf/reg-event-fx
  :add-frame-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame added.")}))
+   {:db (assoc db :status "Frame added.")
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :add-frame-failed
@@ -48,8 +58,10 @@
 
 (rf/reg-event-fx
  :delete-frame-accepted
- (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame deleted.")}))
+ (fn [{:keys [db]} [_ data]]
+   (let [frame (:frame data)]
+     {:db (assoc db :status (str "Deleted " (deleted-frame-label frame) "."))
+      :dispatch [:fetch-state]})))
 
 (rf/reg-event-db
  :delete-frame-failed
@@ -65,7 +77,8 @@
 (rf/reg-event-fx
  :clear-frame-image-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame image removed.")}))
+   {:db (assoc db :status "Frame image removed.")
+    :dispatch [:fetch-state]}))
 
 (rf/reg-event-db
  :clear-frame-image-failed

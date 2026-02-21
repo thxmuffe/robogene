@@ -6,13 +6,16 @@
 (defn frame-image [{:keys [imageDataUrl frameNumber]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
 
-(defn frame-editor [{:keys [frameId status error]} frame-input]
-  (let [busy? (or (= status "queued") (= status "processing"))]
+(defn frame-editor [{:keys [frameId status error actionsOpen]} frame-input]
+  (let [busy? (or (= status "queued") (= status "processing"))
+        editable? (and (true? actionsOpen) (not busy?))]
     [:div.frame-editor
      [:textarea.direction-input
       {:value (or frame-input "")
        :placeholder "Describe this frame..."
-       :disabled busy?
+       :disabled (not editable?)
+       :title (when-not editable?
+                "Open edit mode to edit this description.")
        :on-click (fn [e]
                    (.stopPropagation e)
                    (rf/dispatch [:set-frame-actions-open frameId true]))
@@ -51,17 +54,25 @@
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
         has-image? (not (str/blank? (or imageDataUrl "")))
-        button-label (if busy?
-                       (if (= status "processing") "Generating..." "Queued...")
-                       (if has-image? "Regenerate Frame" "Generate Frame"))]
+        hint (if busy?
+               (if (= status "processing") "Generating..." "Queued...")
+               (if has-image? "Regenerate frame" "Generate frame"))
+        label (if busy?
+                (if (= status "processing") "Working" "Queued")
+                (if has-image? "Regen" "Gen"))
+        icon (if busy?
+               (if (= status "processing") "..." "o")
+               (if has-image? "R" "+"))]
     [:button.btn.btn-primary.btn-small
      {:type "button"
+      :aria-label hint
       :disabled busy?
       :on-mouse-down #(.stopPropagation %)
       :on-click (fn [e]
                   (.stopPropagation e)
                   (rf/dispatch [:generate-frame frameId]))}
-     button-label]))
+     [:span.btn-icon icon]
+     [:span.btn-hint label]]))
 
 (defn clear-image-button [{:keys [frameId frameNumber status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
@@ -69,10 +80,8 @@
     (when has-image?
       [:button.btn.btn-secondary.btn-small
        {:type "button"
+        :aria-label "Remove image"
         :disabled busy?
-        :title (if busy?
-                 "Cannot remove image while queued/processing"
-                 "Remove image but keep frame")
         :on-click (fn [e]
                     (.stopPropagation e)
                     (-> (.fire Swal
@@ -86,25 +95,23 @@
                         (.then (fn [result]
                                  (when (true? (.-isConfirmed result))
                                    (rf/dispatch [:clear-frame-image frameId]))))))}
-       "Remove Image"])))
+       [:span.btn-icon "x"]
+       [:span.btn-hint "Remove"]])))
 
 (defn frame-actions-menu [frame]
-  (let [{:keys [frameId frameNumber status imageDataUrl actionsOpen]} frame
+  (let [{:keys [frameId frameNumber status actionsOpen]} frame
         busy? (or (= status "queued") (= status "processing"))]
     [:details.frame-danger-zone
      {:open (true? actionsOpen)
       :on-click #(.stopPropagation %)
       :on-toggle #(rf/dispatch [:set-frame-actions-open frameId (.-open (.-target %))])}
-     [:summary "Frame actions"]
+     [:summary {:aria-label "Edit frame"} "✂"]
      [:div.frame-actions
       [frame-action-button frame]
       [clear-image-button frame]
       [:button.btn.btn-danger.btn-small
        {:type "button"
-        :disabled busy?
-        :title (if busy?
-                 "Cannot delete while queued/processing"
-                 "Delete this frame")
+        :aria-label "Delete frame"
         :on-click (fn [e]
                     (.stopPropagation e)
                     (-> (.fire Swal
@@ -118,14 +125,16 @@
                         (.then (fn [result]
                                  (when (true? (.-isConfirmed result))
                                    (rf/dispatch [:delete-frame frameId]))))))}
-       "Delete Frame"]]]))
+       [:span.btn-icon "!"]
+       [:span.btn-hint "Delete"]]]]))
 
 (defn frame-view
   ([frame frame-input]
    [frame-view frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open?]
-                       :or {clickable? true active? false actions-open? false}}]
+   ([frame frame-input {:keys [clickable? active? actions-open?]
+                        :or {clickable? true active? false actions-open? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
+         busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
          frame* (assoc frame :actionsOpen actions-open?)
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
@@ -147,10 +156,15 @@
      [:article attrs
       [:div.media-shell
        (if has-image?
-         [frame-image frame*]
+         [:<>
+          [frame-image frame*]
+          (when busy?
+            [:div.media-loading-overlay
+             [:div.spinner]
+             [:div.placeholder-text "Generating..."]])]
          [frame-placeholder frame])]
       [:div.meta
-       (when (or (= "queued" (:status frame*)) (= "processing" (:status frame*)))
+       (when busy?
          [:span.badge.queue "In Queue"])
        [frame-editor frame* frame-input]
        [frame-actions-menu frame*]]])))
