@@ -101,9 +101,8 @@
       [clear-image-button frame]
       [:button.btn.btn-danger.btn-small
        {:type "button"
-        :disabled busy?
         :title (if busy?
-                 "Cannot delete while queued/processing"
+                 "Delete this frame even while queued/processing"
                  "Delete this frame")
         :on-click (fn [e]
                     (.stopPropagation e)

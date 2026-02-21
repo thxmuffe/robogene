@@ -163,10 +163,6 @@
 
 (declare find-frame-index)
 
-(defn deletable-frame-status? [status]
-  (not (or (= status "queued")
-           (= status "processing"))))
-
 (defn delete-frame! [frame-id]
   (let [snapshot @state
         frames (:frames snapshot)
@@ -174,8 +170,6 @@
         frame (when (number? idx) (get frames idx))]
     (when (nil? idx)
       (throw (js/Error. "Frame not found.")))
-    (when-not (deletable-frame-status? (:status frame))
-      (throw (js/Error. "Cannot delete frame while queued or processing.")))
     (swap! state
            (fn [s]
              (-> s
@@ -194,7 +188,8 @@
         frame (when (number? idx) (get frames idx))]
     (when (nil? idx)
       (throw (js/Error. "Frame not found.")))
-    (when-not (deletable-frame-status? (:status frame))
+    (when (or (= "queued" (:status frame))
+              (= "processing" (:status frame)))
       (throw (js/Error. "Cannot clear image while queued or processing.")))
     (swap! state
            (fn [s]
@@ -415,39 +410,48 @@
                          (when (= "queued" (:status frame)) idx))
                        frames)))
 
-(defn mark-frame-processing! [idx]
-  (swap! state
-         (fn [s]
-           (-> s
-               (assoc-in [:frames idx :status] "processing")
-               (assoc-in [:frames idx :startedAt] (.toISOString (js/Date.)))
-               (update :revision inc)))))
+(defn mark-frame-processing! [frame-id]
+  (let [idx (find-frame-index (:frames @state) frame-id)]
+    (when (number? idx)
+      (swap! state
+             (fn [s]
+               (-> s
+                   (assoc-in [:frames idx :status] "processing")
+                   (assoc-in [:frames idx :startedAt] (.toISOString (js/Date.)))
+                   (update :revision inc))))
+      true)))
 
-(defn mark-frame-ready! [idx image-data-url]
-  (swap! state
-         (fn [s]
-           (-> s
-               (assoc-in [:frames idx :imageDataUrl] image-data-url)
-               (assoc-in [:frames idx :status] "ready")
-               (assoc-in [:frames idx :error] nil)
-               (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
-               (update :revision inc)))))
+(defn mark-frame-ready! [frame-id image-data-url]
+  (let [idx (find-frame-index (:frames @state) frame-id)]
+    (when (number? idx)
+      (swap! state
+             (fn [s]
+               (-> s
+                   (assoc-in [:frames idx :imageDataUrl] image-data-url)
+                   (assoc-in [:frames idx :status] "ready")
+                   (assoc-in [:frames idx :error] nil)
+                   (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                   (update :revision inc))))
+      true)))
 
-(defn mark-frame-failed! [idx frame message]
-  (swap! state
-         (fn [s]
-           (let [failed {:jobId (new-uuid)
-                         :frameId (:frameId frame)
-                         :frameNumber (:frameNumber frame)
-                         :description (:description frame)
-                         :error message
-                         :createdAt (.toISOString (js/Date.))}]
-             (-> s
-                 (assoc-in [:frames idx :status] "failed")
-                 (assoc-in [:frames idx :error] message)
-                 (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
-                 (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
-                 (update :revision inc))))))
+(defn mark-frame-failed! [frame-id frame message]
+  (let [idx (find-frame-index (:frames @state) frame-id)]
+    (when (number? idx)
+      (swap! state
+             (fn [s]
+               (let [failed {:jobId (new-uuid)
+                             :frameId (:frameId frame)
+                             :frameNumber (:frameNumber frame)
+                             :description (:description frame)
+                             :error message
+                             :createdAt (.toISOString (js/Date.))}]
+                 (-> s
+                     (assoc-in [:frames idx :status] "failed")
+                     (assoc-in [:frames idx :error] message)
+                     (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                     (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
+                     (update :revision inc)))))
+      true)))
 
 (declare process-step! active-queue-count)
 
@@ -513,37 +517,49 @@
                         nil)))
           nil))
       (let [frame (get (:frames snapshot) idx)
+            frame-id (:frameId frame)
             started-ms (.now js/Date)
             queue-size (active-queue-count (:frames snapshot))]
         (log-generation-start! frame queue-size)
-        (mark-frame-processing! idx)
-        (-> (persist-state!)
-            (.then (fn [_]
-                     (emit-state-changed! "processing")
-                     (generate-image! frame)))
-            (.then (fn [image-data-url]
-                     (log-generation-success! frame (- (.now js/Date) started-ms))
-                     (mark-frame-ready! idx image-data-url)
-                     (ensure-draft-frame-for-episode! (:episodeId frame))
-                     (-> (persist-state!)
-                         (.then (fn [_]
-                                  (emit-state-changed! "ready")
-                                  (process-step!)
-                                  nil)))))
-            (.catch (fn [err]
-                      (log-generation-failed! frame (- (.now js/Date) started-ms) err)
-                      (mark-frame-failed! idx frame (str (or (.-message err) err)))
-                      (-> (persist-state!)
-                          (.then (fn [_]
-                                   (emit-state-changed! "failed")
-                                   (process-step!)
-                                   nil))
-                          (.catch (fn [persist-err]
-                                    (js/console.error "[robogene] persist failed after generation error" persist-err)
-                                    (emit-state-changed! "failed")
-                                    (process-step!)
-                                    nil))))))))))
-
+        (if-not (mark-frame-processing! frame-id)
+          (do
+            (js/console.warn (str "[robogene] generation skipped; frame deleted before processing frameId=" frame-id))
+            (process-step!))
+          (-> (persist-state!)
+              (.then (fn [_]
+                       (emit-state-changed! "processing")
+                       (generate-image! frame)))
+              (.then (fn [image-data-url]
+                       (log-generation-success! frame (- (.now js/Date) started-ms))
+                       (if (mark-frame-ready! frame-id image-data-url)
+                         (do
+                           (ensure-draft-frame-for-episode! (:episodeId frame))
+                           (-> (persist-state!)
+                               (.then (fn [_]
+                                        (emit-state-changed! "ready")
+                                        (process-step!)
+                                        nil))))
+                         (do
+                           (js/console.warn (str "[robogene] generation result dropped; frame deleted frameId=" frame-id))
+                           (process-step!)
+                           nil))))
+              (.catch (fn [err]
+                        (log-generation-failed! frame (- (.now js/Date) started-ms) err)
+                        (if (mark-frame-failed! frame-id frame (str (or (.-message err) err)))
+                          (-> (persist-state!)
+                              (.then (fn [_]
+                                       (emit-state-changed! "failed")
+                                       (process-step!)
+                                       nil))
+                              (.catch (fn [persist-err]
+                                        (js/console.error "[robogene] persist failed after generation error" persist-err)
+                                        (emit-state-changed! "failed")
+                                        (process-step!)
+                                        nil)))
+                          (do
+                            (js/console.warn (str "[robogene] generation failure dropped; frame deleted frameId=" frame-id))
+                            (process-step!)
+                            nil))))))))))
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)
