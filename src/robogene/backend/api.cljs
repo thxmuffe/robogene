@@ -176,47 +176,57 @@
                              :status (.-status response)
                              :body body})))))))
 
+(defn openai-image-response->data-url [body]
+  (let [data (gobj/get body "data")
+        first-item (when (and data (> (.-length data) 0)) (aget data 0))
+        b64 (when first-item (gobj/get first-item "b64_json"))]
+    (if (not b64)
+      (throw (js/Error. (str "Unexpected OpenAI response: " (.stringify js/JSON body))))
+      (str "data:image/png;base64," b64))))
+
+(defn reference-images []
+  (let [prev-frame (last (completed-frames))]
+    (vec
+     (filter some?
+             [{:bytes (:referenceImageBytes @state) :name "character_ref.png"}
+              {:bytes (image-data-url->bytes (:imageDataUrl prev-frame)) :name "previous_frame.png"}]))))
+
+(defn append-reference-image! [form {:keys [bytes name]}]
+  (let [blob (js/Blob. (clj->js [bytes]) #js {:type "image/png"})]
+    (.append form "image[]" blob name)))
+
+(defn openai-image-request! [api-key prompt refs]
+  (if (seq refs)
+    (let [form (js/FormData.)]
+      (.append form "model" (:model @state))
+      (.append form "prompt" prompt)
+      (.append form "size" "1536x1024")
+      (doseq [ref refs]
+        (append-reference-image! form ref))
+      (fetch-json "https://api.openai.com/v1/images/edits"
+                  #js {:method "POST"
+                       :headers #js {:Authorization (str "Bearer " api-key)}
+                       :body form}))
+    (fetch-json "https://api.openai.com/v1/images/generations"
+                #js {:method "POST"
+                     :headers #js {:Authorization (str "Bearer " api-key)
+                                   "Content-Type" "application/json"}
+                     :body (.stringify js/JSON
+                                       (clj->js {:model (:model @state)
+                                                 :prompt prompt
+                                                 :size "1536x1024"}))})))
+
 (defn generate-image! [frame]
   (let [api-key (.. js/process -env -OPENAI_API_KEY)]
     (if (not (seq api-key))
       (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
       (let [prompt (build-prompt-for-frame frame)
-            ref-bytes (:referenceImageBytes @state)
-            prev-frame (last (completed-frames))
-            prev-bytes (image-data-url->bytes (:imageDataUrl prev-frame))
-            refs (vec (filter some? [{:bytes ref-bytes :name "character_ref.png"}
-                                     {:bytes prev-bytes :name "previous_frame.png"}]))
-            request-promise
-            (if (seq refs)
-              (let [form (js/FormData.)]
-                (.append form "model" (:model @state))
-                (.append form "prompt" prompt)
-                (.append form "size" "1536x1024")
-                (doseq [ref refs]
-                  (let [blob (js/Blob. (clj->js [(:bytes ref)]) #js {:type "image/png"})]
-                    (.append form "image[]" blob (:name ref))))
-                (fetch-json "https://api.openai.com/v1/images/edits"
-                            #js {:method "POST"
-                                 :headers #js {:Authorization (str "Bearer " api-key)}
-                                 :body form}))
-              (fetch-json "https://api.openai.com/v1/images/generations"
-                          #js {:method "POST"
-                               :headers #js {:Authorization (str "Bearer " api-key)
-                                             "Content-Type" "application/json"}
-                               :body (.stringify js/JSON
-                                                 (clj->js {:model (:model @state)
-                                                           :prompt prompt
-                                                           :size "1536x1024"}))}))]
-        (-> request-promise
+            refs (reference-images)]
+        (-> (openai-image-request! api-key prompt refs)
             (.then (fn [{:keys [ok status body]}]
                      (if-not ok
                        (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
-                       (let [data (gobj/get body "data")
-                             first-item (when (and data (> (.-length data) 0)) (aget data 0))
-                             b64 (when first-item (gobj/get first-item "b64_json"))]
-                         (if (not b64)
-                           (throw (js/Error. (str "Unexpected OpenAI response: " (.stringify js/JSON body))))
-                           (str "data:image/png;base64," b64)))))))))))
+                       (openai-image-response->data-url body)))))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
