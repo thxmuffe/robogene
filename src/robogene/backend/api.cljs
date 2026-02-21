@@ -269,27 +269,37 @@
 
 (declare process-step! active-queue-count)
 
+(def ansi-reset "\u001b[0m")
+(def ansi-white "\u001b[97m")
+(def ansi-green "\u001b[32m")
+
+(defn colorize [ansi-color text]
+  (str ansi-color text ansi-reset))
+
 (defn log-generation-start! [frame queue-size]
   (js/console.log
-   (str "[robogene] generation started"
-        " frameNumber=" (:frameNumber frame)
-        " frameId=" (:frameId frame)
-        " queueSize=" queue-size)))
+   (colorize ansi-white
+             (str "[robogene] generation started"
+                  " frameNumber=" (:frameNumber frame)
+                  " frameId=" (:frameId frame)
+                  " queueSize=" queue-size))))
 
 (defn log-generation-success! [frame duration-ms]
   (js/console.log
-   (str "[robogene] generation finished"
-        " frameNumber=" (:frameNumber frame)
-        " frameId=" (:frameId frame)
-        " durationMs=" duration-ms)))
+   (colorize ansi-green
+             (str "[robogene] generation finished"
+                  " frameNumber=" (:frameNumber frame)
+                  " frameId=" (:frameId frame)
+                  " durationMs=" duration-ms))))
 
 (defn log-generation-failed! [frame duration-ms err]
   (js/console.error
-   (str "[robogene] generation failed"
-        " frameNumber=" (:frameNumber frame)
-        " frameId=" (:frameId frame)
-        " durationMs=" duration-ms
-        " error=" (or (some-> err .-message str) err))))
+   (colorize ansi-white
+             (str "[robogene] generation failed"
+                  " frameNumber=" (:frameNumber frame)
+                  " frameId=" (:frameId frame)
+                  " durationMs=" duration-ms
+                  " error=" (or (some-> err .-message str) err)))))
 
 (defn process-step! []
   (let [snapshot @state
