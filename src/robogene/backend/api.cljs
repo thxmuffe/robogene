@@ -73,33 +73,24 @@
          :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1")
          :referenceImageBytes nil}))
 
-(defn frame-description-text [frame-number]
-  (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) (:descriptions @state))
-      (str "Frame " frame-number)))
-
-(defn default-frame-description [frame-number]
-  (let [description-text (frame-description-text frame-number)
-        page-prompt (get-in @state [:visual :pagePrompts frame-number] "")]
-    (or (some-> page-prompt str/trim not-empty)
-        (some-> description-text str/trim not-empty)
-        (str "Frame " frame-number))))
-
-(defn description-for [descriptions visual frame-number]
-  (let [description-text (or (some (fn [b] (when (= (:index b) frame-number) (:text b))) descriptions)
-                             (str "Frame " frame-number))
+(defn best-frame-description [descriptions visual frame-number]
+  (let [description-text (some (fn [b] (when (= (:index b) frame-number) (:text b))) descriptions)
         page-prompt (get-in visual [:pagePrompts frame-number] "")]
     (or (some-> page-prompt str/trim not-empty)
         (some-> description-text str/trim not-empty)
         (str "Frame " frame-number))))
 
+(defn default-frame-description [frame-number]
+  (best-frame-description (:descriptions @state)
+                          (:visual @state)
+                          frame-number))
+
 (defn make-draft-frame [frame-number]
-  (let [page-prompt (str/trim (or (get-in @state [:visual :pagePrompts frame-number]) ""))]
   {:frameId (new-uuid)
    :frameNumber frame-number
-   :description (or (not-empty page-prompt)
-                    (default-frame-description frame-number))
+   :description (default-frame-description frame-number)
    :status "draft"
-   :createdAt (.toISOString (js/Date.))}))
+   :createdAt (.toISOString (js/Date.))})
 
 (defn next-frame-number [frames]
   (inc (reduce max 0 (map :frameNumber frames))))
@@ -124,16 +115,16 @@
         page1-bytes (read-bytes page1-reference-image)
         frame1 {:frameId (new-uuid)
                 :frameNumber 1
-                :description (description-for descriptions visual 1)
+                :description (best-frame-description descriptions visual 1)
                 :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
                 :status (if page1-bytes "ready" "draft")
                 :reference true
                 :createdAt (.toISOString (js/Date.))}
         frames (if page1-bytes
                  [frame1 (assoc (make-draft-frame 2)
-                               :description (description-for descriptions visual 2))]
+                               :description (best-frame-description descriptions visual 2))]
                  [(assoc (make-draft-frame 1)
-                         :description (description-for descriptions visual 1))])]
+                         :description (best-frame-description descriptions visual 1))])]
     (reset! state
             {:storyId (new-uuid)
              :descriptions descriptions
