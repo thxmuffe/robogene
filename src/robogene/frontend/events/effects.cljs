@@ -16,6 +16,9 @@
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
       (str/replace #"/+$" "")))
 
+(defn fallback-polling-enabled? []
+  (= "1" (some-> (.-ROBOGENE_ENABLE_FALLBACK_POLLING js/window) str)))
+
 (defn api-url [path]
   (let [base (api-base)]
     (if (str/blank? base) path (str base path))))
@@ -133,11 +136,13 @@
 (rf/reg-fx
  :set-fallback-polling
  (fn [mode]
-   (case mode
-     :active (start-fallback-polling! 3000)
-     :idle (start-fallback-polling! 15000)
-     :off (stop-fallback-polling!)
-     nil)))
+   (if (fallback-polling-enabled?)
+     (case mode
+       :active (start-fallback-polling! 3000)
+       :idle (start-fallback-polling! 15000)
+       :off (stop-fallback-polling!)
+       nil)
+     (stop-fallback-polling!))))
 
 (rf/reg-fx
  :fetch-state
