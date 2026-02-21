@@ -1,6 +1,7 @@
 (ns robogene.backend.api
   (:require [clojure.string :as str]
             [goog.object :as gobj]
+            [robogene.backend.azure-store :as store]
             ["@azure/functions" :as azf]
             ["crypto" :as crypto]
             ["fs" :as fs]
@@ -8,7 +9,6 @@
 
 (def app (.-app azf))
 (def realtime (js/require "./realtime"))
-(def store (js/require "./azure_store"))
 
 (def backend-root (.resolve path js/__dirname ".." ".."))
 (def assets-dir (.join path backend-root "assets"))
@@ -267,19 +267,19 @@
     @state))
 
 (defn sync-state-from-storage! []
-  (-> (.loadOrInitState store
-                        (clj->js (select-keys @state
-                                              [:storyId :revision :failedJobs :episodes :frames
-                                               :descriptions :visual :model :quality :size])))
+  (-> (store/load-or-init-state
+       (clj->js (select-keys @state
+                             [:storyId :revision :failedJobs :episodes :frames
+                              :descriptions :visual :model :quality :size])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
                 (throw err)))))
 
 (defn persist-state! []
-  (-> (.saveState store
-                  (clj->js (select-keys @state
-                                        [:storyId :revision :failedJobs :episodes :frames])))
+  (-> (store/save-state
+       (clj->js (select-keys @state
+                             [:storyId :revision :failedJobs :episodes :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
