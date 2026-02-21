@@ -7,7 +7,6 @@
             [robogene.frontend.views :as views]))
 
 (defonce root* (atom nil))
-(defonce refresh-timer* (atom nil))
 
 (defn typing-target? [el]
   (let [tag (some-> el .-tagName str/lower-case)]
@@ -24,18 +23,8 @@
                      r))]
       (rdom/render root [views/main-view]))))
 
-(defn ensure-refresh-timer! []
-  (when-not @refresh-timer*
-    (reset! refresh-timer*
-            (js/setInterval
-             (fn []
-               (when-not (.-hidden js/document)
-                 (rf/dispatch [:fetch-state])))
-             3000))))
-
 (defn ^:export init! []
   (rf/dispatch-sync [:initialize])
-  (ensure-refresh-timer!)
   (.addEventListener js/window "focus" #(rf/dispatch [:force-refresh]))
   (.addEventListener js/window "hashchange"
                      #(rf/dispatch [:hash-changed (.-hash js/location)]))

@@ -3,6 +3,9 @@
             [re-frame.core :as rf]
             [robogene.frontend.events.model :as model]))
 
+(defonce state-poll-timer* (atom nil))
+(defonce state-poll-interval-ms* (atom nil))
+
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
       (str/replace #"/+$" "")))
@@ -50,6 +53,33 @@
  (fn [entries]
    (doseq [{:keys [ms event]} (if (sequential? entries) entries [entries])]
      (js/setTimeout #(rf/dispatch event) ms))))
+
+(defn stop-state-polling! []
+  (when-let [timer-id @state-poll-timer*]
+    (js/clearInterval timer-id)
+    (reset! state-poll-timer* nil)
+    (reset! state-poll-interval-ms* nil)))
+
+(defn start-state-polling! [interval-ms]
+  (when (or (nil? @state-poll-timer*)
+            (not= @state-poll-interval-ms* interval-ms))
+    (stop-state-polling!)
+    (reset! state-poll-interval-ms* interval-ms)
+    (reset! state-poll-timer*
+            (js/setInterval
+             (fn []
+               (when-not (.-hidden js/document)
+                 (rf/dispatch [:fetch-state])))
+             interval-ms))))
+
+(rf/reg-fx
+ :set-state-polling
+ (fn [mode]
+   (case mode
+     :active (start-state-polling! 2500)
+     :idle (start-state-polling! 15000)
+     :off (stop-state-polling!)
+     nil)))
 
 (rf/reg-fx
  :fetch-state
