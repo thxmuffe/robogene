@@ -1,5 +1,6 @@
 (ns robogene.frontend.events.effects
   (:require [clojure.string :as str]
+            [goog.object :as gobj]
             [re-frame.core :as rf]
             [robogene.frontend.events.model :as model]
             ["./fetch_coalescer.js" :as fetch-coalescer]
@@ -128,65 +129,77 @@
                  (model/parse-json-safe text)
                  (throw (js/Error. (str "Negotiate failed: HTTP " status))))))))
 
+(defn epoch-current? [epoch]
+  (= epoch @realtime-epoch*))
+
+(defn recover-with-fetch! [epoch]
+  (when (epoch-current? epoch)
+    (reset! realtime-connected?* false)
+    (rf/dispatch [:fetch-state])))
+
+(defn build-connection [url access-token]
+  (-> (signalr/HubConnectionBuilder.)
+      (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
+      (.withAutomaticReconnect)
+      (.build)))
+
+(defn subscribe-connection-events! [conn epoch]
+  (gobj/call conn "onreconnecting"
+             (fn [_]
+               (when (epoch-current? epoch)
+                 (reset! realtime-connected?* false))))
+  (.onclose conn
+            (fn [_]
+              (when (epoch-current? epoch)
+                (reset! realtime-connected?* false)
+                (reset! realtime-conn* nil))))
+  (gobj/call conn "onreconnected"
+             (fn [_]
+               (when (epoch-current? epoch)
+                 (reset! realtime-connected?* true)
+                 (rf/dispatch [:fetch-state]))))
+  (.on conn "stateChanged"
+       (fn [_]
+         (when (epoch-current? epoch)
+           (reset! realtime-connected?* true)
+           (rf/dispatch [:fetch-state])))))
+
+(defn start-connection! [conn epoch]
+  (-> (.start conn)
+      (.then (fn []
+               (when (epoch-current? epoch)
+                 (reset! realtime-conn* conn)
+                 (reset! realtime-connected?* true)
+                 (rf/dispatch [:fetch-state]))))
+      (.catch (fn [err]
+                (when (epoch-current? epoch)
+                  (reset! realtime-conn* nil))
+                (recover-with-fetch! epoch)
+                (js/console.warn
+                 (str "[robogene] SignalR start failed: "
+                      (or (.-message err) err)))))))
+
+(defn connect-from-negotiate! [info epoch]
+  (if (true? (:disabled info))
+    (recover-with-fetch! epoch)
+    (let [url (or (:url info) (get info "url"))
+          access-token (or (:accessToken info) (get info "accessToken"))]
+      (when (str/blank? (or url ""))
+        (throw (js/Error. "Negotiate response missing SignalR URL.")))
+      (let [conn (build-connection url access-token)]
+        (subscribe-connection-events! conn epoch)
+        (start-connection! conn epoch)))))
+
 (defn start-realtime! []
   (when (and (nil? @realtime-conn*)
              (not @realtime-starting?*))
     (reset! realtime-starting?* true)
-    (let [epoch (swap! realtime-epoch* inc)
-          current? (fn [] (= epoch @realtime-epoch*))]
-    (-> (negotiate-realtime!)
-        (.then (fn [info]
-                 (if (true? (:disabled info))
-                   (do
-                     (when (current?)
-                       (reset! realtime-connected?* false)
-                       (rf/dispatch [:fetch-state])))
-                   (let [url (or (:url info) (get info "url"))
-                         access-token (or (:accessToken info) (get info "accessToken"))]
-                      (when (str/blank? (or url ""))
-                        (throw (js/Error. "Negotiate response missing SignalR URL.")))
-                      (let [builder (signalr/HubConnectionBuilder.)
-                            conn (-> builder
-                                     (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
-                                     (.withAutomaticReconnect)
-                                     (.build))]
-                        (.onreconnecting conn
-                                         (fn [_]
-                                           (when (current?)
-                                             (reset! realtime-connected?* false))))
-                        (.onclose conn
-                                  (fn [_]
-                                    (when (current?)
-                                      (reset! realtime-connected?* false)
-                                      (reset! realtime-conn* nil))))
-                        (.onreconnected conn
-                                        (fn [_]
-                                          (when (current?)
-                                            (reset! realtime-connected?* true)
-                                            (rf/dispatch [:fetch-state]))))
-                        (.on conn "stateChanged"
-                             (fn [_]
-                               (when (current?)
-                                 (reset! realtime-connected?* true)
-                                 (rf/dispatch [:fetch-state]))))
-                        (-> (.start conn)
-                            (.then (fn []
-                                     (when (current?)
-                                       (reset! realtime-conn* conn)
-                                       (reset! realtime-connected?* true)
-                                       (rf/dispatch [:fetch-state]))))
-                            (.catch (fn [err]
-                                      (when (current?)
-                                        (reset! realtime-connected?* false)
-                                        (reset! realtime-conn* nil)
-                                        (rf/dispatch [:fetch-state]))
-                                      (js/console.warn
-                                       (str "[robogene] SignalR start failed: "
-                                            (or (.-message err) err)))))))))))
+    (let [epoch (swap! realtime-epoch* inc)]
+      (-> (negotiate-realtime!)
+          (.then (fn [info]
+                   (connect-from-negotiate! info epoch)))
         (.catch (fn [err]
-                  (when (current?)
-                    (reset! realtime-connected?* false)
-                    (rf/dispatch [:fetch-state]))
+                  (recover-with-fetch! epoch)
                   (js/console.warn
                    (str "[robogene] SignalR negotiate failed: "
                         (or (.-message err) err)))))
