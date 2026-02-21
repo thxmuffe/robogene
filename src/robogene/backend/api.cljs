@@ -79,6 +79,17 @@
   (-> (.json request)
       (.catch (fn [_] #js {}))))
 
+(defn with-synced-body [request handler]
+  (-> (story/sync-state-from-storage!)
+      (.then (fn [_] (request-json request)))
+      (.then handler)))
+
+(defn with-required-string [request body field-key missing-msg handler]
+  (let [value (some-> (gobj/get body field-key) str str/trim)]
+    (if (str/blank? value)
+      (json-response 400 {:error missing-msg} request)
+      (handler value))))
+
 (.http app "get-state"
        #js {:methods #js ["GET"]
             :authLevel "anonymous"
@@ -183,32 +194,31 @@
                                                                request)))))))))))})
 
 (defn handle-add-frame [request]
-  (-> (story/sync-state-from-storage!)
-      (.then (fn [_] (request-json request)))
-      (.then (fn [body]
-               (let [episode-id (some-> (gobj/get body "episodeId") str str/trim)]
-                 (if (str/blank? episode-id)
-                   (json-response 400 {:error "Missing episodeId."} request)
-                   (let [outcome (try
-                                   {:ok true :frame (story/add-frame! episode-id)}
-                                   (catch :default err
-                                     {:ok false
-                                      :response (json-response 404
-                                                               {:error (or (some-> err .-message str) "Episode not found.")}
-                                                               request)}))]
-                     (if-not (:ok outcome)
-                       (:response outcome)
-                       (let [frame (:frame outcome)]
-                         (story/emit-state-changed! "frame-added")
-                         (-> (story/persist-state!)
-                             (.then (fn [_]
-                                      (let [snapshot @story/state]
-                                        (json-response 201
-                                                       {:created true
-                                                        :frame frame
-                                                        :revision (:revision snapshot)}
-                                                       request)))))))))))))
-  )
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string
+      request body "episodeId" "Missing episodeId."
+      (fn [episode-id]
+        (let [outcome (try
+                        {:ok true :frame (story/add-frame! episode-id)}
+                        (catch :default err
+                          {:ok false
+                           :response (json-response 404
+                                                    {:error (or (some-> err .-message str) "Episode not found.")}
+                                                    request)}))]
+          (if-not (:ok outcome)
+            (:response outcome)
+            (let [frame (:frame outcome)]
+              (story/emit-state-changed! "frame-added")
+              (-> (story/persist-state!)
+                  (.then (fn [_]
+                           (let [snapshot @story/state]
+                             (json-response 201
+                                            {:created true
+                                             :frame frame
+                                             :revision (:revision snapshot)}
+                                            request)))))))))))))
 
 (defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
   (let [outcome (try
@@ -230,43 +240,41 @@
                                       request)))))))))
 
 (defn handle-delete-frame [request]
-  (-> (story/sync-state-from-storage!)
-      (.then (fn [_] (request-json request)))
-      (.then
-       (fn [body]
-         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-           (if (str/blank? frame-id)
-             (json-response 400 {:error "Missing frameId."} request)
-             (run-frame-mutation request frame-id
-                                 {:mutate! story/delete-frame!
-                                  :default-error "Delete failed."
-                                  :conflict-messages #{"Frame not found."}
-                                  :emit-reason "frame-deleted"
-                                  :success-status 200
-                                  :success-body (fn [frame snapshot]
-                                                  {:deleted true
-                                                   :frame frame
-                                                   :revision (:revision snapshot)})})))))))
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string
+      request body "frameId" "Missing frameId."
+      (fn [frame-id]
+        (run-frame-mutation request frame-id
+                            {:mutate! story/delete-frame!
+                             :default-error "Delete failed."
+                             :conflict-messages #{"Frame not found."}
+                             :emit-reason "frame-deleted"
+                             :success-status 200
+                             :success-body (fn [frame snapshot]
+                                             {:deleted true
+                                              :frame frame
+                                              :revision (:revision snapshot)})}))))))
 
 (defn handle-clear-frame-image [request]
-  (-> (story/sync-state-from-storage!)
-      (.then (fn [_] (request-json request)))
-      (.then
-       (fn [body]
-         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-           (if (str/blank? frame-id)
-             (json-response 400 {:error "Missing frameId."} request)
-             (run-frame-mutation request frame-id
-                                 {:mutate! story/clear-frame-image!
-                                  :default-error "Clear image failed."
-                                  :conflict-messages #{"Frame not found."
-                                                       "Cannot clear image while queued or processing."}
-                                  :emit-reason "frame-image-cleared"
-                                  :success-status 200
-                                  :success-body (fn [frame snapshot]
-                                                  {:cleared true
-                                                   :frame frame
-                                                   :revision (:revision snapshot)})})))))))
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string
+      request body "frameId" "Missing frameId."
+      (fn [frame-id]
+        (run-frame-mutation request frame-id
+                            {:mutate! story/clear-frame-image!
+                             :default-error "Clear image failed."
+                             :conflict-messages #{"Frame not found."
+                                                  "Cannot clear image while queued or processing."}
+                             :emit-reason "frame-image-cleared"
+                             :success-status 200
+                             :success-body (fn [frame snapshot]
+                                             {:cleared true
+                                              :frame frame
+                                              :revision (:revision snapshot)})}))))))
 
 (.http app "post-add-frame"
        #js {:methods #js ["POST"]
