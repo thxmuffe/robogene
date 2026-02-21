@@ -204,6 +204,15 @@ h2 { margin: 24px 0 10px; }
   font-size: 0.85rem;
   font-weight: 700;
   opacity: 0.9;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.placeholder-arrow {
+  display: inline-block;
+  font-size: 1rem;
+  animation: nudge-arrow 900ms ease-in-out infinite;
 }
 
 .meta {
@@ -302,4 +311,9 @@ h2 { margin: 24px 0 10px; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes nudge-arrow {
+  0%, 100% { transform: translate(0, 0); opacity: 0.65; }
+  50% { transform: translate(4px, 3px); opacity: 1; }
 }

@@ -109,11 +109,14 @@
    (let [route (:route db)]
      (if (= :frame (:view route))
        (let [episode-id (:episode route)
-             frames-in-episode (->> (:episodes db)
-                                    (some (fn [episode]
-                                            (when (= (:episodeId episode) episode-id)
-                                              (:frames episode))))
-                                    (or []))
+             frames-in-episode (or (->> (:episodes db)
+                                        (some (fn [episode]
+                                                (when (= (:episodeId episode) episode-id)
+                                                  (:frames episode)))))
+                                   (->> (:gallery-items db)
+                                        (filter (fn [frame] (= (:episodeId frame) episode-id)))
+                                        vec)
+                                   [])
              ordered (model/ordered-frames frames-in-episode)
              current-frame (:frame-number route)
              idx (model/frame-index-by-number ordered current-frame)

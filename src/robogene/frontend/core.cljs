@@ -37,8 +37,12 @@
                        (when-not (typing-target? (.-target e))
                          (case (.-key e)
                            "Escape" (rf/dispatch [:navigate-index])
-                           "ArrowLeft" (rf/dispatch [:navigate-relative-frame -1])
-                           "ArrowRight" (rf/dispatch [:navigate-relative-frame 1])
+                           "ArrowLeft" (do
+                                         (.preventDefault e)
+                                         (rf/dispatch [:navigate-relative-frame -1]))
+                           "ArrowRight" (do
+                                          (.preventDefault e)
+                                          (rf/dispatch [:navigate-relative-frame 1]))
                            nil))))
   (.addEventListener js/document "visibilitychange"
                      #(when-not (.-hidden js/document)

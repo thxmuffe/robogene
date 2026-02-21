@@ -31,7 +31,9 @@
        [:div.spinner])
      [:div.placeholder-text label]
      (when cta?
-       [:div.placeholder-clue "Use the button ->"])]))
+       [:div.placeholder-clue
+        [:span.placeholder-arrow "↘"]
+        [:span "Open Frame actions"]])]))
 
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
