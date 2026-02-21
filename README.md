@@ -60,7 +60,7 @@ It prints the frontend URL and keeps all local processes running.
 When opened on `localhost`, the frontend automatically uses `http://localhost:7071` as API base.
 
 ## Frontend host (GitHub Pages)
-Pages is deployed via GitHub Actions workflow: `.github/workflows/pages.yml`.
+Frontend and backend deploy from one GitHub Actions workflow: `.github/workflows/deploy.yml`.
 Set repository Pages source to `GitHub Actions`.
 
 Set backend origin in `index.html`:
@@ -136,7 +136,7 @@ zip -r deploy.zip . -x '*.git*' 'local.settings.json' 'node_modules/*'
 az functionapp deployment source config-zip -g $RG -n $APP --src deploy.zip
 ```
 
-GitHub Actions deploy (`.github/workflows/azure-functions.yml`) supports two auth modes:
+Azure deploy in `.github/workflows/deploy.yml` supports two auth modes:
 
 1. Publish profile (simplest):
    - Set repo secret `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` from:

@@ -1,24 +1,18 @@
-name: Build and Deploy Azure Function
+name: Deploy App
 
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/**"
-      - "src/robogene/backend/**"
-      - "shadow-cljs.edn"
-      - "deps.edn"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/azure-functions.yml"
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
+  id-token: write
+  pages: write
 
 jobs:
-  deploy:
+  deploy-azure:
+    name: Deploy Azure Function
     runs-on: ubuntu-latest
     env:
       FUNCTION_APP_NAME: robogene-func-prod
@@ -99,3 +93,55 @@ jobs:
           app-name: ${{ env.FUNCTION_APP_NAME }}
           package: ./backend
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+  build-pages:
+    name: Build Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@13.2
+        with:
+          cli: latest
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+          mkdir -p dist/js
+          cp index.html styles.css dist/
+          cp -R js/* dist/js/
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy-pages:
+    name: Deploy Pages
+    runs-on: ubuntu-latest
+    needs: build-pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
