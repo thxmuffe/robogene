@@ -143,50 +143,46 @@
                     :pendingCount (story/active-queue-count (:frames post))}
                    request)))
 
-(register-get! "get-state"
-               "state"
-               (fn [request]
-                 (-> (story/sync-state-from-storage!)
-                     (.then (fn [_]
-                              (let [before-revision (:revision @story/state)]
-                                (story/ensure-draft-frames!)
-                                (if (not= before-revision (:revision @story/state))
-                                  (story/persist-state!)
-                                  (js/Promise.resolve @story/state)))))
-                     (.then (fn [_]
-                              (let [snapshot @story/state
-                                    frames (:frames snapshot)
-                                    pending-count (story/active-queue-count frames)]
-                                (json-response 200
-                                               {:storyId (:storyId snapshot)
-                                                :revision (:revision snapshot)
-                                                :processing (:processing snapshot)
-                                                :pendingCount pending-count
-                                                :episodes (:episodes snapshot)
-                                                :frames frames
-                                                :failed (:failedJobs snapshot)}
-                                               request)))))))
+(defn handle-get-state [request]
+  (-> (story/sync-state-from-storage!)
+      (.then (fn [_]
+               (let [before-revision (:revision @story/state)]
+                 (story/ensure-draft-frames!)
+                 (if (not= before-revision (:revision @story/state))
+                   (story/persist-state!)
+                   (js/Promise.resolve @story/state)))))
+      (.then (fn [_]
+               (let [snapshot @story/state
+                     frames (:frames snapshot)
+                     pending-count (story/active-queue-count frames)]
+                 (json-response 200
+                                {:storyId (:storyId snapshot)
+                                 :revision (:revision snapshot)
+                                 :processing (:processing snapshot)
+                                 :pendingCount pending-count
+                                 :episodes (:episodes snapshot)
+                                 :frames frames
+                                 :failed (:failedJobs snapshot)}
+                                request))))))
 
-(register-post! "post-generate-frame"
-                "generate-frame"
-                (fn [request]
-                  (with-synced-body
-                   request
-                   (fn [body]
-                     (with-required-string
-                      request body "frameId" "Missing frameId."
-                      (fn [frame-id]
-                        (let [direction (some-> (gobj/get body "direction") str str/trim)
-                              outcome (queueable-frame-outcome frame-id)]
-                          (if-not (:ok outcome)
-                            (json-response (:status outcome) {:error (:error outcome)} request)
-                            (do
-                              (queue-frame! (:idx outcome) direction)
-                              (-> (story/persist-state!)
-                                  (.then (fn [_]
-                                           (story/emit-state-changed! "queued")
-                                           (story/process-queue!)
-                                           (queue-success-response request (:idx outcome))))))))))))))
+(defn handle-generate-frame [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-string
+      request body "frameId" "Missing frameId."
+      (fn [frame-id]
+        (let [direction (some-> (gobj/get body "direction") str str/trim)
+              outcome (queueable-frame-outcome frame-id)]
+          (if-not (:ok outcome)
+            (json-response (:status outcome) {:error (:error outcome)} request)
+            (do
+              (queue-frame! (:idx outcome) direction)
+              (-> (story/persist-state!)
+                  (.then (fn [_]
+                           (story/emit-state-changed! "queued")
+                           (story/process-queue!)
+                           (queue-success-response request (:idx outcome)))))))))))))
 
 (defn emit-persist-and-respond [request emit-reason status response-body]
   (story/emit-state-changed! emit-reason)
@@ -300,36 +296,36 @@
                                     :frame frame}
                                    snapshot))}))
 
-(register-post! "post-add-frame"
-                "add-frame"
-                handle-add-frame)
+(defn handle-signalr-negotiate [request]
+  (if-let [info (realtime/create-client-connection-info)]
+    (json-response 200 info request)
+    (json-response 200
+                   {:disabled true
+                    :reason (str "Missing " realtime/connection-setting-name)}
+                   request)))
 
-(register-post! "post-add-episode"
-                "add-episode"
-                handle-add-episode)
+(defn handle-options-preflight [request]
+  #js {:status 204
+       :headers (cors-headers request)})
 
-(register-post! "post-delete-frame"
-                "delete-frame"
-                handle-delete-frame)
+(defn register-route! [{:keys [method name route handler]}]
+  (case method
+    :get (register-get! name route handler)
+    :post (register-post! name route handler)
+    :options (register-options! name route handler)
+    (throw (js/Error. (str "Unsupported route method: " method)))))
 
-(register-post! "post-clear-frame-image"
-                "clear-frame-image"
-                handle-clear-frame-image)
+(def route-specs
+  [{:method :get :name "get-state" :route "state" :handler handle-get-state}
+   {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
+   {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
+   {:method :post :name "post-add-episode" :route "add-episode" :handler handle-add-episode}
+   {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
+   {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
+   {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}
+   {:method :options :name "options-preflight" :route "{*path}" :handler handle-options-preflight}])
 
-(register-post! "signalr-negotiate"
-                "negotiate"
-                (fn [request]
-                  (if-let [info (realtime/create-client-connection-info)]
-                    (json-response 200 info request)
-                    (json-response 200
-                                   {:disabled true
-                                    :reason (str "Missing " realtime/connection-setting-name)}
-                                   request))))
-
-(register-options! "options-preflight"
-                   "{*path}"
-                   (fn [request]
-                     #js {:status 204
-                          :headers (cors-headers request)}))
+(doseq [spec route-specs]
+  (register-route! spec))
 
 (defn init! [] true)
