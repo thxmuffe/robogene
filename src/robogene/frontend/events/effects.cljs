@@ -230,3 +230,16 @@
                  :delete-frame-accepted
                  :delete-frame-failed
                  (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-clear-frame-image
+ (fn [{:keys [frame-id]}]
+   (request-json (api-url "/api/clear-frame-image")
+                 {:method "POST"
+                  :cache "no-store"
+                  :headers {"Content-Type" "application/json"}
+                  :body (.stringify js/JSON
+                                    (clj->js {:frameId frame-id}))}
+                 :clear-frame-image-accepted
+                 :clear-frame-image-failed
+                 (fn [ok _] ok))))

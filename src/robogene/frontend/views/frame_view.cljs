@@ -41,7 +41,7 @@
         button-label (if busy?
                        (if (= status "processing") "Generating..." "Queued...")
                        (if has-image? "Regenerate Frame" "Generate Frame"))]
-    [:button.btn.btn-primary
+    [:button.btn.btn-primary.btn-small
      {:type "button"
       :disabled busy?
       :on-mouse-down #(.stopPropagation %)
@@ -50,15 +50,42 @@
                   (rf/dispatch [:generate-frame frameId]))}
      button-label]))
 
+(defn clear-image-button [{:keys [frameId frameNumber status imageDataUrl]}]
+  (let [busy? (or (= status "queued") (= status "processing"))
+        has-image? (not (str/blank? (or imageDataUrl "")))]
+    (when has-image?
+      [:button.btn.btn-secondary.btn-small
+       {:type "button"
+        :disabled busy?
+        :title (if busy?
+                 "Cannot remove image while queued/processing"
+                 "Remove image but keep frame")
+        :on-click (fn [e]
+                    (.stopPropagation e)
+                    (-> (.fire Swal
+                              (clj->js {:title (str "Remove image from Frame " frameNumber "?")
+                                        :text "The frame and its description will stay."
+                                        :icon "warning"
+                                        :showCancelButton true
+                                        :confirmButtonText "Remove image"
+                                        :cancelButtonText "Cancel"
+                                        :confirmButtonColor "#20639b"}))
+                        (.then (fn [result]
+                                 (when (true? (.-isConfirmed result))
+                                   (rf/dispatch [:clear-frame-image frameId]))))))}
+       "Remove Image"])))
+
 (defn frame-actions-menu [frame]
-  (let [{:keys [frameId frameNumber status]} frame
+  (let [{:keys [frameId frameNumber status imageDataUrl]} frame
         busy? (or (= status "queued") (= status "processing"))]
     [:details.frame-danger-zone
      {:on-click #(.stopPropagation %)}
      [:summary "Frame actions"]
      [:div.frame-actions
-      [frame-action-button frame]
-      [:button.btn.btn-danger
+      (when (not (str/blank? (or imageDataUrl "")))
+        [frame-action-button frame])
+      [clear-image-button frame]
+      [:button.btn.btn-danger.btn-small
        {:type "button"
         :disabled busy?
         :title (if busy?
@@ -99,7 +126,10 @@
       [:div.media-shell
        (if has-image?
          [frame-image frame]
-         [frame-placeholder frame])]
+         [:div
+          [frame-placeholder frame]
+          [:div.placeholder-action
+           [frame-action-button frame]]])]
       [:div.meta
        (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
          [:span.badge.queue "In Queue"])

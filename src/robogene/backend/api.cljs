@@ -189,6 +189,25 @@
     (ensure-draft-frame-for-episode! (:episodeId frame))
     frame))
 
+(defn clear-frame-image! [frame-id]
+  (let [snapshot @state
+        frames (:frames snapshot)
+        idx (find-frame-index frames frame-id)
+        frame (when (number? idx) (get frames idx))]
+    (when (nil? idx)
+      (throw (js/Error. "Frame not found.")))
+    (when-not (deletable-frame-status? (:status frame))
+      (throw (js/Error. "Cannot clear image while queued or processing.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc-in [:frames idx :imageDataUrl] nil)
+                 (assoc-in [:frames idx :status] "draft")
+                 (assoc-in [:frames idx :error] nil)
+                 (assoc-in [:frames idx :completedAt] nil)
+                 (update :revision inc))))
+    (get (:frames @state) idx)))
+
 (defn initialize-state! []
   (let [storyboard-text (read-text default-storyboard)
         prompts-text (read-text default-prompts)
@@ -681,6 +700,36 @@
                                        (let [msg (or (some-> err .-message str) "Delete failed.")
                                              status (if (or (= msg "Frame not found.")
                                                             (= msg "Cannot delete frame while queued or processing."))
+                                                      409
+                                                      500)]
+                                         (json-response status {:error msg} request)))))))))))})
+
+(.http app "post-clear-frame-image"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "clear-frame-image"
+            :handler (with-error-handling
+                      "clear-frame-image"
+                      (fn [request]
+                        (-> (request-json request)
+                            (.then
+                             (fn [body]
+                               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+                                 (if (str/blank? frame-id)
+                                   (json-response 400 {:error "Missing frameId."} request)
+                                   (try
+                                     (let [frame (clear-frame-image! frame-id)
+                                           snapshot @state]
+                                       (emit-state-changed! "frame-image-cleared")
+                                       (json-response 200
+                                                      {:cleared true
+                                                       :frame frame
+                                                       :revision (:revision snapshot)}
+                                                      request))
+                                     (catch :default err
+                                       (let [msg (or (some-> err .-message str) "Clear image failed.")
+                                             status (if (or (= msg "Frame not found.")
+                                                            (= msg "Cannot clear image while queued or processing."))
                                                       409
                                                       500)]
                                          (json-response status {:error msg} request)))))))))))})

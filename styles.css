@@ -81,6 +81,11 @@ body {
   color: #1d1d1d;
 }
 
+.btn-secondary {
+  background: #20639b;
+  color: #ffffff;
+}
+
 .btn-danger {
   background: #8b1e3f;
   color: #ffffff;
@@ -89,6 +94,12 @@ body {
 .btn-danger:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.btn-small {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .status {
@@ -209,6 +220,14 @@ h2 { margin: 24px 0 10px; }
   gap: 6px;
 }
 
+.placeholder-action {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  box-shadow: 0 6px 14px rgba(16, 42, 67, 0.25);
+}
+
 .placeholder-arrow {
   display: inline-block;
   font-size: 1rem;
@@ -248,9 +267,12 @@ h2 { margin: 24px 0 10px; }
 }
 
 .frame-actions {
-  display: grid;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
+  overflow-x: auto;
 }
 
 .error-line {

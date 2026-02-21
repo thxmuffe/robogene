@@ -186,3 +186,20 @@
  :delete-frame-failed
  (fn [db [_ msg]]
    (assoc db :status (str "Delete frame failed: " msg))))
+
+(rf/reg-event-fx
+ :clear-frame-image
+ (fn [{:keys [db]} [_ frame-id]]
+   {:db (assoc db :status "Removing frame image...")
+    :post-clear-frame-image {:frame-id frame-id}}))
+
+(rf/reg-event-fx
+ :clear-frame-image-accepted
+ (fn [{:keys [db]} [_ _data]]
+   {:db (assoc db :status "Frame image removed.")
+    :dispatch [:fetch-state]}))
+
+(rf/reg-event-db
+ :clear-frame-image-failed
+ (fn [db [_ msg]]
+   (assoc db :status (str "Remove image failed: " msg))))
