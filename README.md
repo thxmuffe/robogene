@@ -82,7 +82,7 @@ From repo root:
 cd backend
 npm install
 cp local.settings.json.example local.settings.json
-# set OPENAI_API_KEY in local.settings.json
+# set OPENAI_API_KEY and AzureWebJobsStorage (real Azure connection string) in local.settings.json
 # from repo root once:
 # npm run build:backend
 func start
@@ -102,6 +102,7 @@ Storage model:
 - Blob URLs are returned as `frame.imageDataUrl` for frontend rendering.
 - Tables/container are created automatically on first backend start if missing.
 - `AzureWebJobsStorage` is used unless `ROBOGENE_STORAGE_CONNECTION_STRING` is explicitly set.
+- `UseDevelopmentStorage=true` requires Azurite; this project flow expects real Azure Storage for local runs too.
 
 Note:
 - `npm run build:backend` is defined in the repo root `package.json`, not in `backend/package.json`.

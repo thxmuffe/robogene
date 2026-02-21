@@ -8,16 +8,28 @@ const connectionString =
 if (!connectionString) {
   throw new Error('Missing AzureWebJobsStorage or ROBOGENE_STORAGE_CONNECTION_STRING.');
 }
+if (connectionString.trim() === 'UseDevelopmentStorage=true') {
+  throw new Error(
+    'UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string.',
+  );
+}
 
 const TABLE_META = process.env.ROBOGENE_TABLE_META || 'robogeneMeta';
 const TABLE_EPISODES = process.env.ROBOGENE_TABLE_EPISODES || 'robogeneEpisodes';
 const TABLE_FRAMES = process.env.ROBOGENE_TABLE_FRAMES || 'robogeneFrames';
 const CONTAINER = process.env.ROBOGENE_IMAGE_CONTAINER || 'robogene-images';
 
-const metaClient = TableClient.fromConnectionString(connectionString, TABLE_META);
-const episodesClient = TableClient.fromConnectionString(connectionString, TABLE_EPISODES);
-const framesClient = TableClient.fromConnectionString(connectionString, TABLE_FRAMES);
-const blobService = BlobServiceClient.fromConnectionString(connectionString);
+const CLIENT_OPTIONS = {
+  retryOptions: {
+    maxTries: 2,
+    tryTimeoutInMs: 5000,
+  },
+};
+
+const metaClient = TableClient.fromConnectionString(connectionString, TABLE_META, CLIENT_OPTIONS);
+const episodesClient = TableClient.fromConnectionString(connectionString, TABLE_EPISODES, CLIENT_OPTIONS);
+const framesClient = TableClient.fromConnectionString(connectionString, TABLE_FRAMES, CLIENT_OPTIONS);
+const blobService = BlobServiceClient.fromConnectionString(connectionString, CLIENT_OPTIONS);
 const imageContainer = blobService.getContainerClient(CONTAINER);
 
 let ensured = false;
