@@ -239,55 +239,50 @@
       (on-success (:value outcome))
       (:response outcome))))
 
-(defn handle-add-frame [request]
-  (with-synced-required-string
-   request
-   "episodeId"
-   "Missing episodeId."
-   (fn [episode-id]
-     (run-mutation
-      request
-      {:mutate! #(story/add-frame! episode-id)
-       :default-error "Episode not found."
-       :status-by-message {"Episode not found." 404}
-       :on-success (fn [frame]
-                     (emit-persist-and-respond
-                      request
-                      "frame-added"
-                      201
-                      (fn [snapshot]
-                        (with-revision {:created true
-                                        :frame frame}
-                                       snapshot))))}))))
+(defn messages->status-map [messages status]
+  (into {} (map (fn [msg] [msg status]) messages)))
 
-(defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
-  (run-mutation
-   request
-   {:mutate! #(mutate! frame-id)
-    :default-error default-error
-    :status-by-message (into {} (map (fn [msg] [msg 409]) conflict-messages))
-    :on-success (fn [frame]
-        (emit-persist-and-respond
-         request
-         emit-reason
-         success-status
-         (fn [snapshot]
-           (success-body frame snapshot))))}))
-
-(defn make-frame-mutation-handler [mutation-options]
+(defn make-required-mutation-handler [{:keys [field-key missing-msg mutate! default-error status-by-message emit-reason success-status success-body]}]
   (fn [request]
     (with-synced-required-string
      request
-     "frameId"
-     "Missing frameId."
-     (fn [frame-id]
-       (run-frame-mutation request frame-id mutation-options)))))
+     field-key
+     missing-msg
+     (fn [field-value]
+       (run-mutation
+        request
+        {:mutate! #(mutate! field-value)
+         :default-error default-error
+         :status-by-message status-by-message
+         :on-success (fn [result]
+                       (emit-persist-and-respond
+                        request
+                        emit-reason
+                        success-status
+                        (fn [snapshot]
+                          (success-body result snapshot))))})))))
+
+(def handle-add-frame
+  (make-required-mutation-handler
+   {:field-key "episodeId"
+    :missing-msg "Missing episodeId."
+    :mutate! story/add-frame!
+    :default-error "Episode not found."
+    :status-by-message {"Episode not found." 404}
+    :emit-reason "frame-added"
+    :success-status 201
+    :success-body (fn [frame snapshot]
+                    (with-revision {:created true
+                                    :frame frame}
+                                   snapshot))}))
 
 (def handle-delete-frame
-  (make-frame-mutation-handler
-   {:mutate! story/delete-frame!
+  (make-required-mutation-handler
+   {:field-key "frameId"
+    :missing-msg "Missing frameId."
+    :mutate! story/delete-frame!
     :default-error "Delete failed."
-    :conflict-messages #{"Frame not found."}
+    :status-by-message (messages->status-map #{"Frame not found."} 409)
     :emit-reason "frame-deleted"
     :success-status 200
     :success-body (fn [frame snapshot]
@@ -296,11 +291,14 @@
                                    snapshot))}))
 
 (def handle-clear-frame-image
-  (make-frame-mutation-handler
-   {:mutate! story/clear-frame-image!
+  (make-required-mutation-handler
+   {:field-key "frameId"
+    :missing-msg "Missing frameId."
+    :mutate! story/clear-frame-image!
     :default-error "Clear image failed."
-    :conflict-messages #{"Frame not found."
-                         "Cannot clear image while queued or processing."}
+    :status-by-message (messages->status-map #{"Frame not found."
+                                               "Cannot clear image while queued or processing."}
+                                             409)
     :emit-reason "frame-image-cleared"
     :success-status 200
     :success-body (fn [frame snapshot]
