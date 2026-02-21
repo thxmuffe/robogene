@@ -82,7 +82,7 @@ From repo root:
 cd backend
 npm install
 cp local.settings.json.example local.settings.json
-# set OPENAI_API_KEY and AzureWebJobsStorage (real Azure connection string) in local.settings.json
+# set OPENAI_API_KEY, AzureWebJobsStorage, and AzureSignalRConnectionString in local.settings.json
 # from repo root once:
 # npm run build:backend
 func start
