@@ -1,5 +1,6 @@
 (ns robogene.frontend.views.frame-page
   (:require [re-frame.core :as rf]
+            [robogene.frontend.events.model :as model]
             [robogene.frontend.views.frame-view :as frame-view]))
 
 (defn detail-controls [frames idx]
@@ -25,10 +26,8 @@
 
 (defn frame-page [route gallery frame-inputs]
   (let [frame-number (:frame-number route)
-        ordered (->> gallery (sort-by :frameNumber) vec)
-        idx (first (keep-indexed (fn [i f]
-                                   (when (= (:frameNumber f) frame-number) i))
-                                 ordered))
+        ordered (model/ordered-frames gallery)
+        idx (model/frame-index-by-number ordered frame-number)
         frame (when (some? idx) (nth ordered idx))]
     [:section
      (if frame

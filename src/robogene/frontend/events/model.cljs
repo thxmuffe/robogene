@@ -4,6 +4,16 @@
 (defn frame-number-of [frame]
   (:frameNumber frame))
 
+(defn ordered-frames [frames]
+  (->> frames
+       (sort-by frame-number-of)
+       vec))
+
+(defn frame-index-by-number [frames frame-number]
+  (first (keep-indexed (fn [idx frame]
+                         (when (= (frame-number-of frame) frame-number) idx))
+                       frames)))
+
 (defn parse-hash-route [hash]
   (if-let [[_ episode frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
     {:view :frame

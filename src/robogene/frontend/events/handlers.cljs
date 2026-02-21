@@ -101,11 +101,9 @@
  (fn [{:keys [db]} [_ delta]]
    (let [route (:route db)]
      (if (= :frame (:view route))
-       (let [ordered (->> (:gallery-items db) (sort-by model/frame-number-of) vec)
+       (let [ordered (model/ordered-frames (:gallery-items db))
              current-frame (:frame-number route)
-             idx (first (keep-indexed (fn [i frame]
-                                        (when (= (model/frame-number-of frame) current-frame) i))
-                                      ordered))
+             idx (model/frame-index-by-number ordered current-frame)
              target-idx (when (number? idx) (+ idx delta))]
          (if (and (number? target-idx)
                   (<= 0 target-idx)
