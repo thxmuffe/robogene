@@ -102,19 +102,11 @@
         (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType "image/png"}})
             (.then (fn [_] (to-readable-image-url image-path)))
             (.then (fn [image-url]
-                     (doto (js-obj)
-                       (gobj/set "frameId" frame-id)
-                       (gobj/set "episodeId" episode-id)
-                       (gobj/set "frameNumber" (gobj/get frame "frameNumber"))
-                       (gobj/set "description" (gobj/get frame "description"))
-                       (gobj/set "status" (gobj/get frame "status"))
-                       (gobj/set "createdAt" (gobj/get frame "createdAt"))
-                       (gobj/set "startedAt" (gobj/get frame "startedAt"))
-                       (gobj/set "completedAt" (gobj/get frame "completedAt"))
-                       (gobj/set "error" (gobj/get frame "error"))
-                       (gobj/set "reference" (gobj/get frame "reference"))
-                       (gobj/set "imagePath" image-path)
-                       (gobj/set "imageDataUrl" image-url)))))))))
+                     (.assign js/Object
+                              #js {}
+                              frame
+                              #js {:imagePath image-path
+                                   :imageDataUrl image-url}))))))))
 
 (defn get-active-meta []
   (-> (.getEntity meta-client "meta" "active")
@@ -161,7 +153,6 @@
                                                     (-> (.upsertEntity frames-client
                                                                        #js {:partitionKey story-id
                                                                             :rowKey (gobj/get f "frameId")
-                                                                            :episodeId (gobj/get f "episodeId")
                                                                             :payloadJson (.stringify js/JSON f)}
                                                                        "Replace")
                                                         (.then (fn [_]
