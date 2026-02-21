@@ -195,6 +195,9 @@
                (let [snapshot @story/state]
                  (json-response status (response-body snapshot) request))))))
 
+(defn with-revision [body snapshot]
+  (assoc body :revision (:revision snapshot)))
+
 (defn handle-add-episode [request]
   (with-synced-body
    request
@@ -209,10 +212,10 @@
         "episode-added"
         201
         (fn [snapshot]
-          {:created true
-           :episode episode
-           :frame frame
-           :revision (:revision snapshot)}))))))
+          (with-revision {:created true
+                          :episode episode
+                          :frame frame}
+                         snapshot))))))
 
 (defn run-mutation [request {:keys [mutate! default-error status-by-message on-success]}]
   (let [outcome (try
@@ -239,14 +242,14 @@
           :default-error "Episode not found."
           :status-by-message {"Episode not found." 404}
           :on-success (fn [frame]
-                        (emit-persist-and-respond
-                         request
-                         "frame-added"
-                         201
-                         (fn [snapshot]
-                           {:created true
-                            :frame frame
-                            :revision (:revision snapshot)})))}))))))
+                         (emit-persist-and-respond
+                          request
+                          "frame-added"
+                          201
+                          (fn [snapshot]
+                            (with-revision {:created true
+                                            :frame frame}
+                                           snapshot))))})))))))
 
 (defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
   (run-mutation
@@ -262,42 +265,40 @@
          (fn [snapshot]
            (success-body frame snapshot))))}))
 
-(defn handle-delete-frame [request]
-  (with-synced-body
-   request
-   (fn [body]
-     (with-required-string
-      request body "frameId" "Missing frameId."
-      (fn [frame-id]
-        (run-frame-mutation request frame-id
-                            {:mutate! story/delete-frame!
-                             :default-error "Delete failed."
-                             :conflict-messages #{"Frame not found."}
-                             :emit-reason "frame-deleted"
-                             :success-status 200
-                             :success-body (fn [frame snapshot]
-                                             {:deleted true
-                                              :frame frame
-                                              :revision (:revision snapshot)})}))))))
+(defn make-frame-mutation-handler [mutation-options]
+  (fn [request]
+    (with-synced-body
+     request
+     (fn [body]
+       (with-required-string
+        request body "frameId" "Missing frameId."
+        (fn [frame-id]
+          (run-frame-mutation request frame-id mutation-options)))))))
 
-(defn handle-clear-frame-image [request]
-  (with-synced-body
-   request
-   (fn [body]
-     (with-required-string
-      request body "frameId" "Missing frameId."
-      (fn [frame-id]
-        (run-frame-mutation request frame-id
-                            {:mutate! story/clear-frame-image!
-                             :default-error "Clear image failed."
-                             :conflict-messages #{"Frame not found."
-                                                  "Cannot clear image while queued or processing."}
-                             :emit-reason "frame-image-cleared"
-                             :success-status 200
-                             :success-body (fn [frame snapshot]
-                                             {:cleared true
-                                              :frame frame
-                                              :revision (:revision snapshot)})}))))))
+(def handle-delete-frame
+  (make-frame-mutation-handler
+   {:mutate! story/delete-frame!
+    :default-error "Delete failed."
+    :conflict-messages #{"Frame not found."}
+    :emit-reason "frame-deleted"
+    :success-status 200
+    :success-body (fn [frame snapshot]
+                    (with-revision {:deleted true
+                                    :frame frame}
+                                   snapshot))}))
+
+(def handle-clear-frame-image
+  (make-frame-mutation-handler
+   {:mutate! story/clear-frame-image!
+    :default-error "Clear image failed."
+    :conflict-messages #{"Frame not found."
+                         "Cannot clear image while queued or processing."}
+    :emit-reason "frame-image-cleared"
+    :success-status 200
+    :success-body (fn [frame snapshot]
+                    (with-revision {:cleared true
+                                    :frame frame}
+                                   snapshot))}))
 
 (register-post! "post-add-frame"
                 "add-frame"
