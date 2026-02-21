@@ -210,66 +210,63 @@
                                                        request)))))))))))))
   )
 
+(defn run-frame-mutation [request frame-id {:keys [mutate! default-error conflict-messages emit-reason success-status success-body]}]
+  (let [outcome (try
+                  {:ok true :frame (mutate! frame-id)}
+                  (catch :default err
+                    (let [msg (or (some-> err .-message str) default-error)
+                          status (if (contains? conflict-messages msg) 409 500)]
+                      {:ok false
+                       :response (json-response status {:error msg} request)})))]
+    (if-not (:ok outcome)
+      (:response outcome)
+      (let [frame (:frame outcome)]
+        (story/emit-state-changed! emit-reason)
+        (-> (story/persist-state!)
+            (.then (fn [_]
+                     (let [snapshot @story/state]
+                       (json-response success-status
+                                      (success-body frame snapshot)
+                                      request)))))))))
+
 (defn handle-delete-frame [request]
   (-> (story/sync-state-from-storage!)
       (.then (fn [_] (request-json request)))
-      (.then (fn [body]
-               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-                 (if (str/blank? frame-id)
-                   (json-response 400 {:error "Missing frameId."} request)
-                   (let [outcome (try
-                                   {:ok true :frame (story/delete-frame! frame-id)}
-                                   (catch :default err
-                                     (let [msg (or (some-> err .-message str) "Delete failed.")
-                                           status (if (= msg "Frame not found.")
-                                                    409
-                                                    500)]
-                                       {:ok false
-                                        :response (json-response status {:error msg} request)})))]
-                     (if-not (:ok outcome)
-                       (:response outcome)
-                       (let [deleted-frame (:frame outcome)]
-                         (story/emit-state-changed! "frame-deleted")
-                         (-> (story/persist-state!)
-                             (.then (fn [_]
-                                      (let [snapshot @story/state]
-                                        (json-response 200
-                                                       {:deleted true
-                                                        :frame deleted-frame
-                                                        :revision (:revision snapshot)}
-                                                       request)))))))))))))
-  )
+      (.then
+       (fn [body]
+         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+           (if (str/blank? frame-id)
+             (json-response 400 {:error "Missing frameId."} request)
+             (run-frame-mutation request frame-id
+                                 {:mutate! story/delete-frame!
+                                  :default-error "Delete failed."
+                                  :conflict-messages #{"Frame not found."}
+                                  :emit-reason "frame-deleted"
+                                  :success-status 200
+                                  :success-body (fn [frame snapshot]
+                                                  {:deleted true
+                                                   :frame frame
+                                                   :revision (:revision snapshot)})})))))))
 
 (defn handle-clear-frame-image [request]
   (-> (story/sync-state-from-storage!)
       (.then (fn [_] (request-json request)))
-      (.then (fn [body]
-               (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
-                 (if (str/blank? frame-id)
-                   (json-response 400 {:error "Missing frameId."} request)
-                   (let [outcome (try
-                                   {:ok true :frame (story/clear-frame-image! frame-id)}
-                                   (catch :default err
-                                     (let [msg (or (some-> err .-message str) "Clear image failed.")
-                                           status (if (or (= msg "Frame not found.")
-                                                          (= msg "Cannot clear image while queued or processing."))
-                                                    409
-                                                    500)]
-                                       {:ok false
-                                        :response (json-response status {:error msg} request)})))]
-                     (if-not (:ok outcome)
-                       (:response outcome)
-                       (let [frame (:frame outcome)]
-                         (story/emit-state-changed! "frame-image-cleared")
-                         (-> (story/persist-state!)
-                             (.then (fn [_]
-                                      (let [snapshot @story/state]
-                                        (json-response 200
-                                                       {:cleared true
-                                                       :frame frame
-                                                        :revision (:revision snapshot)}
-                                                       request)))))))))))))
-  )
+      (.then
+       (fn [body]
+         (let [frame-id (some-> (gobj/get body "frameId") str str/trim)]
+           (if (str/blank? frame-id)
+             (json-response 400 {:error "Missing frameId."} request)
+             (run-frame-mutation request frame-id
+                                 {:mutate! story/clear-frame-image!
+                                  :default-error "Clear image failed."
+                                  :conflict-messages #{"Frame not found."
+                                                       "Cannot clear image while queued or processing."}
+                                  :emit-reason "frame-image-cleared"
+                                  :success-status 200
+                                  :success-body (fn [frame snapshot]
+                                                  {:cleared true
+                                                   :frame frame
+                                                   :revision (:revision snapshot)})})))))))
 
 (.http app "post-add-frame"
        #js {:methods #js ["POST"]
