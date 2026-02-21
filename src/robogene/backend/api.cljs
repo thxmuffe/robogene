@@ -75,6 +75,22 @@
       (catch :default err
         (internal-error-response request route err)))))
 
+(defn register-http! [name methods route handler]
+  (.http app name
+         #js {:methods (clj->js methods)
+              :authLevel "anonymous"
+              :route route
+              :handler handler}))
+
+(defn register-get! [name route handler]
+  (register-http! name ["GET"] route handler))
+
+(defn register-post! [name route handler]
+  (register-http! name ["POST"] route handler))
+
+(defn register-options! [name route handler]
+  (register-http! name ["OPTIONS"] route handler))
+
 (defn request-json [request]
   (-> (.json request)
       (.catch (fn [_] #js {}))))
@@ -127,59 +143,54 @@
                     :pendingCount (story/active-queue-count (:frames post))}
                    request)))
 
-(.http app "get-state"
-       #js {:methods #js ["GET"]
-            :authLevel "anonymous"
-            :route "state"
-            :handler (with-error-handling
-                      "state"
-                      (fn [request]
-                        (-> (story/sync-state-from-storage!)
-                            (.then (fn [_]
-                                     (let [before-revision (:revision @story/state)]
-                                       (story/ensure-draft-frames!)
-                                       (if (not= before-revision (:revision @story/state))
-                                         (story/persist-state!)
-                                         (js/Promise.resolve @story/state)))))
-                            (.then (fn [_]
-                                     (let [snapshot @story/state
-                                           frames (:frames snapshot)
-                                           pending-count (story/active-queue-count frames)]
-                                       (json-response 200
-                                                      {:storyId (:storyId snapshot)
-                                                       :revision (:revision snapshot)
-                                                       :processing (:processing snapshot)
-                                                       :pendingCount pending-count
-                                                       :episodes (:episodes snapshot)
-                                                       :frames frames
-                                                       :failed (:failedJobs snapshot)}
-                                                      request)))))))})
+(register-get! "get-state"
+               "state"
+               (with-error-handling
+                "state"
+                (fn [request]
+                  (-> (story/sync-state-from-storage!)
+                      (.then (fn [_]
+                               (let [before-revision (:revision @story/state)]
+                                 (story/ensure-draft-frames!)
+                                 (if (not= before-revision (:revision @story/state))
+                                   (story/persist-state!)
+                                   (js/Promise.resolve @story/state)))))
+                      (.then (fn [_]
+                               (let [snapshot @story/state
+                                     frames (:frames snapshot)
+                                     pending-count (story/active-queue-count frames)]
+                                 (json-response 200
+                                                {:storyId (:storyId snapshot)
+                                                 :revision (:revision snapshot)
+                                                 :processing (:processing snapshot)
+                                                 :pendingCount pending-count
+                                                 :episodes (:episodes snapshot)
+                                                 :frames frames
+                                                 :failed (:failedJobs snapshot)}
+                                                request))))))))
 
-(.http app "post-generate-frame"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "generate-frame"
-            :handler
-            (with-error-handling
-             "generate-frame"
-             (fn [request]
-               (with-synced-body
-                request
-                (fn [body]
-                  (with-required-string
-                   request body "frameId" "Missing frameId."
-                   (fn [frame-id]
-                     (let [direction (some-> (gobj/get body "direction") str str/trim)
-                           outcome (queueable-frame-outcome frame-id)]
-                       (if-not (:ok outcome)
-                         (json-response (:status outcome) {:error (:error outcome)} request)
-                         (do
-                           (queue-frame! (:idx outcome) direction)
-                           (-> (story/persist-state!)
-                               (.then (fn [_]
-                                        (story/emit-state-changed! "queued")
-                                        (story/process-queue!)
-                                        (queue-success-response request (:idx outcome))))))))))))))})
+(register-post! "post-generate-frame"
+                "generate-frame"
+                (with-error-handling
+                 "generate-frame"
+                 (fn [request]
+                   (with-synced-body
+                    request
+                    (fn [body]
+                      (with-required-string
+                       request body "frameId" "Missing frameId."
+                       (fn [frame-id]
+                         (let [direction (some-> (gobj/get body "direction") str str/trim)
+                               outcome (queueable-frame-outcome frame-id)]
+                           (if-not (:ok outcome)
+                             (json-response (:status outcome) {:error (:error outcome)} request)
+                             (do
+                               (queue-frame! (:idx outcome) direction)
+                               (-> (story/persist-state!)
+                                   (.then (fn [_]
+                                            (story/emit-state-changed! "queued")
+                                            (story/process-queue!)
+                                            (queue-success-response request (:idx outcome)))))))))))))))
 
 (defn emit-persist-and-respond [request emit-reason status response-body]
   (story/emit-state-changed! emit-reason)
@@ -285,52 +296,40 @@
                                               :frame frame
                                               :revision (:revision snapshot)})}))))))
 
-(.http app "post-add-frame"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "add-frame"
-            :handler (with-error-handling "add-frame" handle-add-frame)})
+(register-post! "post-add-frame"
+                "add-frame"
+                (with-error-handling "add-frame" handle-add-frame))
 
-(.http app "post-add-episode"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "add-episode"
-            :handler (with-error-handling "add-episode" handle-add-episode)})
+(register-post! "post-add-episode"
+                "add-episode"
+                (with-error-handling "add-episode" handle-add-episode))
 
-(.http app "post-delete-frame"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "delete-frame"
-            :handler (with-error-handling "delete-frame" handle-delete-frame)})
+(register-post! "post-delete-frame"
+                "delete-frame"
+                (with-error-handling "delete-frame" handle-delete-frame))
 
-(.http app "post-clear-frame-image"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "clear-frame-image"
-            :handler (with-error-handling "clear-frame-image" handle-clear-frame-image)})
+(register-post! "post-clear-frame-image"
+                "clear-frame-image"
+                (with-error-handling "clear-frame-image" handle-clear-frame-image))
 
-(.http app "signalr-negotiate"
-       #js {:methods #js ["POST"]
-            :authLevel "anonymous"
-            :route "negotiate"
-            :handler (with-error-handling
-                      "negotiate"
-                      (fn [request]
-                        (if-let [info (realtime/create-client-connection-info)]
-                          (json-response 200 info request)
-                          (json-response 200
-                                         {:disabled true
-                                          :reason (str "Missing " realtime/connection-setting-name)}
-                                         request))))})
+(register-post! "signalr-negotiate"
+                "negotiate"
+                (with-error-handling
+                 "negotiate"
+                 (fn [request]
+                   (if-let [info (realtime/create-client-connection-info)]
+                     (json-response 200 info request)
+                     (json-response 200
+                                    {:disabled true
+                                     :reason (str "Missing " realtime/connection-setting-name)}
+                                    request)))))
 
-(.http app "options-preflight"
-       #js {:methods #js ["OPTIONS"]
-            :authLevel "anonymous"
-            :route "{*path}"
-            :handler (with-error-handling
-                      "options-preflight"
-                      (fn [request]
-                        #js {:status 204
-                             :headers (cors-headers request)}))})
+(register-options! "options-preflight"
+                   "{*path}"
+                   (with-error-handling
+                    "options-preflight"
+                    (fn [request]
+                      #js {:status 204
+                           :headers (cors-headers request)})))
 
 (defn init! [] true)
