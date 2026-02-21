@@ -60,12 +60,12 @@
                         :class (if clickable? "frame frame-clickable" "frame")}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-click #(rf/dispatch [:navigate-frame (:frameNumber frame)])
+                                   :on-click #(rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])
                                    :on-key-down (fn [e]
                                                   (when (or (= "Enter" (.-key e))
                                                             (= " " (.-key e)))
                                                     (.preventDefault e)
-                                                    (rf/dispatch [:navigate-frame (:frameNumber frame)])))))]
+                                                    (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?

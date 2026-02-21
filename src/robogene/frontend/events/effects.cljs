@@ -191,3 +191,29 @@
                  :generate-accepted
                  :generate-failed
                  (fn [ok status] (or ok (= 409 status))))))
+
+(rf/reg-fx
+ :post-add-episode
+ (fn [{:keys [description]}]
+   (request-json (api-url "/api/add-episode")
+                 {:method "POST"
+                  :cache "no-store"
+                  :headers {"Content-Type" "application/json"}
+                  :body (.stringify js/JSON
+                                    (clj->js {:description description}))}
+                 :add-episode-accepted
+                 :add-episode-failed
+                 (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-frame
+ (fn [{:keys [episode-id]}]
+   (request-json (api-url "/api/add-frame")
+                 {:method "POST"
+                  :cache "no-store"
+                  :headers {"Content-Type" "application/json"}
+                  :body (.stringify js/JSON
+                                    (clj->js {:episodeId episode-id}))}
+                 :add-frame-accepted
+                 :add-frame-failed
+                 (fn [ok _] ok))))

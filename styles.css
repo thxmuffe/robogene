@@ -94,6 +94,51 @@ h2 { margin: 24px 0 10px; }
   gap: 14px;
 }
 
+.episode-block {
+  margin: 14px 0 26px;
+}
+
+.episode-separator {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #20639b, #3caea3, #f6d55c, #ed553b);
+  margin: 8px 0 14px;
+}
+
+.episode-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.episode-header h2 {
+  margin: 0;
+}
+
+.episode-description {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff3dd;
+  border: 2px solid #e9b46a;
+  font-weight: 700;
+}
+
+.new-episode-panel {
+  margin-top: 26px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 2px solid #1f2a44;
+  background: #fff9f0;
+  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.12);
+}
+
+.new-episode-panel h3 {
+  margin-top: 0;
+}
+
 .frame {
   background: var(--frame-surface);
   border: 2px solid #1f2a44;

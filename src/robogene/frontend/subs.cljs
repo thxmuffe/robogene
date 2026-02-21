@@ -3,6 +3,8 @@
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
+(rf/reg-sub :episodes (fn [db _] (:episodes db)))
 (rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
+(rf/reg-sub :new-episode-description (fn [db _] (:new-episode-description db)))
 (rf/reg-sub :route (fn [db _] (:route db)))
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))

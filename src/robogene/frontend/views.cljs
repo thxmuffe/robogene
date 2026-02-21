@@ -4,12 +4,13 @@
             [robogene.frontend.views.frame-page :as frame-page]))
 
 (defn main-view []
-  (let [gallery @(rf/subscribe [:gallery-items])
+  (let [episodes @(rf/subscribe [:episodes])
         frame-inputs @(rf/subscribe [:frame-inputs])
+        new-episode-description @(rf/subscribe [:new-episode-description])
         route @(rf/subscribe [:route])]
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]]
      (if (= :frame (:view route))
-       [frame-page/frame-page route gallery frame-inputs]
-       [gallery-page/main-gallery-page gallery frame-inputs])]))
+       [frame-page/frame-page route episodes frame-inputs]
+       [gallery-page/main-gallery-page episodes frame-inputs new-episode-description])]))
