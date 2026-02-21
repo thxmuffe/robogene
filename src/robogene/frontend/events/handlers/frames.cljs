@@ -1,5 +1,14 @@
 (ns robogene.frontend.events.handlers.frames
-  (:require [re-frame.core :as rf]))
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]))
+
+(defn deleted-frame-label [frame]
+  (let [frame-number (:frameNumber frame)
+        description (str/trim (or (:description frame) ""))]
+    (cond
+      (some? frame-number) (str "Frame " frame-number)
+      (seq description) (str "\"" description "\"")
+      :else (or (:frameId frame) "frame"))))
 
 (rf/reg-event-db
  :frame-direction-changed
@@ -49,9 +58,10 @@
 
 (rf/reg-event-fx
  :delete-frame-accepted
- (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame deleted.")
-    :dispatch [:fetch-state]}))
+ (fn [{:keys [db]} [_ data]]
+   (let [frame (:frame data)]
+     {:db (assoc db :status (str "Deleted " (deleted-frame-label frame) "."))
+      :dispatch [:fetch-state]})))
 
 (rf/reg-event-db
  :delete-frame-failed

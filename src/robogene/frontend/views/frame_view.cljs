@@ -123,9 +123,10 @@
 (defn frame-view
   ([frame frame-input]
    [frame-view frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open?]
-                       :or {clickable? true active? false actions-open? false}}]
+   ([frame frame-input {:keys [clickable? active? actions-open?]
+                        :or {clickable? true active? false actions-open? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
+         busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
          frame* (assoc frame :actionsOpen actions-open?)
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
@@ -147,10 +148,15 @@
      [:article attrs
       [:div.media-shell
        (if has-image?
-         [frame-image frame*]
+         [:<>
+          [frame-image frame*]
+          (when busy?
+            [:div.media-loading-overlay
+             [:div.spinner]
+             [:div.placeholder-text "Generating..."]])]
          [frame-placeholder frame])]
       [:div.meta
-       (when (or (= "queued" (:status frame*)) (= "processing" (:status frame*)))
+       (when busy?
          [:span.badge.queue "In Queue"])
        [frame-editor frame* frame-input]
        [frame-actions-menu frame*]]])))
