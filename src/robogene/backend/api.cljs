@@ -270,14 +270,14 @@
 (declare process-step! active-queue-count)
 
 (defn log-generation-start! [frame queue-size]
-  (js/console.info
+  (js/console.log
    (str "[robogene] generation started"
         " frameNumber=" (:frameNumber frame)
         " frameId=" (:frameId frame)
         " queueSize=" queue-size)))
 
 (defn log-generation-success! [frame duration-ms]
-  (js/console.info
+  (js/console.log
    (str "[robogene] generation finished"
         " frameNumber=" (:frameNumber frame)
         " frameId=" (:frameId frame)
