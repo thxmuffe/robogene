@@ -5,6 +5,7 @@
         :output-dir "js"
         :asset-path "./js"
         :modules {:main {:init-fn robogene.frontend.core/init!}}
+        :devtools {:after-load robogene.frontend.core/after-load!}
         :compiler-options {:warnings-as-errors false}}
   :backend {:target :node-script
             :main robogene.backend.api/init!

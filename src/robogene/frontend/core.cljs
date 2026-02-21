@@ -23,6 +23,10 @@
                      r))]
       (rdom/render root [views/main-view]))))
 
+(defn ^:dev/after-load after-load! []
+  (mount-root)
+  (rf/dispatch [:fetch-state]))
+
 (defn ^:export init! []
   (rf/dispatch-sync [:initialize])
   (.addEventListener js/window "focus" #(rf/dispatch [:force-refresh]))
