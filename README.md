@@ -136,6 +136,17 @@ zip -r deploy.zip . -x '*.git*' 'local.settings.json' 'node_modules/*'
 az functionapp deployment source config-zip -g $RG -n $APP --src deploy.zip
 ```
 
+GitHub Actions deploy (`.github/workflows/azure-functions.yml`) supports two auth modes:
+
+1. Publish profile (simplest):
+   - Set repo secret `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` from:
+     - Azure Portal -> Function App -> `Get publish profile`
+2. OIDC (no long-lived secret):
+   - Set repo secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+   - In Azure AD App Registration, add a Federated Credential for your GitHub repo/branch
+
+If neither auth mode is configured, the workflow now fails early with a clear error listing missing secrets.
+
 Then set frontend API base to:
 - `https://$APP.azurewebsites.net`
 
