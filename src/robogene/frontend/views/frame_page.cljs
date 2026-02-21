@@ -24,7 +24,7 @@
                     (rf/dispatch [:navigate-frame episode-id (:frameNumber next-frame)]))}
       "Next"]]))
 
-(defn frame-page [route episodes frame-inputs]
+(defn frame-page [route episodes frame-inputs open-frame-actions]
   (let [episode-id (:episode route)
         episode (some (fn [row] (when (= (:episodeId row) episode-id) row)) episodes)
         frame-number (:frame-number route)
@@ -35,7 +35,10 @@
      (if frame
        [:div.detail-page
         [detail-controls episode-id ordered idx]
-        [frame-view/frame-view frame (get frame-inputs (:frameId frame) "") {:clickable? false}]
+        [frame-view/frame-view frame
+         (get frame-inputs (:frameId frame) "")
+         {:clickable? false
+          :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         [:div.detail-share
          [:label "Share URL"]
          [:input

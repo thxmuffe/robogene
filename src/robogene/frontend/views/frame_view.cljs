@@ -10,10 +10,13 @@
   (let [busy? (or (= status "queued") (= status "processing"))]
     [:div.frame-editor
      [:textarea.direction-input
-     {:value (or frame-input "")
+      {:value (or frame-input "")
        :placeholder "Describe this frame..."
        :disabled busy?
-       :on-click #(.stopPropagation %)
+       :on-click (fn [e]
+                   (.stopPropagation e)
+                   (rf/dispatch [:set-frame-actions-open frameId true]))
+       :on-focus #(rf/dispatch [:set-frame-actions-open frameId true])
        :on-key-down (fn [e]
                       (if (and (= "Enter" (.-key e))
                                (not (.-shiftKey e)))
@@ -22,7 +25,9 @@
                           (.stopPropagation e)
                           (rf/dispatch [:generate-frame frameId]))
                         (.stopPropagation e)))
-       :on-change #(rf/dispatch [:frame-direction-changed frameId (.. % -target -value)])}]
+       :on-change (fn [e]
+                    (rf/dispatch [:frame-direction-changed frameId (.. e -target -value)])
+                    (rf/dispatch [:set-frame-actions-open frameId true]))}]
      (when (and (seq (or error "")) (not busy?))
        [:div.error-line (str "Last error: " error)])]))
 
@@ -84,14 +89,15 @@
        "Remove Image"])))
 
 (defn frame-actions-menu [frame]
-  (let [{:keys [frameId frameNumber status imageDataUrl]} frame
+  (let [{:keys [frameId frameNumber status imageDataUrl actionsOpen]} frame
         busy? (or (= status "queued") (= status "processing"))]
     [:details.frame-danger-zone
-     {:on-click #(.stopPropagation %)}
+     {:open (true? actionsOpen)
+      :on-click #(.stopPropagation %)
+      :on-toggle #(rf/dispatch [:set-frame-actions-open frameId (.-open (.-target %))])}
      [:summary "Frame actions"]
      [:div.frame-actions
-      (when (not (str/blank? (or imageDataUrl "")))
-        [frame-action-button frame])
+      [frame-action-button frame]
       [clear-image-button frame]
       [:button.btn.btn-danger.btn-small
        {:type "button"
@@ -117,9 +123,10 @@
 (defn frame-view
   ([frame frame-input]
    [frame-view frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active?]
-                       :or {clickable? true active? false}}]
+  ([frame frame-input {:keys [clickable? active? actions-open?]
+                       :or {clickable? true active? false actions-open? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
+         frame* (assoc frame :actionsOpen actions-open?)
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
@@ -132,18 +139,18 @@
                                                 (rf/dispatch [:set-active-frame (:frameId frame)])
                                                 (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)]))
                                    :on-key-down (fn [e]
-                                                  (when (or (= "Enter" (.-key e))
-                                                            (= " " (.-key e)))
-                                                    (.preventDefault e)
-                                                    (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                    (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])))))]
+                                                   (when (or (= "Enter" (.-key e))
+                                                             (= " " (.-key e)))
+                                                     (.preventDefault e)
+                                                     (rf/dispatch [:set-active-frame (:frameId frame)])
+                                                     (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?
-         [frame-image frame]
+         [frame-image frame*]
          [frame-placeholder frame])]
       [:div.meta
-       (when (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+       (when (or (= "queued" (:status frame*)) (= "processing" (:status frame*)))
          [:span.badge.queue "In Queue"])
-       [frame-editor frame frame-input]
-       [frame-actions-menu frame]]])))
+       [frame-editor frame* frame-input]
+       [frame-actions-menu frame*]]])))

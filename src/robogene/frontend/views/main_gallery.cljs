@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [robogene.frontend.views.frame-view :as frame-view]))
 
-(defn episode-section [episode frame-inputs active-frame-id]
+(defn episode-section [episode frame-inputs open-frame-actions active-frame-id]
   [:section.episode-block
    [:div.episode-separator]
    [:div.episode-header
@@ -16,7 +16,8 @@
       ^{:key (:frameId frame)}
       [frame-view/frame-view frame
        (get frame-inputs (:frameId frame) "")
-       {:active? (= active-frame-id (:frameId frame))}])]])
+       {:active? (= active-frame-id (:frameId frame))
+        :actions-open? (true? (get open-frame-actions (:frameId frame)))}])]])
 
 (defn new-episode-form [description]
   [:section.new-episode-panel
@@ -37,10 +38,10 @@
      :on-click #(rf/dispatch [:add-episode])}
     "Add New Episode"]])
 
-(defn main-gallery-page [episodes frame-inputs active-frame-id new-episode-description]
+(defn main-gallery-page [episodes frame-inputs open-frame-actions active-frame-id new-episode-description]
   [:section
    [:h2 "Episodes"]
    (for [episode episodes]
      ^{:key (:episodeId episode)}
-     [episode-section episode frame-inputs active-frame-id])
+     [episode-section episode frame-inputs open-frame-actions active-frame-id])
    [new-episode-form new-episode-description]])

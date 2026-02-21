@@ -3,6 +3,7 @@
 (def default-db
   {:status "Loading episodes..."
    :frame-inputs {}
+   :open-frame-actions {}
    :last-rendered-revision nil
    :active-frame-id nil
    :episodes []
