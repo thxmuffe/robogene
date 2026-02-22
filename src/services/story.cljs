@@ -126,21 +126,6 @@
 (defn next-frame-number [frames episode-id]
   (inc (reduce max 0 (map :frameNumber (frames-for-episode frames episode-id)))))
 
-(defn ensure-draft-frame-for-episode! [episode-id]
-  (let [frames (frames-for-episode (:frames @state) episode-id)
-        missing-image? (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)]
-    (when (or (empty? frames) (not missing-image?))
-      (let [frame-number (next-frame-number (:frames @state) episode-id)]
-        (swap! state
-               (fn [s]
-                 (-> s
-                     (update :frames conj (make-draft-frame episode-id frame-number))
-                     (update :revision inc))))))))
-
-(defn ensure-draft-frames! []
-  (doseq [episode (:episodes @state)]
-    (ensure-draft-frame-for-episode! (:episodeId episode))))
-
 (defn add-episode! [description]
   (let [episode (make-episode (next-episode-number (:episodes @state))
                               (if (str/blank? (or description ""))
@@ -188,7 +173,6 @@
                                                 (subvec rows (inc idx)))))
                  )
                  (update :revision inc))))
-    (ensure-draft-frame-for-episode! (:episodeId frame))
     frame))
 
 (defn clear-frame-image! [frame-id]
@@ -563,7 +547,6 @@
                        (log-generation-success! frame (- (.now js/Date) started-ms))
                        (if (mark-frame-ready! frame-id image-data-url)
                          (do
-                           (ensure-draft-frame-for-episode! (:episodeId frame))
                            (-> (persist-state!)
                                (.then (fn [_]
                                         (emit-state-changed! "ready")
