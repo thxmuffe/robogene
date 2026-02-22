@@ -87,12 +87,12 @@ jobs:
         id: auth
         run: |
           set -euo pipefail
-          if [[ -n "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
-            echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
-            echo "Using publish profile authentication."
-          elif [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+          if [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
             echo "mode=oidc" >> "$GITHUB_OUTPUT"
             echo "Using OIDC authentication."
+          elif [[ -n "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
+            echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
+            echo "Using publish profile authentication."
           else
             echo "::error::Missing Azure deployment credentials."
             echo "::error::Set either AZURE_FUNCTIONAPP_PUBLISH_PROFILE, or all of AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID."
@@ -110,6 +110,17 @@ jobs:
       - name: Verify Azure context
         if: steps.auth.outputs.mode == 'oidc'
         run: az account show --output table
+
+      - name: Ensure Azure Function runtime settings
+        if: steps.auth.outputs.mode == 'oidc'
+        run: |
+          az functionapp config appsettings set \
+            --resource-group robogene-rg \
+            --name "${FUNCTION_APP_NAME}" \
+            --settings \
+              FUNCTIONS_WORKER_RUNTIME=node \
+              WEBSITE_NODE_DEFAULT_VERSION=~22 \
+              WEBSITE_RUN_FROM_PACKAGE=1
 
       - name: Deploy Azure Function (OIDC)
         if: steps.auth.outputs.mode == 'oidc'
