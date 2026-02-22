@@ -52,10 +52,13 @@ async function waitForHostReady(proc, readyPattern, timeout) {
 async function stopHost(proc) {
   if (!proc || proc.exitCode !== null) return;
   proc.kill('SIGTERM');
-  try {
-    await once(proc, 'exit');
-  } catch {
+  const exited = await Promise.race([
+    once(proc, 'exit').then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), 1500)),
+  ]);
+  if (!exited) {
     proc.kill('SIGKILL');
+    await once(proc, 'exit');
   }
 }
 
@@ -103,6 +106,7 @@ test('web API e2e: real image generation (opt-in)', { skip: !shouldRun || !hasFu
     env: {
       ...process.env,
       ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${port}`,
+      FUNCTIONS_WORKER_RUNTIME: 'node',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

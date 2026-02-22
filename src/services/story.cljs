@@ -25,9 +25,13 @@
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
 (def page1-reference-image (.join path story-dir "28_page_01_openai_refined.png"))
 
+(defn mock-image-success? []
+  (= "1" (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_SUCCESS) str str/trim)))
+
 (defn require-startup-env! []
   (let [api-key (some-> (.. js/process -env -OPENAI_API_KEY) str str/trim)]
-    (when (str/blank? (or api-key ""))
+    (when (and (not (mock-image-success?))
+               (str/blank? (or api-key "")))
       (throw (js/Error. "Missing OPENAI_API_KEY in Function App settings.")))))
 
 (defn read-file-or
@@ -397,34 +401,39 @@
     (openai-image-response->data-url body)))
 
 (defn generate-image! [frame]
-  (let [api-key (.. js/process -env -OPENAI_API_KEY)]
-    (if (not (seq api-key))
-      (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
-      (let [prompt (build-prompt-for-frame frame)
-            refs (reference-images)]
-        (letfn [(request-with-refs! [attempt-refs]
-                  (-> (openai-image-request! api-key prompt attempt-refs)
-                      (.then (fn [{:keys [ok status body]}]
-                               (cond
-                                 (and (not ok)
-                                      (invalid-second-reference? status body)
-                                      (> (count attempt-refs) 1))
-                                 (do
-                                   (js/console.warn
-                                    "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
-                                   (request-with-refs! (vec (take 1 attempt-refs))))
+  (if (mock-image-success?)
+    (let [mock-data-url (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_DATA_URL) str str/trim)]
+      (js/Promise.resolve
+       (or (when (seq mock-data-url) mock-data-url)
+           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")))
+    (let [api-key (.. js/process -env -OPENAI_API_KEY)]
+      (if (not (seq api-key))
+        (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
+        (let [prompt (build-prompt-for-frame frame)
+              refs (reference-images)]
+          (letfn [(request-with-refs! [attempt-refs]
+                    (-> (openai-image-request! api-key prompt attempt-refs)
+                        (.then (fn [{:keys [ok status body]}]
+                                 (cond
+                                   (and (not ok)
+                                        (invalid-second-reference? status body)
+                                        (> (count attempt-refs) 1))
+                                   (do
+                                     (js/console.warn
+                                      "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
+                                     (request-with-refs! (vec (take 1 attempt-refs))))
 
-                                 (and (not ok)
-                                      (invalid-reference-image? status body)
-                                      (seq attempt-refs))
-                                 (do
-                                   (js/console.warn
-                                    "[robogene] OpenAI rejected reference image; retrying without reference images.")
-                                   (request-with-refs! []))
+                                   (and (not ok)
+                                        (invalid-reference-image? status body)
+                                        (seq attempt-refs))
+                                   (do
+                                     (js/console.warn
+                                      "[robogene] OpenAI rejected reference image; retrying without reference images.")
+                                     (request-with-refs! []))
 
-                                 :else
-                                 (openai-response->result {:ok ok :status status :body body}))))))]
-          (request-with-refs! refs))))))
+                                   :else
+                                   (openai-response->result {:ok ok :status status :body body}))))))]
+            (request-with-refs! refs)))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
