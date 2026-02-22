@@ -32,14 +32,29 @@ const startupFailureResponse = (request, err) => ({
   headers: diagnosticHeaders(request),
 });
 
+function isMissingModuleError(err, requestedPath) {
+  return (
+    err &&
+    err.code === 'MODULE_NOT_FOUND' &&
+    typeof err.message === 'string' &&
+    err.message.includes(`'${requestedPath}'`)
+  );
+}
+
 try {
   try {
     require('./dist/webapi_compiled.js');
-  } catch (_deployedErr) {
+  } catch (deployedErr) {
+    if (!isMissingModuleError(deployedErr, './dist/webapi_compiled.js')) {
+      throw deployedErr;
+    }
     try {
       // Local debug build output.
       require('../../dist/debug/webapi/webapi_compiled.js');
-    } catch (_debugErr) {
+    } catch (debugErr) {
+      if (!isMissingModuleError(debugErr, '../../dist/debug/webapi/webapi_compiled.js')) {
+        throw debugErr;
+      }
       // Local release build output.
       require('../../dist/release/webapi/webapi_compiled.js');
     }
