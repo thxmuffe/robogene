@@ -83,10 +83,21 @@
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
-                                    (when active? " frame-active"))}
+                                    (when active? " frame-active"))
+                        :on-blur (fn [e]
+                                   (when (true? actions-open?)
+                                     (let [container (.-currentTarget e)]
+                                       (js/setTimeout
+                                        (fn []
+                                          (let [active-el (.-activeElement js/document)]
+                                            (when (or (nil? active-el)
+                                                      (not (.contains container active-el)))
+                                              (rf/dispatch [:set-frame-actions-open (:frameId frame) false]))))
+                                        0))))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
                                    :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
+                                   :on-mouse-leave #(rf/dispatch [:set-active-frame nil])
                                    :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
                                    :on-click #(do
                                                 (rf/dispatch [:set-active-frame (:frameId frame)])
