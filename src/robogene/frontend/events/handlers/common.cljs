@@ -22,8 +22,39 @@
 (rf/reg-event-fx
  :fetch-state
  (fn [{:keys [db]} _]
-   {:db db
+  {:db db
     :fetch-state true}))
+
+(rf/reg-event-fx
+ :api-request-start
+ (fn [{:keys [db]} _]
+   (let [pending (or (:pending-api-requests db) 0)
+         next-pending (inc pending)
+         next-db (assoc db
+                        :pending-api-requests next-pending
+                        :wait-dialog-visible? false)]
+     (if (= pending 0)
+       {:db next-db
+        :wait-dialog-start-delay 850}
+       {:db next-db}))))
+
+(rf/reg-event-fx
+ :api-request-finish
+ (fn [{:keys [db]} _]
+   (let [pending (or (:pending-api-requests db) 0)
+         next-pending (max 0 (dec pending))
+         next-db (assoc db :pending-api-requests next-pending)]
+     (if (zero? next-pending)
+       {:db (assoc next-db :wait-dialog-visible? false)
+        :wait-dialog-cancel-delay true}
+       {:db next-db}))))
+
+(rf/reg-event-db
+ :show-wait-dialog
+ (fn [db _]
+   (if (pos? (or (:pending-api-requests db) 0))
+     (assoc db :wait-dialog-visible? true)
+     db)))
 
 (rf/reg-event-fx
  :state-loaded

@@ -11,6 +11,7 @@
 (defonce realtime-starting?* (atom false))
 (defonce realtime-epoch* (atom 0))
 (defonce coalesced-fetch-state!* (atom nil))
+(defonce wait-dialog-timeout-id* (atom nil))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -43,11 +44,13 @@
 
 (defn request-json
   [url request-options success-event fail-event ok?]
+  (rf/dispatch [:api-request-start])
   (-> (js/fetch url
                 (clj->js request-options))
       (.then response->map)
       (.then #(dispatch-api-response % success-event fail-event ok?))
-      (.catch #(dispatch-network-error fail-event %))))
+      (.catch #(dispatch-network-error fail-event %))
+      (.finally #(rf/dispatch [:api-request-finish]))))
 
 (defn post-json
   [path payload success-event fail-event ok?]
@@ -210,6 +213,25 @@
  :realtime-connect
  (fn [_]
    (start-realtime!)))
+
+(rf/reg-fx
+ :wait-dialog-start-delay
+ (fn [ms]
+   (when-let [timeout-id @wait-dialog-timeout-id*]
+     (js/clearTimeout timeout-id))
+   (reset! wait-dialog-timeout-id*
+           (js/setTimeout
+            (fn []
+              (reset! wait-dialog-timeout-id* nil)
+              (rf/dispatch [:show-wait-dialog]))
+            (or ms 850)))))
+
+(rf/reg-fx
+ :wait-dialog-cancel-delay
+ (fn [_]
+   (when-let [timeout-id @wait-dialog-timeout-id*]
+     (js/clearTimeout timeout-id)
+     (reset! wait-dialog-timeout-id* nil))))
 
 (rf/reg-fx
  :fetch-state
