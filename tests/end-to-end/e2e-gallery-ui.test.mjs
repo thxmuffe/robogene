@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { getFreePort } from '../helpers/ports.mjs';
 import { commandAvailable, killByPattern } from '../helpers/system.mjs';
 import { stopProcess, waitForHttpOk } from '../helpers/async.mjs';
+import { attachConsoleFailureGuard } from '../helpers/playwright.mjs';
 
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = Number(process.env.ROBOGENE_E2E_UI_STARTUP_TIMEOUT_MS || 90000);
@@ -57,12 +58,18 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
   app.stderr.on('data', appendLog);
 
   let browser = null;
+  let consoleGuard = null;
   try {
     await waitForHttpOk(`http://localhost:${webappPort}/index.html`, startupTimeoutMs);
     await waitForHttpOk(`http://localhost:${apiPort}/api/state`, startupTimeoutMs);
 
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    consoleGuard = attachConsoleFailureGuard(page, {
+      ignore: [
+        'Download the React DevTools for a better development experience',
+      ],
+    });
     await page.addInitScript((base) => {
       window.ROBOGENE_API_BASE = base;
     }, `http://localhost:${apiPort}`);
@@ -99,9 +106,13 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
       frameId,
       { timeout: actionTimeoutMs }
     );
+    consoleGuard.assertClean();
   } catch (err) {
     throw new Error(`${String(err.message || err)}\n\nRecent app logs:\n${logs}`);
   } finally {
+    if (consoleGuard) {
+      consoleGuard.detach();
+    }
     if (browser) {
       await browser.close();
     }

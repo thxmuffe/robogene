@@ -500,6 +500,11 @@
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
                           :emittedAt (.toISOString (js/Date.))})]
+    (js/console.log
+     (str "[robogene] emit stateChanged"
+          " reason=" reason
+          " revision=" (:revision snapshot)
+          " pending=" (active-queue-count (:frames snapshot))))
     (-> (realtime/publish-state-update! payload)
         (.catch (fn [err]
                   (js/console.warn
