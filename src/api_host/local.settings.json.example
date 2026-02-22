@@ -1,18 +1,29 @@
 {
   "IsEncrypted": false,
   "Values": {
+    "__comment_runtime": "Azure Functions runtime settings",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "__comment_storage": "Storage is required by Azure Functions and by RoboGene state/image persistence. In most setups, both values are the same connection string.",
     "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=<storage-account>;AccountKey=<storage-key>;EndpointSuffix=core.windows.net",
     "ROBOGENE_STORAGE_CONNECTION_STRING": "DefaultEndpointsProtocol=https;AccountName=<storage-account>;AccountKey=<storage-key>;EndpointSuffix=core.windows.net",
+
+    "__comment_realtime": "Azure SignalR connection for realtime state updates in the webapp.",
     "AzureSignalRConnectionString": "Endpoint=https://<signalr-name>.service.signalr.net;AccessKey=<signalr-key>;Version=1.0;",
-    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "__comment_ai": "OpenAI image generation settings. OPENAI_API_KEY is required for /api/generate-frame.",
     "OPENAI_API_KEY": "",
     "ROBOGENE_IMAGE_MODEL": "gpt-image-1-mini",
     "ROBOGENE_IMAGE_QUALITY": "low",
     "ROBOGENE_IMAGE_SIZE": "1024x1024",
+
+    "__comment_data": "Table/container names for persisted metadata, episodes, frames, and images.",
     "ROBOGENE_TABLE_META": "robogeneMeta",
     "ROBOGENE_TABLE_EPISODES": "robogeneEpisodes",
     "ROBOGENE_TABLE_FRAMES": "robogeneFrames",
     "ROBOGENE_IMAGE_CONTAINER": "robogene-images",
+
+    "__comment_cors": "Comma-separated list of allowed origins for browser calls to the API.",
     "ROBOGENE_ALLOWED_ORIGIN": "https://thxmuffe.github.io"
   }
 }
