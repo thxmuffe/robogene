@@ -7,10 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "start": "./run.robogene.debug.sh",
+    "start:release": "./run.robogene.release.sh",
     "watch": "shadow-cljs watch webapp-debug",
     "webapi:watch": "shadow-cljs watch webapi-debug",
     "watch:all": "shadow-cljs watch webapp-debug webapi-debug",
-    "api_host:start": "func start --script-root src/api_host --cors \"http://localhost:8080,http://127.0.0.1:8080\"",
+    "api_host:start": "func start --script-root src/api_host",
     "build": "shadow-cljs release webapp-release",
     "build:webapi": "shadow-cljs release webapi-release",
     "build:webapi:debug": "shadow-cljs compile webapi-debug",
@@ -22,6 +24,8 @@
     "test:services": "node --test tests/services/*.test.mjs",
     "test:e2e": "npm run build:webapi:debug && ROBOGENE_RUN_E2E=1 node --test tests/end-to-end/e2e-webapi.test.mjs",
     "test:e2e:image": "npm run build:webapi:debug && ROBOGENE_RUN_IMAGE_GEN_E2E=1 node --test tests/end-to-end/e2e-image-generation.test.mjs",
+    "test:e2e:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e",
+    "test:e2e:image:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e:image",
     "test:all": "npm test && npm run test:e2e"
   },
   "dependencies": {

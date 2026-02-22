@@ -6,7 +6,7 @@ import net from 'node:net';
 
 const shouldRun = process.env.ROBOGENE_RUN_IMAGE_GEN_E2E === '1';
 const timeoutMs = Number(process.env.ROBOGENE_IMAGE_GEN_TIMEOUT_MS || 180000);
-const preferredPort = Number(process.env.ROBOGENE_E2E_PORT || 7082);
+const preferredPort = Number(process.env.ROBOGENE_E2E_IMAGE_PORT || process.env.ROBOGENE_E2E_PORT || 7082);
 const pollIntervalMs = Number(process.env.ROBOGENE_IMAGE_GEN_POLL_MS || 2000);
 
 function hasFuncCoreTools() {

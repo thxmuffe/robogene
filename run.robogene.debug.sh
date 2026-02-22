@@ -28,6 +28,8 @@ fi
 
 ENV_FILE="robogen.debug.env"
 ENV_EXAMPLE="robogen.debug.env.example"
+WEBAPP_PORT="${WEBAPP_PORT:-8080}"
+WEBAPI_PORT="${WEBAPI_PORT:-7071}"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE"
@@ -44,21 +46,21 @@ if [[ -z "${AzureWebJobsStorage:-}" && -n "${ROBOGENE_STORAGE_CONNECTION_STRING:
   export AzureWebJobsStorage="$ROBOGENE_STORAGE_CONNECTION_STRING"
 fi
 
-if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
-  echo "Port 7071 is already in use. Stop that process first."
-  lsof -iTCP:7071 -sTCP:LISTEN -n -P || true
+if lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
+  echo "Port $WEBAPI_PORT is already in use. Stop that process first."
+  lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P || true
   exit 1
 fi
 
 if [[ "$WEBAPP_RUN_MODE" == "static" ]]; then
-  if lsof -iTCP:8080 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
-    echo "Port 8080 is already in use. Stop that process first."
-    lsof -iTCP:8080 -sTCP:LISTEN -n -P || true
+  if lsof -iTCP:"$WEBAPP_PORT" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
+    echo "Port $WEBAPP_PORT is already in use. Stop that process first."
+    lsof -iTCP:"$WEBAPP_PORT" -sTCP:LISTEN -n -P || true
     exit 1
   fi
 
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "python3 is required for release webapp static server on port 8080."
+    echo "python3 is required for release webapp static server on port $WEBAPP_PORT."
     exit 1
   fi
 
@@ -69,7 +71,7 @@ if [[ "$WEBAPP_RUN_MODE" == "static" ]]; then
   mkdir -p "$WEBAPP_DIST_DIR"
   cp src/webapp/index.html src/webapp/styles.css "$WEBAPP_DIST_DIR/"
 
-  python3 -m http.server 8080 --directory "$WEBAPP_DIST_DIR" >/dev/null 2>&1 &
+  python3 -m http.server "$WEBAPP_PORT" --directory "$WEBAPP_DIST_DIR" >/dev/null 2>&1 &
   WEBAPP_PID=$!
 else
   echo "Building webapi ${MODE} bundle..."
@@ -83,15 +85,15 @@ else
 fi
 
 if [[ -z "${ROBOGENE_ALLOWED_ORIGIN:-}" ]]; then
-  export ROBOGENE_ALLOWED_ORIGIN="http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+  export ROBOGENE_ALLOWED_ORIGIN="http://localhost:${WEBAPP_PORT},http://127.0.0.1:${WEBAPP_PORT},http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
 fi
 
-npm run api_host:start &
+npm run api_host:start -- --port "$WEBAPI_PORT" --cors "$ROBOGENE_ALLOWED_ORIGIN" &
 API_PID=$!
 
 trap 'kill $WEBAPP_PID $API_PID 2>/dev/null || true' EXIT INT TERM
 
-echo "Webapp: http://localhost:8080/index.html"
-echo "Web API: http://localhost:7071"
+echo "Webapp: http://localhost:${WEBAPP_PORT}/index.html"
+echo "Web API: http://localhost:${WEBAPI_PORT}"
 
 wait
