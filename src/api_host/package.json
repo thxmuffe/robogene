@@ -4,6 +4,6 @@
   "description": "Azure Functions host manifest for RoboGene",
   "main": "story_routes_host.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }
