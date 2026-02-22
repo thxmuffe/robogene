@@ -8,12 +8,16 @@
   (or (.. js/process -env -ROBOGENE_STORAGE_CONNECTION_STRING)
       (.. js/process -env -AzureWebJobsStorage)))
 
+(defn allow-dev-storage-for-smoke? []
+  (= "1" (some-> (.. js/process -env -ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE) str str/trim)))
+
 (when-not (seq connection-string)
   (throw (js/Error. "Missing AzureWebJobsStorage or ROBOGENE_STORAGE_CONNECTION_STRING.")))
 
-(when (= (str/trim connection-string) "UseDevelopmentStorage=true")
+(when (and (= (str/trim connection-string) "UseDevelopmentStorage=true")
+           (not (allow-dev-storage-for-smoke?)))
   (throw (js/Error.
-          "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string.")))
+          "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string. For CI packaging smoke checks only, set ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE=1.")))
 
 (def table-meta (or (.. js/process -env -ROBOGENE_TABLE_META) "robogeneMeta"))
 (def table-episodes (or (.. js/process -env -ROBOGENE_TABLE_EPISODES) "robogeneEpisodes"))
