@@ -1,9 +1,0 @@
-{
-  "name": "robogene-hosting",
-  "private": true,
-  "description": "Azure Functions host manifest for RoboGene",
-  "main": "index.js",
-  "engines": {
-    "node": ">=20"
-  }
-}

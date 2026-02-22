@@ -25,10 +25,12 @@ yarn-error.log*
 .tmp/
 tmp/
 .azure/
-src/hosting/local.settings.json
-src/hosting/deploy.zip
+src/backend/api_host/local.settings.json
+src/dist/backend/.deploy.zip
 
 # Generated assets
 defintions/generated/
 js/
-src/hosting/functions/api_compiled.js
+src/dist/backend/backend_api_compiled.js
+build/.shadow-cljs/
+build/.cpcache/

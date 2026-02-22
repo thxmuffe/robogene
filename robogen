@@ -47,7 +47,7 @@ if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   exit 1
 fi
 
-cat > src/hosting/local.settings.json <<JSON
+cat > src/backend/api_host/local.settings.json <<JSON
 {
   "IsEncrypted": false,
   "Values": {
