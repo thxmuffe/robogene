@@ -34,11 +34,11 @@
         (str/includes? v "removing")
         (str/includes? v "creating"))))
 
-(defn signal-state [{:keys [pending-api-requests wait-dialog-visible? status episodes]}]
+(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status episodes]}]
   (cond
     (or (status-error? status) (has-frame-error? episodes)) :red
     (or (pos? (or pending-api-requests 0))
-        (true? wait-dialog-visible?)
+        (true? wait-lights-visible?)
         (status-working? status)
         (has-frame-pending? episodes))
     :yellow

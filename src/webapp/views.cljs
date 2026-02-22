@@ -21,7 +21,7 @@
         new-episode-description @(rf/subscribe [:new-episode-description])
         new-episode-panel-open? @(rf/subscribe [:new-episode-panel-open?])
         show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
-        wait-dialog-visible? @(rf/subscribe [:wait-dialog-visible?])
+        wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         route @(rf/subscribe [:route])]
     (set! (.-title js/document)
@@ -42,6 +42,6 @@
         show-episode-celebration?])
      [traffic-indicator/traffic-indicator
       {:pending-api-requests pending-api-requests
-       :wait-dialog-visible? wait-dialog-visible?
+       :wait-lights-visible? wait-lights-visible?
        :status status
        :episodes episodes}]]))

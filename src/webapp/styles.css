@@ -362,44 +362,6 @@ h2 { margin: 24px 0 10px; }
   animation: spin 1s linear infinite;
 }
 
-.wait-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(8, 24, 40, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.wait-dialog {
-  width: min(420px, calc(100vw - 28px));
-  border-radius: 16px;
-  padding: 20px 18px;
-  border: 2px solid #1f2a44;
-  background: #fff8ed;
-  color: #102a43;
-  text-align: center;
-  box-shadow: 0 20px 42px rgba(16, 42, 67, 0.28);
-}
-
-.wait-dialog .spinner {
-  margin: 0 auto 10px;
-}
-
-.wait-dialog h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.wait-dialog p {
-  margin: 8px 0 0;
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-
 .traffic-indicator {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 12px);

@@ -32,11 +32,8 @@
          next-pending (inc pending)
          next-db (assoc db
                         :pending-api-requests next-pending
-                        :wait-dialog-visible? false)]
-     (if (= pending 0)
-       {:db next-db
-        :wait-dialog-start-delay 850}
-       {:db next-db}))))
+                        :wait-lights-visible? true)]
+     {:db next-db})))
 
 (rf/reg-event-fx
  :api-request-finish
@@ -45,16 +42,8 @@
          next-pending (max 0 (dec pending))
          next-db (assoc db :pending-api-requests next-pending)]
      (if (zero? next-pending)
-       {:db (assoc next-db :wait-dialog-visible? false)
-        :wait-dialog-cancel-delay true}
+       {:db (assoc next-db :wait-lights-visible? false)}
        {:db next-db}))))
-
-(rf/reg-event-db
- :show-wait-dialog
- (fn [db _]
-   (if (pos? (or (:pending-api-requests db) 0))
-     (assoc db :wait-dialog-visible? true)
-     db)))
 
 (rf/reg-event-fx
  :state-loaded
