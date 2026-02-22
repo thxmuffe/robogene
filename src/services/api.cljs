@@ -338,4 +338,6 @@
 (doseq [spec route-specs]
   (register-route! spec))
 
-(defn init! [] true)
+(defn init!
+  [& _]
+  true)
