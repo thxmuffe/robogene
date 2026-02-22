@@ -35,12 +35,17 @@ const startupFailureResponse = (request, err) => ({
 try {
   try {
     require('./dist/webapi_compiled.js');
-  } catch (_localErr) {
-    // Local dev build output is centralized in dist/webapi.
-    require('../../dist/webapi/webapi_compiled.js');
+  } catch (_deployedErr) {
+    try {
+      // Local debug build output.
+      require('../../dist/debug/webapi/webapi_compiled.js');
+    } catch (_debugErr) {
+      // Local release build output.
+      require('../../dist/release/webapi/webapi_compiled.js');
+    }
   }
 } catch (err) {
-  console.error('[robogene] Failed to load services compiled bundle from api_host/dist or dist/webapi.');
+  console.error('[robogene] Failed to load services compiled bundle from api_host/dist or dist/debug|release/webapi.');
   console.error(err);
 
   const handler = (request) => startupFailureResponse(request, err);

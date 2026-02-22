@@ -63,6 +63,12 @@ Or use the root helper script to run webapp + services local stack together:
 ./run.robogene.debug.sh
 ```
 
+For a local release-style run (release bundles + static webapp server on port 8080):
+
+```bash
+./run.robogene.release.sh
+```
+
 This starts:
 - Webapp watcher (`shadow-cljs watch webapp-debug`)
 - Services debug compile (`shadow-cljs compile webapi-debug`)
