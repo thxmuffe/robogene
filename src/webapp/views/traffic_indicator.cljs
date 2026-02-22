@@ -24,11 +24,22 @@
     (or (str/includes? v "failed")
         (str/includes? v "error"))))
 
+(defn status-working? [status-text]
+  (let [v (str/lower-case (str (or status-text "")))]
+    (or (str/includes? v "queue")
+        (str/includes? v "processing")
+        (str/includes? v "loading")
+        (str/includes? v "adding")
+        (str/includes? v "deleting")
+        (str/includes? v "removing")
+        (str/includes? v "creating"))))
+
 (defn signal-state [{:keys [pending-api-requests wait-dialog-visible? status episodes]}]
   (cond
     (or (status-error? status) (has-frame-error? episodes)) :red
     (or (pos? (or pending-api-requests 0))
         (true? wait-dialog-visible?)
+        (status-working? status)
         (has-frame-pending? episodes))
     :yellow
     :else :green))
@@ -68,14 +79,16 @@
           (reset! hide-timeout-id* nil))
         (if (= phase :yellow)
           (do
-            (reset! visible?* true)
-            (start-wait-blink!))
+            (start-wait-blink!)
+            (reset! visible?* true))
           (do
             (stop-wait-blink!)
             (reset! visible?* true)
             (schedule-hide!))))
-      (when (and (= phase :yellow) (not @visible?*))
-        (reset! visible?* true))
+      (when (= phase :yellow)
+        (start-wait-blink!)
+        (when-not @visible?*
+          (reset! visible?* true)))
       (let [wait-step (mod @blink-step* 4)
             wait-green-on? (<= wait-step 2)
             wait-red-on? (= wait-step 3)
@@ -86,7 +99,7 @@
                     :yellow "Working"
                     :red "Error"
                     "Ready")]
-        (when @visible?*
+        (when (or (= phase :yellow) @visible?*)
           [:aside.traffic-indicator
            {:role "status"
             :aria-live "polite"

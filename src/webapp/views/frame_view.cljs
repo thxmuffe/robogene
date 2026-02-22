@@ -33,7 +33,7 @@
                      (.stopPropagation e))
          :on-key-down (fn [e]
                         (let [enter? (= "Enter" (.-key e))
-                              submit? (and editable? enter? (not (.-shiftKey e)))]
+                              submit? (and editable? (not busy?) enter? (not (.-shiftKey e)))]
                           (cond
                             submit?
                             (do
@@ -78,7 +78,7 @@
                         :or {clickable? true active? false actions-open? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
          busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
-         editable? (and (true? actions-open?) (not busy?))
+         editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
@@ -90,10 +90,10 @@
                                        (js/setTimeout
                                         (fn []
                                           (let [active-el (.-activeElement js/document)]
-                                            (when (or (nil? active-el)
-                                                      (not (.contains container active-el)))
+                                            (when (and (some? active-el)
+                                                       (not (.contains container active-el)))
                                               (rf/dispatch [:set-frame-actions-open (:frameId frame) false]))))
-                                        0))))}
+                                        60))))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
                                    :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
