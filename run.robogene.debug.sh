@@ -26,63 +26,22 @@ else
   WEBAPP_RUN_MODE="watch"
 fi
 
-SETTINGS_FILE="src/api_host/local.settings.json"
-SETTINGS_EXAMPLE="src/api_host/local.settings.json.example"
+ENV_FILE="robogen.debug.env"
+ENV_EXAMPLE="robogen.debug.env.example"
 
-if [ ! -f "$SETTINGS_FILE" ]; then
-  echo "Missing $SETTINGS_FILE"
-  echo "Create it from $SETTINGS_EXAMPLE and fill in real values."
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Missing $ENV_FILE"
+  echo "Create it from $ENV_EXAMPLE and fill in real values."
   exit 1
 fi
 
-node -e '
-const fs = require("fs");
-const path = process.argv[1];
-let parsed;
-try {
-  parsed = JSON.parse(fs.readFileSync(path, "utf8"));
-} catch (err) {
-  console.error("local.settings.json is not valid JSON:", err.message);
-  process.exit(1);
-}
-const values = parsed && parsed.Values ? parsed.Values : {};
-const storage = values.ROBOGENE_STORAGE_CONNECTION_STRING || values.AzureWebJobsStorage || "";
-const signalr = values.AzureSignalRConnectionString || "";
-const openai = values.OPENAI_API_KEY || "";
-if (!storage) {
-  console.error("local.settings.json missing ROBOGENE_STORAGE_CONNECTION_STRING or AzureWebJobsStorage.");
-  process.exit(1);
-}
-if (String(storage).trim() === "UseDevelopmentStorage=true") {
-  console.error("UseDevelopmentStorage=true requires Azurite and is not used in this setup.");
-  process.exit(1);
-}
-if (!signalr || signalr.includes("<name>") || signalr.includes("<key>")) {
-  console.error("local.settings.json must include a real AzureSignalRConnectionString.");
-  process.exit(1);
-}
-if (!openai || String(openai).trim() === "") {
-  console.warn("Warning: OPENAI_API_KEY is empty in local.settings.json");
-}
-' "$SETTINGS_FILE"
+set -a
+# shellcheck source=/dev/null
+source "$ENV_FILE"
+set +a
 
-# Ensure Functions host sees OPENAI_API_KEY when using --script-root.
-# Some local setups do not load local.settings.json values as expected.
-OPENAI_API_KEY_FROM_SETTINGS="$(node -e '
-const fs = require("fs");
-const path = process.argv[1];
-try {
-  const parsed = JSON.parse(fs.readFileSync(path, "utf8"));
-  const value = parsed && parsed.Values ? parsed.Values.OPENAI_API_KEY : "";
-  process.stdout.write(String(value || ""));
-} catch (err) {
-  process.stderr.write(`Failed reading OPENAI_API_KEY from ${path}: ${err.message}\n`);
-  process.exit(1);
-}
-' "$SETTINGS_FILE")"
-
-if [[ -z "${OPENAI_API_KEY:-}" && -n "$OPENAI_API_KEY_FROM_SETTINGS" ]]; then
-  export OPENAI_API_KEY="$OPENAI_API_KEY_FROM_SETTINGS"
+if [[ -z "${AzureWebJobsStorage:-}" && -n "${ROBOGENE_STORAGE_CONNECTION_STRING:-}" ]]; then
+  export AzureWebJobsStorage="$ROBOGENE_STORAGE_CONNECTION_STRING"
 fi
 
 if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
@@ -123,8 +82,11 @@ else
   WEBAPP_PID=$!
 fi
 
-ROBOGENE_ALLOWED_ORIGIN="http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173" \
-  npm run api_host:start &
+if [[ -z "${ROBOGENE_ALLOWED_ORIGIN:-}" ]]; then
+  export ROBOGENE_ALLOWED_ORIGIN="http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+fi
+
+npm run api_host:start &
 API_PID=$!
 
 trap 'kill $WEBAPP_PID $API_PID 2>/dev/null || true' EXIT INT TERM

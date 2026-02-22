@@ -97,10 +97,9 @@ Prereqs:
 From repo root:
 
 ```bash
-cp src/api_host/local.settings.json.example src/api_host/local.settings.json
-# set OPENAI_API_KEY, AzureWebJobsStorage, and AzureSignalRConnectionString in local.settings.json
-npm run build:webapi
-npm run api_host:start
+cp robogen.debug.env.example robogen.debug.env
+# set OPENAI_API_KEY, AzureWebJobsStorage/ROBOGENE_STORAGE_CONNECTION_STRING, and AzureSignalRConnectionString
+./run.robogene.debug.sh
 ```
 
 API endpoints (local):

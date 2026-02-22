@@ -33,12 +33,13 @@
                      (.stopPropagation e))
          :on-key-down (fn [e]
                         (let [enter? (= "Enter" (.-key e))
-                              submit? (and editable? (not busy?) enter? (not (.-shiftKey e)))]
+                              submit? (and (not busy?) enter? (not (.-shiftKey e)))]
                           (cond
                             submit?
                             (do
                               (.preventDefault e)
                               (.stopPropagation e)
+                              (rf/dispatch [:set-frame-actions-open frameId true])
                               (rf/dispatch [:generate-frame frameId]))
                             (and (not editable?) enter?)
                             (do
