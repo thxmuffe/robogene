@@ -441,30 +441,6 @@ h2 { margin: 24px 0 10px; }
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
 }
 
-.frame-danger-zone {
-  margin-top: 8px;
-}
-
-.frame-danger-zone summary {
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 1.08rem;
-  letter-spacing: 0.01em;
-  color: #334e68;
-  display: block;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #f0f5fb;
-  border: 1px solid #c5d3e2;
-  user-select: none;
-}
-
-.frame-danger-zone[open] {
-  display: grid;
-  gap: 8px;
-}
-
 .frame-actions {
   display: flex;
   flex-wrap: nowrap;
