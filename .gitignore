@@ -4,7 +4,6 @@
 # Environment and secrets
 .env
 *.env
-robogene.local.env
 
 # Node
 node_modules/
@@ -25,12 +24,13 @@ yarn-error.log*
 .tmp/
 tmp/
 .azure/
-src/backend/api_host/local.settings.json
-src/dist/backend/.deploy.zip
+src/api_host/local.settings.json
+dist/webapi/webapi_dist.zip
+dist/webapi/app/
 
 # Generated assets
-defintions/generated/
-js/
-src/dist/backend/backend_api_compiled.js
+ai/robot emperor/generated/
+dist/webapp/
+dist/webapi/webapi_compiled.js
 build/.shadow-cljs/
 build/.cpcache/

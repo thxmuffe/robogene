@@ -1,15 +1,15 @@
-{:deps {:aliases [:frontend]}
+{:deps {:aliases [:webapp]}
  :js-options {:js-package-dirs ["../node_modules"]}
- :dev-http {8080 "../.."}
+ :dev-http {8080 "../dist/webapp"}
  :builds
- {:app {:target :browser
-        :output-dir "../../js"
-        :asset-path "./js"
-        :modules {:main {:init-fn frontend.core/init!}}
-        :devtools {:after-load frontend.core/after-load!}
-        :compiler-options {:warnings-as-errors false}}
-  :backend {:target :node-script
-            :main backend.api/init!
-            :output-to "../src/dist/backend/backend_api_compiled.js"
-            :compiler-options {:warnings-as-errors false
-                               :optimizations :simple}}}}
+ {:webapp {:target :browser
+           :output-dir "../dist/webapp/js"
+           :asset-path "./js"
+           :modules {:main {:init-fn webapp.core/init!}}
+           :devtools {:after-load webapp.core/after-load!}
+           :compiler-options {:warnings-as-errors false}}
+  :webapi {:target :node-script
+           :main services.api/init!
+           :output-to "../dist/webapi/webapi_compiled.js"
+           :compiler-options {:warnings-as-errors false
+                              :optimizations :simple}}}}

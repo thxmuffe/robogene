@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+HOST_SRC_DIR="$REPO_ROOT/src/api_host"
+AI_SRC_DIR="$REPO_ROOT/ai/robot emperor"
+WEBAPI_DIST_DIR="$REPO_ROOT/dist/webapi"
+APP_DIST_DIR="$WEBAPI_DIST_DIR/app"
+COMPILED_WEBAPI_JS="$WEBAPI_DIST_DIR/webapi_compiled.js"
+WEBAPI_ZIP="$WEBAPI_DIST_DIR/webapi_dist.zip"
+
+if [[ ! -f "$COMPILED_WEBAPI_JS" ]]; then
+  echo "Missing compiled services output: $COMPILED_WEBAPI_JS"
+  echo "Run: npm run build:webapi"
+  exit 1
+fi
+
+mkdir -p "$WEBAPI_DIST_DIR"
+rm -rf "$APP_DIST_DIR"
+mkdir -p "$APP_DIST_DIR"
+
+# Function host bootstrap/runtime files.
+rsync -a --delete --exclude 'local.settings.json' "$HOST_SRC_DIR/" "$APP_DIST_DIR/"
+
+# Runtime dependencies required by zip deploy.
+cp -R "$REPO_ROOT/node_modules" "$APP_DIST_DIR/node_modules"
+
+# Compiled ClojureScript services loaded by story_routes_host.js.
+mkdir -p "$APP_DIST_DIR/dist"
+cp "$COMPILED_WEBAPI_JS" "$APP_DIST_DIR/dist/webapi_compiled.js"
+
+# Story/reference assets consumed by services.
+if [[ -d "$AI_SRC_DIR" ]]; then
+  rsync -a --delete "$AI_SRC_DIR/" "$APP_DIST_DIR/ai/robot emperor/"
+fi
+
+rm -f "$WEBAPI_ZIP"
+(cd "$APP_DIST_DIR" && zip -rq "$WEBAPI_ZIP" .)
+
+echo "Assembled Function App: $APP_DIST_DIR"
+echo "Packaged zip: $WEBAPI_ZIP"
