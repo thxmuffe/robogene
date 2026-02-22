@@ -4,6 +4,7 @@
   {:status "Loading episodes..."
    :pending-api-requests 0
    :wait-lights-visible? false
+   :wait-lights-events []
    :frame-inputs {}
    :open-frame-actions {}
    :last-rendered-revision nil

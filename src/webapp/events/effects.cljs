@@ -31,25 +31,34 @@
                 :text text}))))
 
 (defn dispatch-api-response
-  [{:keys [ok status text]} success-event fail-event ok?]
+  [{:keys [ok status text]} success-event fail-event ok? request-label]
   (let [data (model/parse-json-safe text)]
+    (rf/dispatch
+     [:wait-lights-log
+      (if (ok? ok status) :incoming :error)
+      (str "Incoming: " request-label " -> HTTP " status)])
     (if (ok? ok status)
       (rf/dispatch [success-event data])
       (rf/dispatch [fail-event (or (:error data)
                                    (str "HTTP " status))]))))
 
-(defn dispatch-network-error [fail-event e]
+(defn dispatch-network-error [fail-event e request-label]
+  (rf/dispatch [:wait-lights-log
+                :error
+                (str "Network error: " request-label " -> " (or (.-message e) e))])
   (rf/dispatch [fail-event (str (.-message e))]))
 
 (defn request-json
   [url request-options success-event fail-event ok?]
-  (rf/dispatch [:api-request-start])
-  (-> (js/fetch url
+  (let [method (str/upper-case (str (or (:method request-options) "GET")))
+        request-label (str method " " url)]
+    (rf/dispatch [:api-request-start request-label])
+    (-> (js/fetch url
                 (clj->js request-options))
       (.then response->map)
-      (.then #(dispatch-api-response % success-event fail-event ok?))
-      (.catch #(dispatch-network-error fail-event %))
-      (.finally #(rf/dispatch [:api-request-finish]))))
+      (.then #(dispatch-api-response % success-event fail-event ok? request-label))
+      (.catch #(dispatch-network-error fail-event % request-label))
+      (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn post-json
   [path payload success-event fail-event ok?]
@@ -122,16 +131,26 @@
        (rf/dispatch [:set-active-frame next-id])))))
 
 (defn negotiate-realtime! []
-  (rf/dispatch [:api-request-start])
-  (-> (js/fetch (api-url "/api/negotiate")
+  (let [request-label "POST /api/negotiate"]
+    (rf/dispatch [:api-request-start request-label])
+    (-> (js/fetch (api-url "/api/negotiate")
                 #js {:method "POST"
                      :cache "no-store"})
       (.then response->map)
       (.then (fn [{:keys [ok status text]}]
+               (rf/dispatch
+                [:wait-lights-log
+                 (if ok :incoming :error)
+                 (str "Incoming: " request-label " -> HTTP " status)])
                (if ok
                  (model/parse-json-safe text)
                  (throw (js/Error. (str "Negotiate failed: HTTP " status))))))
-      (.finally #(rf/dispatch [:api-request-finish]))))
+      (.catch (fn [e]
+                (rf/dispatch [:wait-lights-log
+                              :error
+                              (str "Network error: " request-label " -> " (or (.-message e) e))])
+                (throw e)))
+      (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn epoch-current? [epoch]
   (= epoch @realtime-epoch*))

@@ -6,6 +6,17 @@
             [webapp.events.model :as model]
             [webapp.events.handlers.shared :as shared]))
 
+(defn push-wait-lights-event [db kind message]
+  (let [entry {:id (str (.now js/Date) "-" (rand-int 1000000))
+               :ts (.toLocaleTimeString (js/Date.) "en-US" #js {:hour12 false})
+               :kind (or kind :info)
+               :message (or message "")}
+        current (vec (or (:wait-lights-events db) []))
+        next-events (->> (conj current entry)
+                         (take-last 5)
+                         vec)]
+    (assoc db :wait-lights-events next-events)))
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -27,23 +38,30 @@
 
 (rf/reg-event-fx
  :api-request-start
- (fn [{:keys [db]} _]
+ (fn [{:keys [db]} [_ request-label]]
    (let [pending (or (:pending-api-requests db) 0)
          next-pending (inc pending)
          next-db (assoc db
                         :pending-api-requests next-pending
-                        :wait-lights-visible? true)]
-     {:db next-db})))
+                        :wait-lights-visible? true)
+         msg (str "Outgoing: " (or request-label "request started"))]
+     {:db (push-wait-lights-event next-db :outgoing msg)})))
 
 (rf/reg-event-fx
  :api-request-finish
- (fn [{:keys [db]} _]
+ (fn [{:keys [db]} [_ request-label]]
    (let [pending (or (:pending-api-requests db) 0)
          next-pending (max 0 (dec pending))
-         next-db (assoc db :pending-api-requests next-pending)]
+         next-db (assoc db :pending-api-requests next-pending)
+         with-log (push-wait-lights-event next-db :incoming (str "Complete: " (or request-label "request")))]
      (if (zero? next-pending)
-       {:db (assoc next-db :wait-lights-visible? false)}
-       {:db next-db}))))
+       {:db (assoc with-log :wait-lights-visible? false)}
+       {:db with-log}))))
+
+(rf/reg-event-db
+ :wait-lights-log
+ (fn [db [_ kind message]]
+   (push-wait-lights-event db kind message)))
 
 (rf/reg-event-fx
  :state-loaded

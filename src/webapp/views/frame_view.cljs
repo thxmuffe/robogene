@@ -85,6 +85,7 @@
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
                                     (when active? " frame-active"))
+                        :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
                         :on-blur (fn [e]
                                    (when (true? actions-open?)
                                      (let [container (.-currentTarget e)]
@@ -97,8 +98,6 @@
                                         60))))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
-                                   :on-mouse-leave #(rf/dispatch [:set-active-frame nil])
                                    :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
                                    :on-click #(do
                                                 (rf/dispatch [:set-active-frame (:frameId frame)])

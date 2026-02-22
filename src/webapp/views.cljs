@@ -23,6 +23,7 @@
         show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
+        wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])]
     (set! (.-title js/document)
           (if (= :frame (:view route))
@@ -44,4 +45,5 @@
       {:pending-api-requests pending-api-requests
        :wait-lights-visible? wait-lights-visible?
        :status status
-       :episodes episodes}]]))
+       :episodes episodes
+       :events wait-lights-events}]]))

@@ -14,3 +14,4 @@
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
+(rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
