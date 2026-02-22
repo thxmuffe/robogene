@@ -24,8 +24,11 @@ mkdir -p "$APP_DIST_DIR"
 # Function host bootstrap/runtime files.
 rsync -a --delete --exclude 'local.settings.json' "$HOST_SRC_DIR/" "$APP_DIST_DIR/"
 
-# Runtime dependencies required by zip deploy.
-cp -R "$REPO_ROOT/node_modules" "$APP_DIST_DIR/node_modules"
+# Install production-only runtime dependencies into deploy package.
+# This avoids shipping full dev/build dependencies and significantly shrinks deploy zip size.
+cp "$REPO_ROOT/package.json" "$APP_DIST_DIR/package.json"
+cp "$REPO_ROOT/package-lock.json" "$APP_DIST_DIR/package-lock.json"
+(cd "$APP_DIST_DIR" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund)
 
 # Compiled ClojureScript services loaded by story_routes_host.js.
 mkdir -p "$APP_DIST_DIR/dist"
