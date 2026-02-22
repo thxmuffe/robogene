@@ -47,7 +47,7 @@ jobs:
       - name: Upload Web API deploy artifact
         uses: actions/upload-artifact@v4
         with:
-          name: webapi-release-package
+          name: robogen-webapi
           path: dist/release/webapi/webapi_dist.zip
           retention-days: 7
 
@@ -65,7 +65,7 @@ jobs:
       - name: Download Web API deploy artifact
         uses: actions/download-artifact@v4
         with:
-          name: webapi-release-package
+          name: robogen-webapi
           path: dist/release/webapi
 
       - name: Resolve deploy auth mode
@@ -145,6 +145,7 @@ jobs:
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: robogen-webapp
           path: dist/release/webapp
 
   deploy-pages:
@@ -161,3 +162,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: robogen-webapp
