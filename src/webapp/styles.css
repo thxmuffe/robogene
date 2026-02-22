@@ -400,6 +400,63 @@ h2 { margin: 24px 0 10px; }
   font-size: 0.95rem;
 }
 
+.traffic-indicator {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  z-index: 1400;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(16, 42, 67, 0.92);
+  color: #f0f5fb;
+  box-shadow: 0 14px 28px rgba(7, 18, 30, 0.34);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.traffic-lights {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.traffic-light {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  opacity: 0.32;
+  transform: scale(0.96);
+  transition: opacity 140ms ease, transform 140ms ease, box-shadow 160ms ease, filter 160ms ease;
+  filter: saturate(0.82);
+}
+
+.light-red { background: #d64550; }
+.light-yellow { background: #d8a516; }
+.light-green { background: #2f9e44; }
+
+.traffic-light.is-on {
+  opacity: 1;
+  transform: scale(1.1);
+  filter: saturate(1);
+}
+
+.light-red.is-on { box-shadow: 0 0 0 3px rgba(214, 69, 80, 0.2); }
+.light-yellow.is-on { box-shadow: 0 0 0 3px rgba(216, 165, 22, 0.22); }
+.light-green.is-on { box-shadow: 0 0 0 3px rgba(47, 158, 68, 0.2); }
+
+.traffic-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f0f5fb;
+  min-width: 56px;
+}
+
 .placeholder-text {
   font-weight: 700;
 }

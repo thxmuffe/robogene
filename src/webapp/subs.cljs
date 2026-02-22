@@ -13,3 +13,4 @@
 (rf/reg-sub :route (fn [db _] (:route db)))
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
 (rf/reg-sub :wait-dialog-visible? (fn [db _] (:wait-dialog-visible? db)))
+(rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))

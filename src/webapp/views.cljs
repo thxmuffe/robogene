@@ -1,7 +1,8 @@
 (ns webapp.views
   (:require [re-frame.core :as rf]
             [webapp.views.main-gallery :as gallery-page]
-            [webapp.views.frame-page :as frame-page]))
+            [webapp.views.frame-page :as frame-page]
+            [webapp.views.traffic-indicator :as traffic-indicator]))
 
 (defn frame-page-title [route episodes]
   (let [episode (some (fn [row] (when (= (:episodeId row) (:episode route)) row)) episodes)
@@ -13,6 +14,7 @@
 
 (defn main-view []
   (let [episodes @(rf/subscribe [:episodes])
+        status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
         open-frame-actions @(rf/subscribe [:open-frame-actions])
         active-frame-id @(rf/subscribe [:active-frame-id])
@@ -20,6 +22,7 @@
         new-episode-panel-open? @(rf/subscribe [:new-episode-panel-open?])
         show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
         wait-dialog-visible? @(rf/subscribe [:wait-dialog-visible?])
+        pending-api-requests @(rf/subscribe [:pending-api-requests])
         route @(rf/subscribe [:route])]
     (set! (.-title js/document)
           (if (= :frame (:view route))
@@ -37,12 +40,8 @@
         new-episode-description
         new-episode-panel-open?
         show-episode-celebration?])
-     (when wait-dialog-visible?
-       [:div.wait-dialog-backdrop
-        {:role "status"
-         :aria-live "polite"
-         :aria-label "Waiting for server response"}
-        [:div.wait-dialog
-         [:div.spinner]
-         [:h2 "Still working..."]
-         [:p "The backend is processing your request."]]])]))
+     [traffic-indicator/traffic-indicator
+      {:pending-api-requests pending-api-requests
+       :wait-dialog-visible? wait-dialog-visible?
+       :status status
+       :episodes episodes}]]))
