@@ -25,6 +25,15 @@
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
 (def page1-reference-image (.join path story-dir "28_page_01_openai_refined.png"))
 
+(defn mock-image-success? []
+  (= "1" (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_SUCCESS) str str/trim)))
+
+(defn require-startup-env! []
+  (let [api-key (some-> (.. js/process -env -OPENAI_API_KEY) str str/trim)]
+    (when (and (not (mock-image-success?))
+               (str/blank? (or api-key "")))
+      (throw (js/Error. "Missing OPENAI_API_KEY in Function App settings.")))))
+
 (defn read-file-or
   ([file-path fallback]
    (read-file-or file-path fallback nil))
@@ -41,6 +50,8 @@
 
 (defn read-bytes [file-path]
   (read-file-or file-path nil))
+
+(require-startup-env!)
 
 (defn parse-descriptions [markdown]
   (let [section (or (second (re-find #"(?is)##\s*Page-by-page descriptions([\s\S]*?)(?:\n##\s|$)" markdown))
@@ -126,21 +137,6 @@
 (defn next-frame-number [frames episode-id]
   (inc (reduce max 0 (map :frameNumber (frames-for-episode frames episode-id)))))
 
-(defn ensure-draft-frame-for-episode! [episode-id]
-  (let [frames (frames-for-episode (:frames @state) episode-id)
-        missing-image? (some (fn [f] (str/blank? (or (:imageDataUrl f) ""))) frames)]
-    (when (or (empty? frames) (not missing-image?))
-      (let [frame-number (next-frame-number (:frames @state) episode-id)]
-        (swap! state
-               (fn [s]
-                 (-> s
-                     (update :frames conj (make-draft-frame episode-id frame-number))
-                     (update :revision inc))))))))
-
-(defn ensure-draft-frames! []
-  (doseq [episode (:episodes @state)]
-    (ensure-draft-frame-for-episode! (:episodeId episode))))
-
 (defn add-episode! [description]
   (let [episode (make-episode (next-episode-number (:episodes @state))
                               (if (str/blank? (or description ""))
@@ -188,7 +184,6 @@
                                                 (subvec rows (inc idx)))))
                  )
                  (update :revision inc))))
-    (ensure-draft-frame-for-episode! (:episodeId frame))
     frame))
 
 (defn clear-frame-image! [frame-id]
@@ -406,34 +401,39 @@
     (openai-image-response->data-url body)))
 
 (defn generate-image! [frame]
-  (let [api-key (.. js/process -env -OPENAI_API_KEY)]
-    (if (not (seq api-key))
-      (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
-      (let [prompt (build-prompt-for-frame frame)
-            refs (reference-images)]
-        (letfn [(request-with-refs! [attempt-refs]
-                  (-> (openai-image-request! api-key prompt attempt-refs)
-                      (.then (fn [{:keys [ok status body]}]
-                               (cond
-                                 (and (not ok)
-                                      (invalid-second-reference? status body)
-                                      (> (count attempt-refs) 1))
-                                 (do
-                                   (js/console.warn
-                                    "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
-                                   (request-with-refs! (vec (take 1 attempt-refs))))
+  (if (mock-image-success?)
+    (let [mock-data-url (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_DATA_URL) str str/trim)]
+      (js/Promise.resolve
+       (or (when (seq mock-data-url) mock-data-url)
+           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")))
+    (let [api-key (.. js/process -env -OPENAI_API_KEY)]
+      (if (not (seq api-key))
+        (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
+        (let [prompt (build-prompt-for-frame frame)
+              refs (reference-images)]
+          (letfn [(request-with-refs! [attempt-refs]
+                    (-> (openai-image-request! api-key prompt attempt-refs)
+                        (.then (fn [{:keys [ok status body]}]
+                                 (cond
+                                   (and (not ok)
+                                        (invalid-second-reference? status body)
+                                        (> (count attempt-refs) 1))
+                                   (do
+                                     (js/console.warn
+                                      "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
+                                     (request-with-refs! (vec (take 1 attempt-refs))))
 
-                                 (and (not ok)
-                                      (invalid-reference-image? status body)
-                                      (seq attempt-refs))
-                                 (do
-                                   (js/console.warn
-                                    "[robogene] OpenAI rejected reference image; retrying without reference images.")
-                                   (request-with-refs! []))
+                                   (and (not ok)
+                                        (invalid-reference-image? status body)
+                                        (seq attempt-refs))
+                                   (do
+                                     (js/console.warn
+                                      "[robogene] OpenAI rejected reference image; retrying without reference images.")
+                                     (request-with-refs! []))
 
-                                 :else
-                                 (openai-response->result {:ok ok :status status :body body}))))))]
-          (request-with-refs! refs))))))
+                                   :else
+                                   (openai-response->result {:ok ok :status status :body body}))))))]
+            (request-with-refs! refs)))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
@@ -500,6 +500,11 @@
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
                           :emittedAt (.toISOString (js/Date.))})]
+    (js/console.log
+     (str "[robogene] emit stateChanged"
+          " reason=" reason
+          " revision=" (:revision snapshot)
+          " pending=" (active-queue-count (:frames snapshot))))
     (-> (realtime/publish-state-update! payload)
         (.catch (fn [err]
                   (js/console.warn
@@ -563,7 +568,6 @@
                        (log-generation-success! frame (- (.now js/Date) started-ms))
                        (if (mark-frame-ready! frame-id image-data-url)
                          (do
-                           (ensure-draft-frame-for-episode! (:episodeId frame))
                            (-> (persist-state!)
                                (.then (fn [_]
                                         (emit-state-changed! "ready")

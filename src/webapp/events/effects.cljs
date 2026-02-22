@@ -11,7 +11,8 @@
 (defonce realtime-starting?* (atom false))
 (defonce realtime-epoch* (atom 0))
 (defonce coalesced-fetch-state!* (atom nil))
-(defonce wait-dialog-timeout-id* (atom nil))
+(defonce realtime-retry-timeout-id* (atom nil))
+(defonce realtime-retry-delay-ms* (atom 1000))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -32,25 +33,34 @@
                 :text text}))))
 
 (defn dispatch-api-response
-  [{:keys [ok status text]} success-event fail-event ok?]
+  [{:keys [ok status text]} success-event fail-event ok? request-label]
   (let [data (model/parse-json-safe text)]
+    (rf/dispatch
+     [:wait-lights-log
+      (if (ok? ok status) :incoming :error)
+      (str "Incoming: " request-label " -> HTTP " status)])
     (if (ok? ok status)
       (rf/dispatch [success-event data])
       (rf/dispatch [fail-event (or (:error data)
                                    (str "HTTP " status))]))))
 
-(defn dispatch-network-error [fail-event e]
+(defn dispatch-network-error [fail-event e request-label]
+  (rf/dispatch [:wait-lights-log
+                :error
+                (str "Network error: " request-label " -> " (or (.-message e) e))])
   (rf/dispatch [fail-event (str (.-message e))]))
 
 (defn request-json
   [url request-options success-event fail-event ok?]
-  (rf/dispatch [:api-request-start])
-  (-> (js/fetch url
+  (let [method (str/upper-case (str (or (:method request-options) "GET")))
+        request-label (str method " " url)]
+    (rf/dispatch [:api-request-start request-label])
+    (-> (js/fetch url
                 (clj->js request-options))
       (.then response->map)
-      (.then #(dispatch-api-response % success-event fail-event ok?))
-      (.catch #(dispatch-network-error fail-event %))
-      (.finally #(rf/dispatch [:api-request-finish]))))
+      (.then #(dispatch-api-response % success-event fail-event ok? request-label))
+      (.catch #(dispatch-network-error fail-event % request-label))
+      (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn post-json
   [path payload success-event fail-event ok?]
@@ -123,14 +133,26 @@
        (rf/dispatch [:set-active-frame next-id])))))
 
 (defn negotiate-realtime! []
-  (-> (js/fetch (api-url "/api/negotiate")
+  (let [request-label "POST /api/negotiate"]
+    (rf/dispatch [:api-request-start request-label])
+    (-> (js/fetch (api-url "/api/negotiate")
                 #js {:method "POST"
                      :cache "no-store"})
       (.then response->map)
       (.then (fn [{:keys [ok status text]}]
+               (rf/dispatch
+                [:wait-lights-log
+                 (if ok :incoming :error)
+                 (str "Incoming: " request-label " -> HTTP " status)])
                (if ok
                  (model/parse-json-safe text)
-                 (throw (js/Error. (str "Negotiate failed: HTTP " status))))))))
+                 (throw (js/Error. (str "Negotiate failed: HTTP " status))))))
+      (.catch (fn [e]
+                (rf/dispatch [:wait-lights-log
+                              :error
+                              (str "Network error: " request-label " -> " (or (.-message e) e))])
+                (throw e)))
+      (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn epoch-current? [epoch]
   (= epoch @realtime-epoch*))
@@ -140,6 +162,34 @@
     (reset! realtime-connected?* false)
     (rf/dispatch [:fetch-state])))
 
+(defn cancel-realtime-retry! []
+  (when-let [id @realtime-retry-timeout-id*]
+    (js/clearTimeout id)
+    (reset! realtime-retry-timeout-id* nil)))
+
+(defn reset-realtime-retry! []
+  (cancel-realtime-retry!)
+  (reset! realtime-retry-delay-ms* 1000))
+
+(declare start-realtime!)
+
+(defn schedule-realtime-retry! [why]
+  (when (and (nil? @realtime-retry-timeout-id*)
+             (nil? @realtime-conn*)
+             (not @realtime-starting?*))
+    (let [delay @realtime-retry-delay-ms*]
+      (js/console.warn
+       (str "[robogene] SignalR reconnect scheduled in " delay "ms (" why ")"))
+      (reset! realtime-retry-timeout-id*
+              (js/setTimeout
+               (fn []
+                 (reset! realtime-retry-timeout-id* nil)
+                 (when (and (nil? @realtime-conn*)
+                            (not @realtime-starting?*))
+                   (start-realtime!)))
+               delay))
+      (swap! realtime-retry-delay-ms* (fn [ms] (min 30000 (* 2 (max 1000 ms))))))))
+
 (defn build-connection [url access-token]
   (-> (signalr/HubConnectionBuilder.)
       (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
@@ -147,23 +197,33 @@
       (.build)))
 
 (defn subscribe-connection-events! [conn epoch]
-  (gobj/call conn "onreconnecting"
+  (let [onreconnecting (gobj/get conn "onreconnecting")
+        onreconnected (gobj/get conn "onreconnected")]
+    (when (fn? onreconnecting)
+      (.call onreconnecting conn
              (fn [_]
                (when (epoch-current? epoch)
-                 (reset! realtime-connected?* false))))
+                 (js/console.warn "[robogene] SignalR reconnecting...")
+                 (reset! realtime-connected?* false)))))
+    (when (fn? onreconnected)
+      (.call onreconnected conn
+             (fn [_]
+               (when (epoch-current? epoch)
+                 (js/console.log "[robogene] SignalR reconnected.")
+                 (reset! realtime-connected?* true)
+                 (reset-realtime-retry!)
+                 (rf/dispatch [:fetch-state]))))))
   (.onclose conn
             (fn [_]
               (when (epoch-current? epoch)
+                (js/console.warn "[robogene] SignalR closed.")
                 (reset! realtime-connected?* false)
-                (reset! realtime-conn* nil))))
-  (gobj/call conn "onreconnected"
-             (fn [_]
-               (when (epoch-current? epoch)
-                 (reset! realtime-connected?* true)
-                 (rf/dispatch [:fetch-state]))))
+                (reset! realtime-conn* nil)
+                (schedule-realtime-retry! "connection closed"))))
   (.on conn "stateChanged"
        (fn [_]
          (when (epoch-current? epoch)
+           (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
            (rf/dispatch [:fetch-state])))))
 
@@ -173,11 +233,14 @@
                (when (epoch-current? epoch)
                  (reset! realtime-conn* conn)
                  (reset! realtime-connected?* true)
+                 (reset-realtime-retry!)
+                 (js/console.log "[robogene] SignalR connected.")
                  (rf/dispatch [:fetch-state]))))
       (.catch (fn [err]
                 (when (epoch-current? epoch)
                   (reset! realtime-conn* nil))
                 (recover-with-fetch! epoch)
+                (schedule-realtime-retry! "start failed")
                 (js/console.warn
                  (str "[robogene] SignalR start failed: "
                       (or (.-message err) err)))))))
@@ -197,12 +260,16 @@
   (when (and (nil? @realtime-conn*)
              (not @realtime-starting?*))
     (reset! realtime-starting?* true)
+    (js/console.log "[robogene] SignalR connect attempt...")
     (let [epoch (swap! realtime-epoch* inc)]
       (-> (negotiate-realtime!)
           (.then (fn [info]
+                   (when (true? (:disabled info))
+                     (js/console.warn "[robogene] SignalR disabled by negotiate response."))
                    (connect-from-negotiate! info epoch)))
         (.catch (fn [err]
                   (recover-with-fetch! epoch)
+                  (schedule-realtime-retry! "negotiate failed")
                   (js/console.warn
                    (str "[robogene] SignalR negotiate failed: "
                         (or (.-message err) err)))))
@@ -213,25 +280,6 @@
  :realtime-connect
  (fn [_]
    (start-realtime!)))
-
-(rf/reg-fx
- :wait-dialog-start-delay
- (fn [ms]
-   (when-let [timeout-id @wait-dialog-timeout-id*]
-     (js/clearTimeout timeout-id))
-   (reset! wait-dialog-timeout-id*
-           (js/setTimeout
-            (fn []
-              (reset! wait-dialog-timeout-id* nil)
-              (rf/dispatch [:show-wait-dialog]))
-            (or ms 850)))))
-
-(rf/reg-fx
- :wait-dialog-cancel-delay
- (fn [_]
-   (when-let [timeout-id @wait-dialog-timeout-id*]
-     (js/clearTimeout timeout-id)
-     (reset! wait-dialog-timeout-id* nil))))
 
 (rf/reg-fx
  :fetch-state

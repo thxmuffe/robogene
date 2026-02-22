@@ -3,7 +3,8 @@
 (def default-db
   {:status "Loading episodes..."
    :pending-api-requests 0
-   :wait-dialog-visible? false
+   :wait-lights-visible? false
+   :wait-lights-events []
    :frame-inputs {}
    :open-frame-actions {}
    :last-rendered-revision nil

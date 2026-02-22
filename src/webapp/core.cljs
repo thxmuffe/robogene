@@ -52,6 +52,9 @@
                              "ArrowDown" (do
                                            (.preventDefault e)
                                            (rf/dispatch [:keyboard-arrow "ArrowDown"]))
+                             "Enter" (do
+                                       (.preventDefault e)
+                                       (rf/dispatch [:open-active-frame]))
                              nil))))
     (.addEventListener js/document "visibilitychange"
                        #(when-not (.-hidden js/document)

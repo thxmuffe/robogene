@@ -97,10 +97,19 @@ Prereqs:
 From repo root:
 
 ```bash
-cp src/api_host/local.settings.json.example src/api_host/local.settings.json
-# set OPENAI_API_KEY, AzureWebJobsStorage, and AzureSignalRConnectionString in local.settings.json
-npm run build:webapi
-npm run api_host:start
+cp robogen.debug.env.example robogen.debug.env
+# set OPENAI_API_KEY, AzureWebJobsStorage/ROBOGENE_STORAGE_CONNECTION_STRING, and AzureSignalRConnectionString
+npm run start
+```
+
+`npm run start` and `./run.robogene.debug.sh` are equivalent.
+
+For e2e tests with isolated ports, create an overlay env:
+
+```bash
+cp robogen.test.env.example robogen.test.env
+npm run test:e2e:env
+npm run test:e2e:image:env
 ```
 
 API endpoints (local):

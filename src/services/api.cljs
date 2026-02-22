@@ -161,11 +161,7 @@
 (defn handle-get-state [request]
   (-> (story/sync-state-from-storage!)
       (.then (fn [_]
-               (let [before-revision (:revision @story/state)]
-                 (story/ensure-draft-frames!)
-                 (if (not= before-revision (:revision @story/state))
-                   (story/persist-state!)
-                   (js/Promise.resolve @story/state)))))
+               (js/Promise.resolve @story/state)))
       (.then (fn [_]
                (let [snapshot @story/state
                      frames (:frames snapshot)

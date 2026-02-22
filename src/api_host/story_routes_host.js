@@ -41,6 +41,16 @@ function isMissingModuleError(err, requestedPath) {
   );
 }
 
+function isFatalStartupEnvError(err) {
+  const msg = String(err?.message || '');
+  return (
+    msg.includes('Missing OPENAI_API_KEY') ||
+    msg.includes('Missing AzureWebJobsStorage') ||
+    msg.includes('Missing ROBOGENE_STORAGE_CONNECTION_STRING') ||
+    msg.includes('UseDevelopmentStorage=true')
+  );
+}
+
 try {
   try {
     require('./dist/webapi_compiled.js');
@@ -62,6 +72,10 @@ try {
 } catch (err) {
   console.error('[robogene] Failed to load services compiled bundle from api_host/dist or dist/debug|release/webapi.');
   console.error(err);
+
+  if (isFatalStartupEnvError(err)) {
+    throw err;
+  }
 
   const handler = (request) => startupFailureResponse(request, err);
 

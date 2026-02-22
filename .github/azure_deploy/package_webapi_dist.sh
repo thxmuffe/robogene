@@ -24,7 +24,6 @@ mkdir -p "$APP_DIST_DIR"
 # Function host bootstrap/runtime files.
 rsync -a --delete --delete-excluded \
   --exclude 'local.settings.json' \
-  --exclude '*.example' \
   "$HOST_SRC_DIR/" "$APP_DIST_DIR/"
 
 # Install production dependencies into deploy package using the repository lockfile.
@@ -44,7 +43,6 @@ cp "$COMPILED_WEBAPI_JS" "$APP_DIST_DIR/dist/webapi_compiled.js"
 if [[ -d "$AI_SRC_DIR" ]]; then
   mkdir -p "$APP_DIST_DIR/ai/robot emperor"
   rsync -a --delete --delete-excluded \
-    --exclude '*.example' \
     "$AI_SRC_DIR/" "$APP_DIST_DIR/ai/robot emperor/"
 fi
 
