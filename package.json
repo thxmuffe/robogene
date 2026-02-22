@@ -1,15 +1,19 @@
 {
-  "name": "robogene-frontend",
+  "name": "robogene",
   "version": "0.1.0",
   "private": true,
+  "main": "src/hosting/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "watch": "shadow-cljs watch app",
-    "backend:watch": "shadow-cljs watch backend",
-    "watch:all": "shadow-cljs watch app backend",
-    "backend:start": "npm --prefix backend run start",
-    "build": "shadow-cljs release app",
-    "build:backend": "shadow-cljs release backend",
-    "build:all": "shadow-cljs release app backend",
+    "watch": "cd config && shadow-cljs watch app",
+    "backend:watch": "cd config && shadow-cljs watch backend",
+    "watch:all": "cd config && shadow-cljs watch app backend",
+    "backend:start": "func start --script-root src/hosting --cors \"http://localhost:8080,http://127.0.0.1:8080\"",
+    "build": "cd config && shadow-cljs release app",
+    "build:backend": "cd config && shadow-cljs release backend",
+    "build:all": "cd config && shadow-cljs release app backend",
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "ROBOGENE_RUN_E2E=1 node --test tests/e2e-backend-api.test.mjs",
     "test:all": "npm test && npm run test:e2e"

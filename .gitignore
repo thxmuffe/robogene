@@ -4,7 +4,7 @@
 # Environment and secrets
 .env
 *.env
-pop.env
+robogene.local.env
 
 # Node
 node_modules/
@@ -25,10 +25,10 @@ yarn-error.log*
 .tmp/
 tmp/
 .azure/
-backend/local.settings.json
-backend/deploy.zip
+src/hosting/local.settings.json
+src/hosting/deploy.zip
 
 # Generated assets
-generated/
+defintions/generated/
 js/
-backend/src/functions/api_compiled.js
+src/hosting/functions/api_compiled.js

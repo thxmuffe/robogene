@@ -17,9 +17,9 @@ if [[ -z "${AZURE_CONFIG_DIR:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  for ENV_PATH in "$SCRIPT_DIR/../.env" "$SCRIPT_DIR/../../pop.env"; do
+  for ENV_PATH in "$REPO_ROOT/.env" "$REPO_ROOT/robogene.local.env"; do
     if [[ -f "$ENV_PATH" ]]; then
       # shellcheck disable=SC1090
       set -a; source "$ENV_PATH"; set +a
@@ -29,7 +29,7 @@ if [[ -z "${OPENAI_API_KEY:-}" ]]; then
 fi
 
 if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "Missing OPENAI_API_KEY (not found in env, ../.env, or ../../pop.env)."
+  echo "Missing OPENAI_API_KEY (not found in .env or robogene.local.env)."
   exit 1
 fi
 
@@ -89,13 +89,17 @@ az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
 echo "Building ClojureScript backend..."
 cd "$REPO_ROOT"
 npm install >/dev/null
-npx shadow-cljs release backend >/dev/null
+(cd config && npx shadow-cljs release backend >/dev/null)
 
-cd "$SCRIPT_DIR"
-npm install >/dev/null
-rm -f deploy.zip
-zip -rq deploy.zip . -x '*.git*' 'local.settings.json'
-az functionapp deployment source config-zip -g "$RG" -n "$APP" --src deploy.zip >/dev/null
+PKG_DIR="$REPO_ROOT/.deploy/hosting"
+rm -rf "$PKG_DIR"
+mkdir -p "$PKG_DIR"
+rsync -a --delete --exclude 'local.settings.json' --exclude 'deploy.zip' "$REPO_ROOT/src/hosting/" "$PKG_DIR/"
+cp -R "$REPO_ROOT/node_modules" "$PKG_DIR/node_modules"
+rsync -a --delete "$REPO_ROOT/defintions/" "$PKG_DIR/defintions/"
+rm -f "$REPO_ROOT/src/hosting/deploy.zip"
+(cd "$PKG_DIR" && zip -rq "$REPO_ROOT/src/hosting/deploy.zip" .)
+az functionapp deployment source config-zip -g "$RG" -n "$APP" --src "$REPO_ROOT/src/hosting/deploy.zip" >/dev/null
 
 echo ""
 echo "Deploy complete"

@@ -1,4 +1,5 @@
-{:aliases
+{:paths ["../src"]
+ :aliases
  {:frontend
  {:extra-deps
    {thheller/shadow-cljs {:mvn/version "2.28.20"}

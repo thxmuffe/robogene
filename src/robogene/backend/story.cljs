@@ -7,13 +7,19 @@
             ["fs" :as fs]
             ["path" :as path]))
 
-(def backend-root (.resolve path js/__dirname ".." ".."))
-(def assets-dir (.join path backend-root "assets"))
+(def hosting-root (.resolve path js/__dirname ".."))
+(def repo-root (.resolve path js/__dirname ".." ".." ".."))
+(def definitions-root
+  (if (.existsSync fs (.join path hosting-root "defintions"))
+    (.join path hosting-root "defintions")
+    (.join path repo-root "defintions")))
+(def story-dir (.join path definitions-root "story"))
+(def references-dir (.join path definitions-root "references"))
 
-(def default-storyboard (.join path assets-dir "28_Municipal_Firmware_script.md"))
-(def default-prompts (.join path assets-dir "28_Municipal_Firmware_image_prompts.md"))
-(def default-reference-image (.join path assets-dir "robot_emperor_ep22_p01.png"))
-(def page1-reference-image (.join path assets-dir "28_page_01_openai_refined.png"))
+(def default-storyboard (.join path story-dir "28_Municipal_Firmware_script.md"))
+(def default-prompts (.join path story-dir "28_Municipal_Firmware_image_prompts.md"))
+(def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
+(def page1-reference-image (.join path story-dir "28_page_01_openai_refined.png"))
 
 (defn read-file-or
   ([file-path fallback]

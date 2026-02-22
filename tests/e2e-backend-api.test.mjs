@@ -95,7 +95,7 @@ test('backend API e2e: state and generate-frame flow', { skip: !shouldRun || !ha
     t.skip('Port binding is not permitted in this environment.');
     return;
   }
-  const host = spawn('npm', ['--prefix', 'backend', 'run', 'start', '--', '--port', String(port), '--verbose'], {
+  const host = spawn('npm', ['run', 'backend:start', '--', '--port', String(port), '--verbose'], {
     cwd: process.cwd(),
     env: {
       ...process.env,

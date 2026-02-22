@@ -35,7 +35,7 @@ const startupFailureResponse = (request, err) => ({
 try {
   require('./api_compiled.js');
 } catch (err) {
-  console.error('[robogene] Failed to load backend/src/functions/api_compiled.js');
+  console.error('[robogene] Failed to load src/hosting/functions/api_compiled.js');
   console.error(err);
 
   const handler = (request) => startupFailureResponse(request, err);
