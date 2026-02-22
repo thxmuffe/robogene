@@ -4,7 +4,7 @@
   "private": true,
   "main": "src/api_host/story_routes_host.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "watch": "shadow-cljs watch webapp-debug",
