@@ -30,11 +30,50 @@ rsync -a --delete --delete-excluded \
 # Install production-only runtime dependencies into deploy package.
 # This avoids shipping full dev/build dependencies and significantly shrinks deploy zip size.
 cp "$APP_DIST_DIR/package.json" "$APP_DIST_DIR/package.host.json"
-cp "$REPO_ROOT/package.json" "$APP_DIST_DIR/package.json"
-cp "$REPO_ROOT/package-lock.json" "$APP_DIST_DIR/package-lock.json"
-(cd "$APP_DIST_DIR" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund)
+node > "$APP_DIST_DIR/package.json" <<'NODE'
+const fs = require("fs");
+const rootPkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const rootLock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+const runtimeDeps = [
+  "@azure/functions",
+  "@azure/data-tables",
+  "@azure/storage-blob"
+];
+
+const exactVersion = (dep) =>
+  rootLock?.packages?.[`node_modules/${dep}`]?.version ||
+  rootPkg?.dependencies?.[dep];
+
+const dependencies = Object.fromEntries(
+  runtimeDeps.map((dep) => [dep, exactVersion(dep)]).filter(([, v]) => !!v)
+);
+
+process.stdout.write(
+  JSON.stringify(
+    {
+      name: "robogene-webapi-runtime",
+      private: true,
+      description: "Runtime-only dependencies for RoboGene Web API deployment",
+      main: "story_routes_host.js",
+      engines: rootPkg.engines,
+      dependencies
+    },
+    null,
+    2
+  ) + "\n"
+);
+NODE
+(cd "$APP_DIST_DIR" && npm install --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund)
 mv "$APP_DIST_DIR/package.host.json" "$APP_DIST_DIR/package.json"
 rm -f "$APP_DIST_DIR/package-lock.json"
+
+# Conservative cleanup: remove clear non-runtime docs/tests only.
+if [[ -d "$APP_DIST_DIR/node_modules" ]]; then
+  for d in test tests __tests__ docs doc; do
+    find "$APP_DIST_DIR/node_modules" -type d -name "$d" -prune -exec rm -rf {} +
+  done
+  find "$APP_DIST_DIR/node_modules" -type f \( -name "*.md" -o -name "*.markdown" \) -delete
+fi
 
 # Compiled ClojureScript services loaded by story_routes_host.js.
 mkdir -p "$APP_DIST_DIR/dist"
