@@ -22,7 +22,11 @@ rm -rf "$APP_DIST_DIR"
 mkdir -p "$APP_DIST_DIR"
 
 # Function host bootstrap/runtime files.
-rsync -a --delete --exclude 'local.settings.json' "$HOST_SRC_DIR/" "$APP_DIST_DIR/"
+rsync -a --delete --delete-excluded \
+  --exclude 'local.settings.json' \
+  --exclude 'local.settings.json.example' \
+  --exclude '*.no-dist' \
+  "$HOST_SRC_DIR/" "$APP_DIST_DIR/"
 
 # Install production-only runtime dependencies into deploy package.
 # This avoids shipping full dev/build dependencies and significantly shrinks deploy zip size.
@@ -40,7 +44,9 @@ cp "$COMPILED_WEBAPI_JS" "$APP_DIST_DIR/dist/webapi_compiled.js"
 # Story/reference assets consumed by services.
 if [[ -d "$AI_SRC_DIR" ]]; then
   mkdir -p "$APP_DIST_DIR/ai/robot emperor"
-  rsync -a --delete "$AI_SRC_DIR/" "$APP_DIST_DIR/ai/robot emperor/"
+  rsync -a --delete --delete-excluded \
+    --exclude '*.no-dist' \
+    "$AI_SRC_DIR/" "$APP_DIST_DIR/ai/robot emperor/"
 fi
 
 rm -f "$WEBAPI_ZIP"
