@@ -11,6 +11,7 @@
         new-episode-description @(rf/subscribe [:new-episode-description])
         new-episode-panel-open? @(rf/subscribe [:new-episode-panel-open?])
         show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
+        wait-dialog-visible? @(rf/subscribe [:wait-dialog-visible?])
         route @(rf/subscribe [:route])]
     [:main.app
      [:header.hero
@@ -23,4 +24,13 @@
         active-frame-id
         new-episode-description
         new-episode-panel-open?
-        show-episode-celebration?])]))
+        show-episode-celebration?])
+     (when wait-dialog-visible?
+       [:div.wait-dialog-backdrop
+        {:role "status"
+         :aria-live "polite"
+         :aria-label "Waiting for server response"}
+        [:div.wait-dialog
+         [:div.spinner]
+         [:h2 "Still working..."]
+         [:p "The backend is processing your request."]]])]))
