@@ -3,6 +3,14 @@
             [webapp.views.main-gallery :as gallery-page]
             [webapp.views.frame-page :as frame-page]))
 
+(defn frame-page-title [route episodes]
+  (let [episode (some (fn [row] (when (= (:episodeId row) (:episode route)) row)) episodes)
+        episode-name (or (:description episode)
+                         (when (some? (:episodeNumber episode))
+                           (str "Episode " (:episodeNumber episode)))
+                         "Episode")]
+    (str "Frame Page · " episode-name " · RoboGene")))
+
 (defn main-view []
   (let [episodes @(rf/subscribe [:episodes])
         frame-inputs @(rf/subscribe [:frame-inputs])
@@ -13,6 +21,10 @@
         show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
         wait-dialog-visible? @(rf/subscribe [:wait-dialog-visible?])
         route @(rf/subscribe [:route])]
+    (set! (.-title js/document)
+          (if (= :frame (:view route))
+            (frame-page-title route episodes)
+            "RoboGene"))
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]]

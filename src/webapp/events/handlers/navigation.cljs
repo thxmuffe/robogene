@@ -100,3 +100,24 @@
          "ArrowUp" {:db db :dispatch [:move-active-frame-vertical :up]}
          "ArrowDown" {:db db :dispatch [:move-active-frame-vertical :down]}
          {:db db})))))
+
+(rf/reg-event-fx
+ :open-active-frame
+ (fn [{:keys [db]} _]
+   (let [route (:route db)
+         active-id (:active-frame-id db)
+         active-frame (shared/frame-by-id (:gallery-items db) active-id)]
+     (cond
+       (= :frame (:view route))
+       {:db db}
+
+       (= active-id shared/new-episode-frame-id)
+       {:db db
+        :dispatch [:set-new-episode-panel-open true]}
+
+       (some? active-frame)
+       {:db db
+        :dispatch [:navigate-frame (:episodeId active-frame) (:frameNumber active-frame)]}
+
+       :else
+       {:db db}))))
