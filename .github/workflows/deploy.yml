@@ -85,14 +85,31 @@ jobs:
 
       - name: Resolve deploy auth mode
         id: auth
+        env:
+          AZURE_DEPLOY_AUTH_MODE: ${{ vars.AZURE_DEPLOY_AUTH_MODE }}
         run: |
           set -euo pipefail
-          if [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+          requested_mode="$(echo "${AZURE_DEPLOY_AUTH_MODE:-}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$requested_mode" == "oidc" ]]; then
+            if [[ -z "${AZURE_CLIENT_ID:-}" || -z "${AZURE_TENANT_ID:-}" || -z "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+              echo "::error::AZURE_DEPLOY_AUTH_MODE=oidc requires AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID."
+              exit 1
+            fi
             echo "mode=oidc" >> "$GITHUB_OUTPUT"
-            echo "Using OIDC authentication."
+            echo "Using OIDC authentication (explicit override)."
+          elif [[ "$requested_mode" == "publish-profile" ]]; then
+            if [[ -z "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
+              echo "::error::AZURE_DEPLOY_AUTH_MODE=publish-profile requires AZURE_FUNCTIONAPP_PUBLISH_PROFILE."
+              exit 1
+            fi
+            echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
+            echo "Using publish profile authentication (explicit override)."
           elif [[ -n "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
             echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
             echo "Using publish profile authentication."
+          elif [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            echo "Using OIDC authentication."
           else
             echo "::error::Missing Azure deployment credentials."
             echo "::error::Set either AZURE_FUNCTIONAPP_PUBLISH_PROFILE, or all of AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID."
