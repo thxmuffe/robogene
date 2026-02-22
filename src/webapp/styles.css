@@ -292,8 +292,11 @@ h2 { margin: 24px 0 10px; }
   border: 2px solid #1f2a44;
   border-radius: 14px;
   overflow: hidden;
+  position: relative;
   box-shadow: 0 10px 24px rgba(16, 42, 67, 0.16);
   animation: rise 320ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  transform-origin: center center;
 }
 
 .frame-clickable {
@@ -307,6 +310,8 @@ h2 { margin: 24px 0 10px; }
 
 .frame-active {
   border-color: #20639b;
+  transform: translateY(-2px) scale(1.025);
+  z-index: 2;
   box-shadow: 0 0 0 3px rgba(32, 99, 155, 0.2), 0 12px 28px rgba(16, 42, 67, 0.2);
 }
 
