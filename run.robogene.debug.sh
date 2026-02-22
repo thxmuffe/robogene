@@ -49,11 +49,11 @@ if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Building webapi..."
-npm run build:webapi
+echo "Building webapi debug bundle..."
+npm run build:webapi:debug
 
-mkdir -p dist/webapp
-cp src/webapp/index.html src/webapp/styles.css dist/webapp/
+mkdir -p dist/debug/webapp
+cp src/webapp/index.html src/webapp/styles.css dist/debug/webapp/
 
 npm run watch &
 WATCH_PID=$!

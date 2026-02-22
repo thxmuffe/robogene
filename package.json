@@ -7,19 +7,20 @@
     "node": ">=20"
   },
   "scripts": {
-    "watch": "cd build && shadow-cljs watch webapp",
-    "webapi:watch": "cd build && shadow-cljs watch webapi",
-    "watch:all": "cd build && shadow-cljs watch webapp webapi",
+    "watch": "shadow-cljs watch webapp-debug",
+    "webapi:watch": "shadow-cljs watch webapi-debug",
+    "watch:all": "shadow-cljs watch webapp-debug webapi-debug",
     "api_host:start": "func start --script-root src/api_host --cors \"http://localhost:8080,http://127.0.0.1:8080\"",
-    "build": "cd build && shadow-cljs release webapp",
-    "build:webapi": "cd build && shadow-cljs release webapi",
+    "build": "shadow-cljs release webapp-release",
+    "build:webapi": "shadow-cljs release webapi-release",
+    "build:webapi:debug": "shadow-cljs compile webapi-debug",
     "package:webapi": "./.github/azure_deploy/package_webapi_dist.sh",
     "dist:webapi": "npm run build:webapi && npm run package:webapi",
-    "build:all": "cd build && shadow-cljs release webapp webapi",
+    "build:all": "shadow-cljs release webapp-release webapi-release",
     "test": "node --test tests/webapp/*.test.mjs tests/services/*.test.mjs",
     "test:webapp": "node --test tests/webapp/*.test.mjs",
     "test:services": "node --test tests/services/*.test.mjs",
-    "test:e2e": "ROBOGENE_RUN_E2E=1 node --test tests/end-to-end/e2e-webapi.test.mjs",
+    "test:e2e": "npm run build:webapi:debug && ROBOGENE_RUN_E2E=1 node --test tests/end-to-end/e2e-webapi.test.mjs",
     "test:all": "npm test && npm run test:e2e"
   },
   "dependencies": {

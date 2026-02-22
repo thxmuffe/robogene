@@ -25,12 +25,7 @@ yarn-error.log*
 tmp/
 .azure/
 src/api_host/local.settings.json
-dist/webapi/webapi_dist.zip
-dist/webapi/app/
+dist/
 
 # Generated assets
 ai/robot emperor/generated/
-dist/webapp/
-dist/webapi/webapi_compiled.js
-build/.shadow-cljs/
-build/.cpcache/

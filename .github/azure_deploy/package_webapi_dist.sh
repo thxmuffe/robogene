@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 HOST_SRC_DIR="$REPO_ROOT/src/api_host"
 AI_SRC_DIR="$REPO_ROOT/ai/robot emperor"
-WEBAPI_DIST_DIR="$REPO_ROOT/dist/webapi"
+WEBAPI_DIST_DIR="$REPO_ROOT/dist/release/webapi"
 APP_DIST_DIR="$WEBAPI_DIST_DIR/app"
 COMPILED_WEBAPI_JS="$WEBAPI_DIST_DIR/webapi_compiled.js"
 WEBAPI_ZIP="$WEBAPI_DIST_DIR/webapi_dist.zip"

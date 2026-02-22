@@ -89,13 +89,13 @@ az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
 echo "Building ClojureScript services..."
 cd "$REPO_ROOT"
 npm install >/dev/null
-(cd build && npx shadow-cljs release webapi >/dev/null)
+npx shadow-cljs release webapi-release >/dev/null
 
 "$REPO_ROOT/.github/azure_deploy/package_webapi_dist.sh" >/dev/null
-az functionapp deployment source config-zip -g "$RG" -n "$APP" --src "$REPO_ROOT/dist/webapi/webapi_dist.zip" >/dev/null
+az functionapp deployment source config-zip -g "$RG" -n "$APP" --src "$REPO_ROOT/dist/release/webapi/webapi_dist.zip" >/dev/null
 
 echo ""
 echo "Deploy complete"
-echo "Backend URL: https://${APP}.azurewebsites.net"
+echo "Web API URL: https://${APP}.azurewebsites.net"
 echo "Set this in index.html:"
 echo "window.ROBOGENE_API_BASE = \"https://${APP}.azurewebsites.net\";"
