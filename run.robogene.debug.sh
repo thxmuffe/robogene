@@ -66,6 +66,25 @@ if (!openai || String(openai).trim() === "") {
 }
 ' "$SETTINGS_FILE"
 
+# Ensure Functions host sees OPENAI_API_KEY when using --script-root.
+# Some local setups do not load local.settings.json values as expected.
+OPENAI_API_KEY_FROM_SETTINGS="$(node -e '
+const fs = require("fs");
+const path = process.argv[1];
+try {
+  const parsed = JSON.parse(fs.readFileSync(path, "utf8"));
+  const value = parsed && parsed.Values ? parsed.Values.OPENAI_API_KEY : "";
+  process.stdout.write(String(value || ""));
+} catch (err) {
+  process.stderr.write(`Failed reading OPENAI_API_KEY from ${path}: ${err.message}\n`);
+  process.exit(1);
+}
+' "$SETTINGS_FILE")"
+
+if [[ -z "${OPENAI_API_KEY:-}" && -n "$OPENAI_API_KEY_FROM_SETTINGS" ]]; then
+  export OPENAI_API_KEY="$OPENAI_API_KEY_FROM_SETTINGS"
+fi
+
 if lsof -iTCP:7071 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   echo "Port 7071 is already in use. Stop that process first."
   lsof -iTCP:7071 -sTCP:LISTEN -n -P || true
