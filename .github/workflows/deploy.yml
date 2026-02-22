@@ -131,15 +131,15 @@ jobs:
           set -euo pipefail
           api_url="https://${FUNCTION_APP_NAME}.azurewebsites.net/api/state?t=$(date +%s)"
           echo "Checking $api_url"
-          for i in {1..30}; do
-            if curl -fsS --max-time 10 "$api_url" >/dev/null; then
+          for i in {1..6}; do
+            if curl -fsS --max-time 5 "$api_url" >/dev/null; then
               echo "Web API is healthy."
               exit 0
             fi
-            echo "Health check attempt $i/30 failed; retrying in 5s..."
+            echo "Health check attempt $i/6 failed; retrying in 5s..."
             sleep 5
           done
-          echo "::error::Web API health check failed after deployment."
+          echo "::error::Web API health check failed after 30 seconds."
           exit 1
 
   build-webapp:
