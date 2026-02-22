@@ -394,6 +394,12 @@
          (= code "invalid_image_file")
          (str/includes? (or message "") "image 2"))))
 
+(defn invalid-reference-image? [status body]
+  (let [err (gobj/get body "error")
+        code (some-> err (gobj/get "code"))]
+    (and (= status 400)
+         (= code "invalid_image_file"))))
+
 (defn openai-response->result [{:keys [ok status body]}]
   (if-not ok
     (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
@@ -405,15 +411,29 @@
       (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
       (let [prompt (build-prompt-for-frame frame)
             refs (reference-images)]
-        (-> (openai-image-request! api-key prompt refs)
-            (.then (fn [{:keys [ok status body]}]
-                     (if (and (not ok) (invalid-second-reference? status body) (> (count refs) 1))
-                       (do
-                         (js/console.warn
-                          "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
-                         (-> (openai-image-request! api-key prompt (vec (take 1 refs)))
-                             (.then openai-response->result)))
-                       (openai-response->result {:ok ok :status status :body body})))))))))
+        (letfn [(request-with-refs! [attempt-refs]
+                  (-> (openai-image-request! api-key prompt attempt-refs)
+                      (.then (fn [{:keys [ok status body]}]
+                               (cond
+                                 (and (not ok)
+                                      (invalid-second-reference? status body)
+                                      (> (count attempt-refs) 1))
+                                 (do
+                                   (js/console.warn
+                                    "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
+                                   (request-with-refs! (vec (take 1 attempt-refs))))
+
+                                 (and (not ok)
+                                      (invalid-reference-image? status body)
+                                      (seq attempt-refs))
+                                 (do
+                                   (js/console.warn
+                                    "[robogene] OpenAI rejected reference image; retrying without reference images.")
+                                   (request-with-refs! []))
+
+                                 :else
+                                 (openai-response->result {:ok ok :status status :body body}))))))]
+          (request-with-refs! refs))))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
