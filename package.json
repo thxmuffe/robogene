@@ -22,11 +22,10 @@
     "test": "node --test tests/webapp/*.test.mjs tests/services/*.test.mjs",
     "test:webapp": "node --test tests/webapp/*.test.mjs",
     "test:services": "node --test tests/services/*.test.mjs",
-    "test:e2e": "npm run build:webapi:debug && ROBOGENE_RUN_E2E=1 node --test tests/end-to-end/e2e-webapi.test.mjs tests/end-to-end/e2e-signalr-state-change.test.mjs",
-    "test:e2e:signalr": "npm run build:webapi:debug && ROBOGENE_RUN_E2E=1 node --test tests/end-to-end/e2e-signalr-state-change.test.mjs",
-    "test:e2e:image": "npm run build:webapi:debug && ROBOGENE_RUN_IMAGE_GEN_E2E=1 node --test tests/end-to-end/e2e-image-generation.test.mjs",
+    "test:e2e": "npm run test:e2e:ui",
+    "test:e2e:ui": "ROBOGENE_RUN_E2E_UI=1 node --test tests/end-to-end/e2e-gallery-ui.test.mjs",
     "test:e2e:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e",
-    "test:e2e:image:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e:image",
+    "test:e2e:ui:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e:ui",
     "test:all": "npm test && npm run test:e2e"
   },
   "dependencies": {
@@ -39,6 +38,7 @@
     "sweetalert2": "^11.26.20"
   },
   "devDependencies": {
+    "playwright": "^1.54.2",
     "shadow-cljs": "^3.3.6"
   }
 }
