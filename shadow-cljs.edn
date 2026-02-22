@@ -21,5 +21,4 @@
                    :main services.api/init!
                    :output-to "dist/release/webapi/webapi_compiled.js"
                    :compiler-options {:warnings-as-errors false
-                                      :optimizations :advanced
-                                      :infer-externs :auto}}}}
+                                      :optimizations :simple}}}}
