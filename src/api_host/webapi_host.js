@@ -44,7 +44,8 @@ function isMissingModuleError(err, requestedPath) {
 function isFatalStartupEnvError(err) {
   const msg = String(err?.message || '');
   return (
-    msg.includes('Missing OPENAI_API_KEY') ||
+    msg.includes('Missing ROBOGENE_IMAGE_GENERATOR_KEY') ||
+    msg.includes('Unsupported ROBOGENE_IMAGE_GENERATOR') ||
     msg.includes('Missing AzureWebJobsStorage') ||
     msg.includes('Missing ROBOGENE_STORAGE_CONNECTION_STRING') ||
     msg.includes('UseDevelopmentStorage=true')

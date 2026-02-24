@@ -23,7 +23,8 @@ cp robogen.debug.env.example robogen.debug.env
 cp robogen.test.env.example robogen.test.env
 
 # Fill real secrets in robogen.debug.env:
-# - OPENAI_API_KEY
+# - ROBOGENE_IMAGE_GENERATOR=openai (or mock)
+# - ROBOGENE_IMAGE_GENERATOR_KEY
 # - AzureWebJobsStorage (or ROBOGENE_STORAGE_CONNECTION_STRING)
 # - AzureSignalRConnectionString
 
@@ -39,7 +40,7 @@ npm run test:e2e:ui:env
 
 Notes:
 - `robogen.debug.env` holds real secrets.
-- `robogen.test.env` is only an overlay (ports/timeouts), no secrets.
+- `robogen.test.env` is an overlay (ports/timeouts) and can set `ROBOGENE_IMAGE_GENERATOR=mock`.
 - `local.settings.json` is not the source of truth in this project.
 
 ## CI/CD
@@ -57,7 +58,7 @@ You need:
 - Function App (Node 22 / Functions v4)
 - Storage account
 - SignalR Service
-- App settings with required secrets (`OPENAI_API_KEY`, storage, SignalR)
+- App settings with required secrets (`ROBOGENE_IMAGE_GENERATOR_KEY`, storage, SignalR)
 
 Full hosting + CLI deploy guide:
 - [HOSTING.md](HOSTING.md)

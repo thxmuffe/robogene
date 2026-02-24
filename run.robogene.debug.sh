@@ -46,6 +46,11 @@ if [[ -z "${AzureWebJobsStorage:-}" && -n "${ROBOGENE_STORAGE_CONNECTION_STRING:
   export AzureWebJobsStorage="$ROBOGENE_STORAGE_CONNECTION_STRING"
 fi
 
+if [[ "${ROBOGENE_IMAGE_GENERATOR:-openai}" == "openai" && -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
+  echo "Missing ROBOGENE_IMAGE_GENERATOR_KEY in $ENV_FILE (required for ROBOGENE_IMAGE_GENERATOR=openai)."
+  exit 1
+fi
+
 if lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   echo "Port $WEBAPI_PORT is already in use. Stop that process first."
   lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P || true

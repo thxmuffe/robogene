@@ -14,7 +14,8 @@ The short project summary stays in `README.md`.
 
 Set these in Azure Function App Configuration:
 
-- `OPENAI_API_KEY`
+- `ROBOGENE_IMAGE_GENERATOR=openai`
+- `ROBOGENE_IMAGE_GENERATOR_KEY`
 - `AzureWebJobsStorage` (or `ROBOGENE_STORAGE_CONNECTION_STRING`)
 - `AzureSignalRConnectionString`
 

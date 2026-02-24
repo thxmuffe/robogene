@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Usage:
 #   export AZURE_CONFIG_DIR=/Users/penpa/Desktop/PDFs/robogene/.azure
-#   export OPENAI_API_KEY=sk-...
+#   export ROBOGENE_IMAGE_GENERATOR_KEY=sk-...
 #   ./deploy_azure_consumption.sh robogene-rg eastus robogene-func-prod
 
 if [[ $# -lt 3 ]]; then
@@ -18,7 +18,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+if [[ -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
   for ENV_PATH in "$REPO_ROOT/.env"; do
     if [[ -f "$ENV_PATH" ]]; then
       # shellcheck disable=SC1090
@@ -28,8 +28,8 @@ if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   done
 fi
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "Missing OPENAI_API_KEY (not found in .env)."
+if [[ -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
+  echo "Missing ROBOGENE_IMAGE_GENERATOR_KEY (not found in .env)."
   exit 1
 fi
 
@@ -75,7 +75,8 @@ if ! az functionapp show -g "$RG" -n "$APP" >/dev/null 2>&1; then
 fi
 
 az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
-  OPENAI_API_KEY="$OPENAI_API_KEY" \
+  ROBOGENE_IMAGE_GENERATOR="openai" \
+  ROBOGENE_IMAGE_GENERATOR_KEY="$ROBOGENE_IMAGE_GENERATOR_KEY" \
   ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
   ROBOGENE_IMAGE_QUALITY="low" \
   ROBOGENE_IMAGE_SIZE="1024x1024" \

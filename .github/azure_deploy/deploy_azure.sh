@@ -19,7 +19,7 @@ ST="${5:-${APP//-/}st}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+if [[ -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
   for ENV_PATH in "$REPO_ROOT/.env"; do
     if [[ -f "$ENV_PATH" ]]; then
       # shellcheck disable=SC1090
@@ -29,8 +29,8 @@ if [[ -z "${OPENAI_API_KEY:-}" ]]; then
   done
 fi
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "OPENAI_API_KEY is required (not found in .env)."
+if [[ -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
+  echo "ROBOGENE_IMAGE_GENERATOR_KEY is required (not found in .env)."
   exit 1
 fi
 
@@ -40,7 +40,8 @@ az functionapp plan create -g "$RG" -n "$PLAN" --location "$LOC" --number-of-wor
 az functionapp create -g "$RG" -p "$PLAN" -n "$APP" -s "$ST" --runtime node --runtime-version 20 --functions-version 4 >/dev/null
 
 az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
-  OPENAI_API_KEY="$OPENAI_API_KEY" \
+  ROBOGENE_IMAGE_GENERATOR="openai" \
+  ROBOGENE_IMAGE_GENERATOR_KEY="$ROBOGENE_IMAGE_GENERATOR_KEY" \
   ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
   ROBOGENE_IMAGE_QUALITY="low" \
   ROBOGENE_IMAGE_SIZE="1024x1024" \
