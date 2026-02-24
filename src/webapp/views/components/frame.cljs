@@ -1,7 +1,7 @@
-(ns webapp.views.frame-view
+(ns webapp.views.components.frame
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
-            [webapp.views.frame-actions :as frame-actions]))
+            [webapp.views.components.frame-actions :as frame-actions]))
 
 (defn frame-image [{:keys [imageDataUrl frameNumber]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
@@ -72,9 +72,9 @@
         [frame-actions/frame-action-button frame]]
        [:div.placeholder-text label])]))
 
-(defn frame-view
+(defn frame
   ([frame frame-input]
-   [frame-view frame frame-input {:clickable? true}])
+   [frame frame frame-input {:clickable? true}])
    ([frame frame-input {:keys [clickable? active? actions-open?]
                         :or {clickable? true active? false actions-open? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))

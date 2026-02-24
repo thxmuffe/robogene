@@ -1,7 +1,7 @@
-(ns webapp.views.frame-page
+(ns webapp.views.pages.frame-page
   (:require [re-frame.core :as rf]
             [webapp.events.model :as model]
-            [webapp.views.frame-view :as frame-view]))
+            [webapp.views.components.frame :as frame]))
 
 (defn detail-controls [chapter-id frames idx]
   (let [prev-frame (when (> idx 0) (nth frames (dec idx)))
@@ -35,7 +35,7 @@
      (if frame
        [:div.detail-page
         [detail-controls chapter-id ordered idx]
-        [frame-view/frame-view frame
+        [frame/frame frame
          (get frame-inputs (:frameId frame) "")
          {:clickable? false
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]

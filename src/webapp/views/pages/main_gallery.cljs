@@ -1,6 +1,6 @@
-(ns webapp.views.main-gallery
+(ns webapp.views.pages.main-gallery
   (:require [re-frame.core :as rf]
-            [webapp.views.frame-view :as frame-view]))
+            [webapp.views.components.frame :as frame]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
   [:section.chapter-block
@@ -14,7 +14,7 @@
    [:div.gallery
     (for [frame (:frames chapter)]
       ^{:key (:frameId frame)}
-      [frame-view/frame-view frame
+      [frame/frame frame
        (get frame-inputs (:frameId frame) "")
        {:active? (= active-frame-id (:frameId frame))
         :actions-open? (true? (get open-frame-actions (:frameId frame)))}])]])

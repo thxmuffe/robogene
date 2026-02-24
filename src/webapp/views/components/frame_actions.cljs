@@ -1,4 +1,4 @@
-(ns webapp.views.frame-actions
+(ns webapp.views.components.frame-actions
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             ["sweetalert2" :as Swal]))
