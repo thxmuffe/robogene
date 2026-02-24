@@ -27,12 +27,14 @@ Recommended app settings:
 - `ROBOGENE_IMAGE_MODEL=gpt-image-1-mini`
 - `ROBOGENE_IMAGE_QUALITY=low`
 - `ROBOGENE_IMAGE_SIZE=1024x1024`
-- `ROBOGENE_TABLE_META=robogeneState`
-- `ROBOGENE_TABLE_CHAPTERS=robogeneChapter`
-- `ROBOGENE_TABLE_FRAMES=robogeneFrame`
-- `ROBOGENE_IMAGE_CONTAINER=robogene-images`
 - `ROBOGENE_SIGNALR_HUB=robogene`
 - `ROBOGENE_ALLOWED_ORIGIN=<your web origins>`
+
+Storage names are currently hardcoded in code:
+- meta table: `robogeneState`
+- chapter table: `robogeneChapter`
+- frame table: `robogeneFrame`
+- blob container: `robogene-images`
 
 ## GitHub Actions Deployment
 

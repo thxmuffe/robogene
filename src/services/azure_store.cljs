@@ -19,11 +19,10 @@
   (throw (js/Error.
           "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string. For CI packaging smoke checks only, set ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE=1.")))
 
-(def table-meta (or (.. js/process -env -ROBOGENE_TABLE_META) "robogeneState"))
-(def table-chapters (or (.. js/process -env -ROBOGENE_TABLE_CHAPTERS)
-                        "robogeneChapter"))
-(def table-frames (or (.. js/process -env -ROBOGENE_TABLE_FRAMES) "robogeneFrame"))
-(def container-name (or (.. js/process -env -ROBOGENE_IMAGE_CONTAINER) "robogene-images"))
+(def table-meta "robogeneState")
+(def table-chapters "robogeneChapter")
+(def table-frames "robogeneFrame")
+(def container-name "robogene-images")
 
 (def client-options
   #js {:retryOptions
