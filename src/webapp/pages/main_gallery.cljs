@@ -1,5 +1,6 @@
 (ns webapp.pages.main-gallery
   (:require [re-frame.core :as rf]
+            [webapp.shared.controls :as controls]
             [webapp.components.frame :as frame]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
@@ -31,11 +32,7 @@
     {:id "new-chapter-description"
      :value (or description "")
      :placeholder "Describe the next chapter theme..."
-     :on-key-down (fn [e]
-                    (when (and (= "Enter" (.-key e))
-                               (not (.-shiftKey e)))
-                      (.preventDefault e)
-                      (rf/dispatch [:add-chapter])))
+     :on-key-down controls/on-new-chapter-form-keydown
      :on-change #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
    [:button.btn.btn-primary
     {:type "button"
@@ -45,22 +42,15 @@
 (defn new-chapter-teaser [active-frame-id]
   [:article.new-chapter-teaser
    {:class (str "frame frame-clickable"
-                (when (= active-frame-id "__new_chapter__")
+                (when (= active-frame-id controls/new-chapter-frame-id)
                   " frame-active"))
-    :data-frame-id "__new_chapter__"
+    :data-frame-id controls/new-chapter-frame-id
     :role "button"
     :tab-index 0
-    :on-mouse-enter #(rf/dispatch [:set-active-frame "__new_chapter__"])
-    :on-focus #(rf/dispatch [:set-active-frame "__new_chapter__"])
-    :on-click #(do
-                 (rf/dispatch [:set-active-frame "__new_chapter__"])
-                 (rf/dispatch [:set-new-chapter-panel-open true]))
-    :on-key-down (fn [e]
-                   (when (or (= "Enter" (.-key e))
-                             (= " " (.-key e)))
-                     (.preventDefault e)
-                     (rf/dispatch [:set-active-frame "__new_chapter__"])
-                     (rf/dispatch [:set-new-chapter-panel-open true])))}
+    :on-mouse-enter (controls/on-frame-mouse-enter controls/new-chapter-frame-id)
+    :on-focus (controls/on-frame-focus controls/new-chapter-frame-id)
+    :on-click controls/on-new-chapter-teaser-click
+    :on-key-down controls/on-new-chapter-teaser-keydown}
    [:div.sparkles]
    [:div.teaser-content
     [:div.teaser-title "Add New Chapter"]

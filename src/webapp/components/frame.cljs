@@ -1,6 +1,6 @@
 (ns webapp.components.frame
-  (:require [re-frame.core :as rf]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [webapp.shared.controls :as controls]
             [webapp.components.frame-actions :as frame-actions]))
 
 (defn frame-image [{:keys [imageDataUrl frameId]}]
@@ -13,45 +13,11 @@
          :placeholder "Describe this frame..."
          :readOnly (not editable?)
          :title (when-not editable? "Click to edit this description.")
-         :on-click (fn [e]
-                     (let [el (.-currentTarget e)]
-                       (.stopPropagation e)
-                       (rf/dispatch [:set-frame-actions-open frameId true])
-                       (js/setTimeout
-                        (fn []
-                          (.focus el))
-                        0)))
-         :on-double-click (fn [e]
-                            (let [el (.-currentTarget e)]
-                              (.stopPropagation e)
-                              (rf/dispatch [:set-frame-actions-open frameId true])
-                              (js/setTimeout
-                               (fn []
-                                 (.focus el))
-                               0)))
-         :on-focus (fn [e]
-                     (.stopPropagation e))
-         :on-key-down (fn [e]
-                        (let [enter? (= "Enter" (.-key e))
-                              submit? (and (not busy?) enter? (not (.-shiftKey e)))]
-                          (cond
-                            submit?
-                            (do
-                              (.preventDefault e)
-                              (.stopPropagation e)
-                              (rf/dispatch [:set-frame-actions-open frameId true])
-                              (rf/dispatch [:generate-frame frameId]))
-                            (and (not editable?) enter?)
-                            (do
-                              (.preventDefault e)
-                              (.stopPropagation e)
-                              (rf/dispatch [:set-frame-actions-open frameId true]))
-                            :else
-                            (.stopPropagation e))))
-         :on-change (fn [e]
-                      (when editable?
-                        (let [next-value (.. e -target -value)]
-                          (rf/dispatch (vector :frame-direction-changed frameId next-value)))))}]
+         :on-click (controls/on-frame-editor-enable frameId)
+         :on-double-click (controls/on-frame-editor-enable frameId)
+         :on-focus controls/on-frame-editor-focus
+         :on-key-down (controls/on-frame-editor-keydown frameId busy? editable?)
+         :on-change (controls/on-frame-editor-change frameId editable?)}]
     [:div.frame-editor
      [:textarea.direction-input textarea-props]
      (when (and (seq (or error "")) (not busy?))
@@ -85,29 +51,13 @@
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
                                     (when active? " frame-active"))
-                        :on-mouse-enter #(rf/dispatch [:set-active-frame (:frameId frame)])
-                        :on-blur (fn [e]
-                                   (when (true? actions-open?)
-                                     (let [container (.-currentTarget e)]
-                                       (js/setTimeout
-                                        (fn []
-                                          (let [active-el (.-activeElement js/document)]
-                                            (when (and (some? active-el)
-                                                       (not (.contains container active-el)))
-                                              (rf/dispatch [:set-frame-actions-open (:frameId frame) false]))))
-                                        60))))}
+                        :on-mouse-enter (controls/on-frame-mouse-enter (:frameId frame))
+                        :on-blur (controls/on-frame-blur-close-actions (:frameId frame) actions-open?)}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
-                                   :on-click #(do
-                                                (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                (rf/dispatch [:navigate-frame (:chapterId frame) (:frameId frame)]))
-                                   :on-key-down (fn [e]
-                                                   (when (or (= "Enter" (.-key e))
-                                                             (= " " (.-key e)))
-                                                     (.preventDefault e)
-                                                     (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                     (rf/dispatch [:navigate-frame (:chapterId frame) (:frameId frame)])))))]
+                                   :on-focus (controls/on-frame-focus (:frameId frame))
+                                   :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))
+                                   :on-key-down (controls/on-frame-keydown-open (:chapterId frame) (:frameId frame))))]
      [:article attrs
       [:div.media-shell
        (if has-image?

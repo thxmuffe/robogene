@@ -3,7 +3,6 @@
             [goog.object :as gobj]
             [re-frame.core :as rf]
             [webapp.shared.model :as model]
-            [webapp.shared.fetch-coalescer :as fetch-coalescer]
             ["@microsoft/signalr" :as signalr]))
 
 (defonce realtime-conn* (atom nil))
@@ -13,6 +12,26 @@
 (defonce coalesced-fetch-state!* (atom nil))
 (defonce realtime-retry-timeout-id* (atom nil))
 (defonce realtime-retry-delay-ms* (atom 1000))
+
+(defn create-coalesced-runner [task]
+  (let [inflight?* (atom false)
+        queued?* (atom false)]
+    (letfn [(run []
+              (if @inflight?*
+                (do
+                  (reset! queued?* true)
+                  (js/Promise.resolve false))
+                (do
+                  (reset! inflight?* true)
+                  (-> (js/Promise.resolve)
+                      (.then (fn [] (task)))
+                      (.finally
+                       (fn []
+                         (reset! inflight?* false)
+                         (when @queued?*
+                           (reset! queued?* false)
+                           (run))))))))]
+      run)))
 
 (defn api-base []
   (-> (or (.-ROBOGENE_API_BASE js/window) "")
@@ -286,7 +305,7 @@
  (fn [_]
    (when-not @coalesced-fetch-state!*
      (reset! coalesced-fetch-state!*
-             (fetch-coalescer/create-coalesced-runner
+             (create-coalesced-runner
               (fn []
                 (request-json (state-url)
                               {:cache "no-store"}
