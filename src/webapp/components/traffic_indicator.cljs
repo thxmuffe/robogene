@@ -2,42 +2,21 @@
   (:require [clojure.string :as str]
             [reagent.core :as r]))
 
-(defn has-frame-error? [chapters]
-  (boolean
-   (some (fn [chapter]
-           (some (fn [frame]
-                   (= "failed" (:status frame)))
-                 (:frames chapter)))
-         chapters)))
-
-(defn has-frame-pending? [chapters]
-  (boolean
-   (some (fn [chapter]
-           (some (fn [frame]
-                   (or (= "queued" (:status frame))
-                       (= "processing" (:status frame))))
-                 (:frames chapter)))
-         chapters)))
-
-(defn count-frame-pending [chapters]
+(defn frame-status-stats [chapters]
   (reduce
-   (fn [acc chapter]
-     (+ acc
-        (count (filter (fn [frame]
-                         (or (= "queued" (:status frame))
-                             (= "processing" (:status frame))))
-                       (:frames chapter)))))
-   0
-   chapters))
-
-(defn count-frame-errors [chapters]
-  (reduce
-   (fn [acc chapter]
-     (+ acc
-        (count (filter (fn [frame]
-                         (= "failed" (:status frame)))
-                       (:frames chapter)))))
-   0
+   (fn [{:keys [pending errors]} chapter]
+     (reduce (fn [{:keys [pending errors]} frame]
+               (let [status (:status frame)]
+                 {:pending (if (or (= "queued" status)
+                                   (= "processing" status))
+                             (inc pending)
+                             pending)
+                  :errors (if (= "failed" status)
+                            (inc errors)
+                            errors)}))
+             {:pending pending :errors errors}
+             (:frames chapter)))
+   {:pending 0 :errors 0}
    chapters))
 
 (defn status-error? [status-text]
@@ -56,14 +35,15 @@
         (str/includes? v "creating"))))
 
 (defn signal-state [{:keys [pending-api-requests wait-lights-visible? status chapters]}]
-  (cond
-    (or (status-error? status) (has-frame-error? chapters)) :red
-    (or (pos? (or pending-api-requests 0))
-        (true? wait-lights-visible?)
-        (status-working? status)
-        (has-frame-pending? chapters))
-    :yellow
-    :else :green))
+  (let [{:keys [pending errors]} (frame-status-stats chapters)]
+    (cond
+      (or (status-error? status) (pos? errors)) :red
+      (or (pos? (or pending-api-requests 0))
+          (true? wait-lights-visible?)
+          (status-working? status)
+          (pos? pending))
+      :yellow
+      :else :green)))
 
 (defn traffic-indicator [state]
   (r/with-let [prev-phase* (r/atom nil)
@@ -75,14 +55,13 @@
                blink-interval-id* (atom nil)
                hide-timeout-id* (atom nil)
                inactivity-timeout-id* (atom nil)]
-    (let [phase (signal-state state)
+    (let [{:keys [pending errors]} (frame-status-stats (:chapters state))
+          phase (signal-state state)
           changed? (not= phase @prev-phase*)
           pending-api-requests (or (:pending-api-requests state) 0)
-          pending-frames (count-frame-pending (:chapters state))
-          error-frames (count-frame-errors (:chapters state))
           activity-key [pending-api-requests
-                        pending-frames
-                        error-frames
+                        pending
+                        errors
                         (:wait-lights-visible? state)
                         (:status state)]
           activity-changed? (not= activity-key @prev-activity*)

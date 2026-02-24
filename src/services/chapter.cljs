@@ -32,9 +32,6 @@
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
 (def page1-reference-image (.join path resolved-chapter-root "28_page_01_openai_refined.png"))
 
-(defn require-startup-env! []
-  (image-generator/require-startup-env!))
-
 (defn read-file-or
   ([file-path fallback]
    (read-file-or file-path fallback nil))
@@ -52,7 +49,7 @@
 (defn read-bytes [file-path]
   (read-file-or file-path nil))
 
-(require-startup-env!)
+(image-generator/require-startup-env!)
 
 (defn parse-descriptions [markdown]
   (let [section (or (second (re-find #"(?is)##\s*Page-by-page descriptions([\s\S]*?)(?:\n##\s|$)" markdown))

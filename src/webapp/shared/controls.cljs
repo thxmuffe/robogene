@@ -22,16 +22,6 @@
   (activate-frame! new-chapter-frame-id)
   (rf/dispatch [:set-new-chapter-panel-open true]))
 
-(defn on-window-focus [_]
-  (rf/dispatch [:force-refresh]))
-
-(defn on-window-hashchange [_]
-  (rf/dispatch [:hash-changed (.-hash js/location)]))
-
-(defn on-document-visibilitychange [_]
-  (when-not (.-hidden js/document)
-    (rf/dispatch [:force-refresh])))
-
 (defn on-window-keydown [e]
   (when-not (typing-target? (.-target e))
     (case (.-key e)
@@ -54,10 +44,17 @@
       nil)))
 
 (defn register-global-listeners! []
-  (.addEventListener js/window "focus" on-window-focus)
-  (.addEventListener js/window "hashchange" on-window-hashchange)
+  (.addEventListener js/window "focus"
+                     (fn [_]
+                       (rf/dispatch [:force-refresh])))
+  (.addEventListener js/window "hashchange"
+                     (fn [_]
+                       (rf/dispatch [:hash-changed (.-hash js/location)])))
   (.addEventListener js/window "keydown" on-window-keydown)
-  (.addEventListener js/document "visibilitychange" on-document-visibilitychange))
+  (.addEventListener js/document "visibilitychange"
+                     (fn [_]
+                       (when-not (.-hidden js/document)
+                         (rf/dispatch [:force-refresh])))))
 
 (defn on-frame-activate [frame-id]
   (fn [_]
