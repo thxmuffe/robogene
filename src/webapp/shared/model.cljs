@@ -4,9 +4,6 @@
 (defn frame-id-of [frame]
   (:frameId frame))
 
-(defn ordered-chapters [chapters]
-  (vec chapters))
-
 (defn ordered-frames [frames]
   (vec frames))
 
@@ -72,7 +69,7 @@
       desc
       "Chapter")))
 
-(defn enrich-frame [state frame]
+(defn enrich-frame [frame]
   (let [description (str/trim (or (:description frame) ""))]
     (if (or (str/blank? description) (generic-frame-text? description))
       (assoc frame :description description)
@@ -102,7 +99,7 @@
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
                                     (let [chapter-id (or (:chapterId f) default-chapter-id)
-                                          enriched (-> (enrich-frame state f)
+                                          enriched (-> (enrich-frame f)
                                                        (assoc :chapterId chapter-id))]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
                              vec)

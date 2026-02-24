@@ -59,11 +59,7 @@
   (.addEventListener js/window "keydown" on-window-keydown)
   (.addEventListener js/document "visibilitychange" on-document-visibilitychange))
 
-(defn on-frame-mouse-enter [frame-id]
-  (fn [_]
-    (activate-frame! frame-id)))
-
-(defn on-frame-focus [frame-id]
+(defn on-frame-activate [frame-id]
   (fn [_]
     (activate-frame! frame-id)))
 

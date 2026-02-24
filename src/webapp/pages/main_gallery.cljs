@@ -47,8 +47,8 @@
     :data-frame-id controls/new-chapter-frame-id
     :role "button"
     :tab-index 0
-    :on-mouse-enter (controls/on-frame-mouse-enter controls/new-chapter-frame-id)
-    :on-focus (controls/on-frame-focus controls/new-chapter-frame-id)
+    :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
+    :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
     :on-click controls/on-new-chapter-teaser-click
     :on-key-down controls/on-new-chapter-teaser-keydown}
    [:div.sparkles]

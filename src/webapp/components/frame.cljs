@@ -51,11 +51,11 @@
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
                                     (when active? " frame-active"))
-                        :on-mouse-enter (controls/on-frame-mouse-enter (:frameId frame))
+                        :on-mouse-enter (controls/on-frame-activate (:frameId frame))
                         :on-blur (controls/on-frame-blur-close-actions (:frameId frame) actions-open?)}
                  clickable? (assoc :role "button"
                                    :tab-index 0
-                                   :on-focus (controls/on-frame-focus (:frameId frame))
+                                   :on-focus (controls/on-frame-activate (:frameId frame))
                                    :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))
                                    :on-key-down (controls/on-frame-keydown-open (:chapterId frame) (:frameId frame))))]
      [:article attrs
