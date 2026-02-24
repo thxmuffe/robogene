@@ -121,6 +121,20 @@
       (fn [value]
         (handler value body))))))
 
+(defn with-required-any-string [request body field-keys missing-msg handler]
+  (let [value (some (fn [field-key]
+                      (some-> (gobj/get body field-key) str str/trim not-empty))
+                    field-keys)]
+    (if (str/blank? (or value ""))
+      (json-response 400 {:error missing-msg} request)
+      (handler value))))
+
+(defn with-synced-required-any-string [request field-keys missing-msg handler]
+  (with-synced-body
+   request
+   (fn [body]
+     (with-required-any-string request body field-keys missing-msg handler))))
+
 (defn queueable-frame-outcome [frame-id]
   (let [snapshot @story/state
         frames (:frames snapshot)
@@ -171,7 +185,7 @@
                                  :revision (:revision snapshot)
                                  :processing (:processing snapshot)
                                  :pendingCount pending-count
-                                 :episodes (:episodes snapshot)
+                                 :chapters (:chapters snapshot)
                                  :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
@@ -204,7 +218,7 @@
 (defn with-revision [body snapshot]
   (assoc body :revision (:revision snapshot)))
 
-(defn handle-add-episode [request]
+(defn handle-add-chapter [request]
   (with-synced-body
    request
    (fn [body]
@@ -212,14 +226,14 @@
            description (if (some? raw-description)
                          (some-> raw-description str str/trim)
                          nil)
-           {:keys [episode frame]} (story/add-episode! description)]
+           {:keys [chapter frame]} (story/add-chapter! description)]
        (emit-persist-and-respond
         request
-        "episode-added"
+        "chapter-added"
         201
         (fn [snapshot]
           (with-revision {:created true
-                          :episode episode
+                          :chapter chapter
                           :frame frame}
                          snapshot)))))))
 
@@ -258,19 +272,26 @@
                         (fn [snapshot]
                           (success-body result snapshot))))})))))
 
-(def handle-add-frame
-  (make-required-mutation-handler
-   {:field-key "episodeId"
-    :missing-msg "Missing episodeId."
-    :mutate! story/add-frame!
-    :default-error "Episode not found."
-    :status-by-message {"Episode not found." 404}
-    :emit-reason "frame-added"
-    :success-status 201
-    :success-body (fn [frame snapshot]
-                    (with-revision {:created true
-                                    :frame frame}
-                                   snapshot))}))
+(defn handle-add-frame [request]
+  (with-synced-required-any-string
+   request
+   ["chapterId" "episodeId"]
+   "Missing chapterId."
+   (fn [chapter-id]
+     (run-mutation
+      request
+      {:mutate! #(story/add-frame! chapter-id)
+       :default-error "Chapter not found."
+       :status-by-message {"Chapter not found." 404}
+       :on-success (fn [frame]
+                     (emit-persist-and-respond
+                      request
+                      "frame-added"
+                      201
+                      (fn [snapshot]
+                        (with-revision {:created true
+                                        :frame frame}
+                                       snapshot))))}))))
 
 (def handle-delete-frame
   (make-required-mutation-handler
@@ -325,7 +346,7 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
-   {:method :post :name "post-add-episode" :route "add-episode" :handler handle-add-episode}
+   {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}

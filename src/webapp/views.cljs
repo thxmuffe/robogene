@@ -4,46 +4,46 @@
             [webapp.views.frame-page :as frame-page]
             [webapp.views.traffic-indicator :as traffic-indicator]))
 
-(defn frame-page-title [route episodes]
-  (let [episode (some (fn [row] (when (= (:episodeId row) (:episode route)) row)) episodes)
-        episode-name (or (:description episode)
-                         (when (some? (:episodeNumber episode))
-                           (str "Episode " (:episodeNumber episode)))
-                         "Episode")]
-    (str "Frame Page · " episode-name " · RoboGene")))
+(defn frame-page-title [route chapters]
+  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)
+        chapter-name (or (:description chapter)
+                         (when (some? (:chapterNumber chapter))
+                           (str "Chapter " (:chapterNumber chapter)))
+                         "Chapter")]
+    (str "Frame Page · " chapter-name " · RoboGene")))
 
 (defn main-view []
-  (let [episodes @(rf/subscribe [:episodes])
+  (let [chapters @(rf/subscribe [:chapters])
         status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
         open-frame-actions @(rf/subscribe [:open-frame-actions])
         active-frame-id @(rf/subscribe [:active-frame-id])
-        new-episode-description @(rf/subscribe [:new-episode-description])
-        new-episode-panel-open? @(rf/subscribe [:new-episode-panel-open?])
-        show-episode-celebration? @(rf/subscribe [:show-episode-celebration?])
+        new-chapter-description @(rf/subscribe [:new-chapter-description])
+        new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
+        show-chapter-celebration? @(rf/subscribe [:show-chapter-celebration?])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])]
     (set! (.-title js/document)
           (if (= :frame (:view route))
-            (frame-page-title route episodes)
+            (frame-page-title route chapters)
             "RoboGene"))
     [:main.app
      [:header.hero
       [:h1 "RoboGene"]]
      (if (= :frame (:view route))
-       [frame-page/frame-page route episodes frame-inputs open-frame-actions]
-       [gallery-page/main-gallery-page episodes
+       [frame-page/frame-page route chapters frame-inputs open-frame-actions]
+       [gallery-page/main-gallery-page chapters
         frame-inputs
         open-frame-actions
         active-frame-id
-        new-episode-description
-        new-episode-panel-open?
-        show-episode-celebration?])
+        new-chapter-description
+        new-chapter-panel-open?
+        show-chapter-celebration?])
      [traffic-indicator/traffic-indicator
       {:pending-api-requests pending-api-requests
        :wait-lights-visible? wait-lights-visible?
        :status status
-       :episodes episodes
+       :chapters chapters
        :events wait-lights-events}]]))

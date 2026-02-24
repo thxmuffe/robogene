@@ -101,13 +101,13 @@
                                    :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
                                    :on-click #(do
                                                 (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)]))
+                                                (rf/dispatch [:navigate-frame (:chapterId frame) (:frameNumber frame)]))
                                    :on-key-down (fn [e]
                                                    (when (or (= "Enter" (.-key e))
                                                              (= " " (.-key e)))
                                                      (.preventDefault e)
                                                      (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                     (rf/dispatch [:navigate-frame (:episodeId frame) (:frameNumber frame)])))))]
+                                                     (rf/dispatch [:navigate-frame (:chapterId frame) (:frameNumber frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?

@@ -1,7 +1,7 @@
 (ns webapp.db)
 
 (def default-db
-  {:status "Loading episodes..."
+  {:status "Loading chapters..."
    :pending-api-requests 0
    :wait-lights-visible? false
    :wait-lights-events []
@@ -9,10 +9,10 @@
    :open-frame-actions {}
    :last-rendered-revision nil
    :active-frame-id nil
-   :episodes []
+   :chapters []
    :gallery-items []
-   :new-episode-description ""
-   :new-episode-panel-open? false
-   :show-episode-celebration? false
+   :new-chapter-description ""
+   :new-chapter-panel-open? false
+   :show-chapter-celebration? false
    :latest-state nil
    :route {:view :index}})

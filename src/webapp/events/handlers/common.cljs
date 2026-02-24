@@ -66,7 +66,7 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [episodes frames]} (model/normalize-state state)
+   (let [{:keys [chapters frames]} (model/normalize-state state)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -77,16 +77,16 @@
          active-frame-id (cond
                            (and (some? existing-active-id) (contains? frame-ids existing-active-id))
                            existing-active-id
-                           (= existing-active-id shared/new-episode-frame-id)
+                           (= existing-active-id shared/new-chapter-frame-id)
                            existing-active-id
                            (seq frames)
                            (:frameId (first frames))
                            :else nil)]
      {:db (-> db
               (assoc :latest-state state
-                     :status (model/status-line state episodes frames)
+                     :status (model/status-line state chapters frames)
                      :last-rendered-revision (:revision state)
-                     :episodes episodes
+                     :chapters chapters
                      :gallery-items frames
                      :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)

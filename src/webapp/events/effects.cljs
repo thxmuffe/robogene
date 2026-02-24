@@ -122,7 +122,7 @@
    (when (seq (or frame-id ""))
      (when-let [el (.querySelector js/document (str ".frame[data-frame-id=\"" frame-id "\"]"))]
        (.scrollIntoView el #js {:behavior "smooth"
-                                :block (if (= frame-id "__new_episode__") "center" "nearest")
+                                :block (if (= frame-id "__new_chapter__") "center" "nearest")
                                 :inline "nearest"})))))
 
 (rf/reg-fx
@@ -307,19 +307,19 @@
               (fn [ok status] (or ok (= 409 status))))))
 
 (rf/reg-fx
- :post-add-episode
+ :post-add-chapter
  (fn [{:keys [description]}]
-   (post-json "/api/add-episode"
+   (post-json "/api/add-chapter"
               {:description description}
-              :add-episode-accepted
-              :add-episode-failed
+              :add-chapter-accepted
+              :add-chapter-failed
               (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-add-frame
- (fn [{:keys [episode-id]}]
+ (fn [{:keys [chapter-id]}]
    (post-json "/api/add-frame"
-              {:episodeId episode-id}
+              {:chapterId chapter-id}
               :add-frame-accepted
               :add-frame-failed
               (fn [ok _] ok))))
@@ -343,9 +343,9 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
- :start-episode-celebration
+ :start-chapter-celebration
  (fn [_]
    (js/setTimeout
     (fn []
-      (rf/dispatch [:episode-celebration-ended]))
+      (rf/dispatch [:chapter-celebration-ended]))
     2200)))

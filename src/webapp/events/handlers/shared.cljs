@@ -1,6 +1,6 @@
 (ns webapp.events.handlers.shared)
 
-(def new-episode-frame-id "__new_episode__")
+(def new-chapter-frame-id "__new_chapter__")
 
 (defn frame-index-by-id [frames frame-id]
   (first (keep-indexed (fn [idx frame]

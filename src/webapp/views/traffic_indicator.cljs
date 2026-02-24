@@ -2,43 +2,43 @@
   (:require [clojure.string :as str]
             [reagent.core :as r]))
 
-(defn has-frame-error? [episodes]
+(defn has-frame-error? [chapters]
   (boolean
-   (some (fn [episode]
+   (some (fn [chapter]
            (some (fn [frame]
                    (= "failed" (:status frame)))
-                 (:frames episode)))
-         episodes)))
+                 (:frames chapter)))
+         chapters)))
 
-(defn has-frame-pending? [episodes]
+(defn has-frame-pending? [chapters]
   (boolean
-   (some (fn [episode]
+   (some (fn [chapter]
            (some (fn [frame]
                    (or (= "queued" (:status frame))
                        (= "processing" (:status frame))))
-                 (:frames episode)))
-         episodes)))
+                 (:frames chapter)))
+         chapters)))
 
-(defn count-frame-pending [episodes]
+(defn count-frame-pending [chapters]
   (reduce
-   (fn [acc episode]
+   (fn [acc chapter]
      (+ acc
         (count (filter (fn [frame]
                          (or (= "queued" (:status frame))
                              (= "processing" (:status frame))))
-                       (:frames episode)))))
+                       (:frames chapter)))))
    0
-   episodes))
+   chapters))
 
-(defn count-frame-errors [episodes]
+(defn count-frame-errors [chapters]
   (reduce
-   (fn [acc episode]
+   (fn [acc chapter]
      (+ acc
         (count (filter (fn [frame]
                          (= "failed" (:status frame)))
-                       (:frames episode)))))
+                       (:frames chapter)))))
    0
-   episodes))
+   chapters))
 
 (defn status-error? [status-text]
   (let [v (str/lower-case (str (or status-text "")))]
@@ -55,13 +55,13 @@
         (str/includes? v "removing")
         (str/includes? v "creating"))))
 
-(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status episodes]}]
+(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status chapters]}]
   (cond
-    (or (status-error? status) (has-frame-error? episodes)) :red
+    (or (status-error? status) (has-frame-error? chapters)) :red
     (or (pos? (or pending-api-requests 0))
         (true? wait-lights-visible?)
         (status-working? status)
-        (has-frame-pending? episodes))
+        (has-frame-pending? chapters))
     :yellow
     :else :green))
 
@@ -78,8 +78,8 @@
     (let [phase (signal-state state)
           changed? (not= phase @prev-phase*)
           pending-api-requests (or (:pending-api-requests state) 0)
-          pending-frames (count-frame-pending (:episodes state))
-          error-frames (count-frame-errors (:episodes state))
+          pending-frames (count-frame-pending (:chapters state))
+          error-frames (count-frame-errors (:chapters state))
           activity-key [pending-api-requests
                         pending-frames
                         error-frames

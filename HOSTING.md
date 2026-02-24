@@ -27,7 +27,7 @@ Recommended app settings:
 - `ROBOGENE_IMAGE_QUALITY=low`
 - `ROBOGENE_IMAGE_SIZE=1024x1024`
 - `ROBOGENE_TABLE_META=robogeneMeta`
-- `ROBOGENE_TABLE_EPISODES=robogeneEpisodes`
+- `ROBOGENE_TABLE_CHAPTERS=robogeneChapters`
 - `ROBOGENE_TABLE_FRAMES=robogeneFrames`
 - `ROBOGENE_IMAGE_CONTAINER=robogene-images`
 - `ROBOGENE_SIGNALR_HUB=robogene`

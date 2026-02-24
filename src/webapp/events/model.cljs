@@ -1,15 +1,15 @@
 (ns webapp.events.model
   (:require [clojure.string :as str]))
 
-(defn episode-number-of [episode]
-  (:episodeNumber episode))
+(defn chapter-number-of [chapter]
+  (:chapterNumber chapter))
 
 (defn frame-number-of [frame]
   (:frameNumber frame))
 
-(defn ordered-episodes [episodes]
-  (->> episodes
-       (sort-by episode-number-of)
+(defn ordered-chapters [chapters]
+  (->> chapters
+       (sort-by chapter-number-of)
        vec))
 
 (defn ordered-frames [frames]
@@ -23,14 +23,19 @@
                        frames)))
 
 (defn parse-hash-route [hash]
-  (if-let [[_ episode frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
-    {:view :frame
-     :episode episode
-     :frame-number (js/Number frame)}
-    {:view :index}))
+  (or
+   (when-let [[_ chapter frame] (re-matches #"^#/chapter/([^/]+)/frame/(\d+)$" (or hash ""))]
+     {:view :frame
+      :chapter chapter
+      :frame-number (js/Number frame)})
+   (when-let [[_ chapter frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
+     {:view :frame
+      :chapter chapter
+      :frame-number (js/Number frame)})
+   {:view :index}))
 
-(defn frame-hash [episode frame-number]
-  (str "#/episode/" episode "/frame/" frame-number))
+(defn frame-hash [chapter frame-number]
+  (str "#/chapter/" chapter "/frame/" frame-number))
 
 (defn parse-json-safe [text]
   (try
@@ -57,11 +62,11 @@
     (let [final-text (clamp-text preferred 180)]
       (if (str/blank? final-text) "No description yet." final-text))))
 
-(defn episode-description [episode]
-  (let [desc (str/trim (or (:description episode) ""))]
+(defn chapter-description [chapter]
+  (let [desc (str/trim (or (:description chapter) ""))]
     (if (seq desc)
       desc
-      (str "Episode " (:episodeNumber episode)))))
+      (str "Chapter " (:chapterNumber chapter)))))
 
 (defn enrich-frame [state frame]
   (let [frame-number (frame-number-of frame)
@@ -75,49 +80,55 @@
       (assoc base :description (or page-prompt description-fallback description))
       base)))
 
-(defn normalize-episodes [state]
-  (let [raw-episodes (ordered-episodes (or (:episodes state) []))
+(defn normalize-chapters [state]
+  (let [legacy-chapters (map (fn [chapter]
+                               (-> chapter
+                                   (assoc :chapterId (or (:chapterId chapter) (:episodeId chapter)))
+                                   (assoc :chapterNumber (or (:chapterNumber chapter) (:episodeNumber chapter) 1))
+                                   (dissoc :episodeId :episodeNumber)))
+                             (or (:chapters state) (:episodes state) []))
+        raw-chapters (ordered-chapters legacy-chapters)
         raw-frames (or (:frames state) [])
-        fallback-episode-id (or (:episodeId (first raw-episodes))
-                                (:episodeId (first raw-frames))
-                                "episode-1")
-        episodes (if (seq raw-episodes)
-                   (mapv (fn [episode]
-                           (-> episode
-                               (assoc :episodeNumber (or (:episodeNumber episode) 1))
-                               (assoc :description (episode-description episode))))
-                         raw-episodes)
-                   [{:episodeId fallback-episode-id
-                     :episodeNumber 1
-                     :description "Episode 1"}])]
-    (ordered-episodes episodes)))
+        fallback-chapter-id (or (:chapterId (first raw-chapters))
+                                (:chapterId (first raw-frames))
+                                "chapter-1")
+        chapters (if (seq raw-chapters)
+                   (mapv (fn [chapter]
+                           (-> chapter
+                               (assoc :chapterNumber (or (:chapterNumber chapter) 1))
+                               (assoc :description (chapter-description chapter))))
+                         raw-chapters)
+                   [{:chapterId fallback-chapter-id
+                     :chapterNumber 1
+                     :description "Chapter 1"}])]
+    (ordered-chapters chapters)))
 
 (defn normalize-state [state]
-  (let [episodes (normalize-episodes state)
-        episode-number-by-id (into {}
-                                   (map (fn [episode] [(:episodeId episode) (:episodeNumber episode)])
-                                        episodes))
-        default-episode-id (:episodeId (first episodes))
+  (let [chapters (normalize-chapters state)
+        chapter-number-by-id (into {}
+                                   (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)])
+                                        chapters))
+        default-chapter-id (:chapterId (first chapters))
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
-                                    (let [episode-id (or (:episodeId f) default-episode-id)
+                                    (let [chapter-id (or (:chapterId f) (:episodeId f) default-chapter-id)
                                           enriched (-> (enrich-frame state f)
-                                                       (assoc :episodeId episode-id))]
+                                                       (assoc :chapterId chapter-id))]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
                              (sort-by (fn [frame]
-                                        [(get episode-number-by-id (:episodeId frame) 9999)
+                                        [(get chapter-number-by-id (:chapterId frame) 9999)
                                          (frame-number-of frame)]))
                              vec)
-        frames-by-episode (group-by :episodeId enriched-frames)
-        episodes-with-frames (mapv (fn [episode]
-                                     (assoc episode :frames (ordered-frames (get frames-by-episode (:episodeId episode) []))))
-                                   episodes)]
-    {:episodes episodes-with-frames
+        frames-by-chapter (group-by :chapterId enriched-frames)
+        chapters-with-frames (mapv (fn [chapter]
+                                     (assoc chapter :frames (ordered-frames (get frames-by-chapter (:chapterId chapter) []))))
+                                   chapters)]
+    {:chapters chapters-with-frames
      :frames enriched-frames}))
 
-(defn status-line [state episodes frames]
+(defn status-line [state chapters frames]
   (let [pending (or (:pendingCount state) 0)]
-    (str "Episodes: " (count episodes)
+    (str "Chapters: " (count chapters)
          " | Frames: " (count frames)
          (if (pos? pending)
            (str " | Queue: " pending)

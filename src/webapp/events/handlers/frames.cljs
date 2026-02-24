@@ -35,9 +35,9 @@
 
 (rf/reg-event-fx
  :add-frame
- (fn [{:keys [db]} [_ episode-id]]
+ (fn [{:keys [db]} [_ chapter-id]]
    {:db (assoc db :status "Adding frame...")
-    :post-add-frame {:episode-id episode-id}}))
+    :post-add-frame {:chapter-id chapter-id}}))
 
 (rf/reg-event-fx
  :add-frame-accepted

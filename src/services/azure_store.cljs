@@ -8,15 +8,21 @@
   (or (.. js/process -env -ROBOGENE_STORAGE_CONNECTION_STRING)
       (.. js/process -env -AzureWebJobsStorage)))
 
+(defn allow-dev-storage-for-smoke? []
+  (= "1" (some-> (.. js/process -env -ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE) str str/trim)))
+
 (when-not (seq connection-string)
   (throw (js/Error. "Missing AzureWebJobsStorage or ROBOGENE_STORAGE_CONNECTION_STRING.")))
 
-(when (= (str/trim connection-string) "UseDevelopmentStorage=true")
+(when (and (= (str/trim connection-string) "UseDevelopmentStorage=true")
+           (not (allow-dev-storage-for-smoke?)))
   (throw (js/Error.
-          "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string.")))
+          "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string. For CI packaging smoke checks only, set ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE=1.")))
 
 (def table-meta (or (.. js/process -env -ROBOGENE_TABLE_META) "robogeneMeta"))
-(def table-episodes (or (.. js/process -env -ROBOGENE_TABLE_EPISODES) "robogeneEpisodes"))
+(def table-chapters (or (.. js/process -env -ROBOGENE_TABLE_CHAPTERS)
+                        (.. js/process -env -ROBOGENE_TABLE_EPISODES)
+                        "robogeneChapters"))
 (def table-frames (or (.. js/process -env -ROBOGENE_TABLE_FRAMES) "robogeneFrames"))
 (def container-name (or (.. js/process -env -ROBOGENE_IMAGE_CONTAINER) "robogene-images"))
 
@@ -26,7 +32,7 @@
             :tryTimeoutInMs 5000}})
 
 (def meta-client (.fromConnectionString TableClient connection-string table-meta client-options))
-(def episodes-client (.fromConnectionString TableClient connection-string table-episodes client-options))
+(def chapters-client (.fromConnectionString TableClient connection-string table-chapters client-options))
 (def frames-client (.fromConnectionString TableClient connection-string table-frames client-options))
 (def blob-service (.fromConnectionString BlobServiceClient connection-string client-options))
 (def image-container (.getContainerClient blob-service container-name))
@@ -41,8 +47,25 @@
         fallback))
     fallback))
 
-(defn normalize-image-path [story-id episode-id frame-id]
-  (str "stories/" story-id "/episodes/" episode-id "/frames/" frame-id ".png"))
+(defn normalize-chapter-record [chapter]
+  (if (some? chapter)
+    (.assign js/Object
+             #js {}
+             chapter
+             #js {:chapterId (or (gobj/get chapter "chapterId") (gobj/get chapter "episodeId"))
+                  :chapterNumber (or (gobj/get chapter "chapterNumber") (gobj/get chapter "episodeNumber"))})
+    chapter))
+
+(defn normalize-frame-record [frame]
+  (if (some? frame)
+    (.assign js/Object
+             #js {}
+             frame
+             #js {:chapterId (or (gobj/get frame "chapterId") (gobj/get frame "episodeId"))})
+    frame))
+
+(defn normalize-image-path [story-id chapter-id frame-id]
+  (str "stories/" story-id "/chapters/" chapter-id "/frames/" frame-id ".png"))
 
 (defn reduce-promise [items step init]
   (reduce (fn [p item]
@@ -70,7 +93,7 @@
     (js/Promise.resolve true)
     (-> (js/Promise.all
          #js [(.catch (.createTable meta-client) (fn [_] nil))
-              (.catch (.createTable episodes-client) (fn [_] nil))
+              (.catch (.createTable chapters-client) (fn [_] nil))
               (.catch (.createTable frames-client) (fn [_] nil))])
         (.then (fn [_] (.createIfNotExists image-container)))
         (.then (fn [_]
@@ -93,10 +116,11 @@
 (defn upload-data-url-if-needed [story-id frame]
   (let [data (or (gobj/get frame "imageDataUrl") "")]
     (if-not (str/starts-with? data "data:image/png;base64,")
-      (js/Promise.resolve frame)
-      (let [episode-id (gobj/get frame "episodeId")
+      (js/Promise.resolve (normalize-frame-record frame))
+      (let [frame (normalize-frame-record frame)
+            chapter-id (gobj/get frame "chapterId")
             frame-id (gobj/get frame "frameId")
-            image-path (normalize-image-path story-id episode-id frame-id)
+            image-path (normalize-image-path story-id chapter-id frame-id)
             blob (.getBlockBlobClient image-container image-path)
             content (js/Buffer.from (subs data (count "data:image/png;base64,")) "base64")]
         (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType "image/png"}})
@@ -121,16 +145,17 @@
                       :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
                  "Replace"))
 
-(defn save-episodes! [story-id episodes]
-  (-> (list-entities episodes-client story-id)
+(defn save-chapters! [story-id chapters]
+  (-> (list-entities chapters-client story-id)
       (.then (fn [existing]
-               (let [keep (set (map #(gobj/get % "episodeId") episodes))]
-                 (-> (reduce-promise episodes
-                                     (fn [_ episode]
-                                       (.upsertEntity episodes-client
+               (let [normalized-chapters (vec (map normalize-chapter-record chapters))
+                     keep (set (map #(gobj/get % "chapterId") normalized-chapters))]
+                 (-> (reduce-promise normalized-chapters
+                                     (fn [_ chapter]
+                                       (.upsertEntity chapters-client
                                                       #js {:partitionKey story-id
-                                                           :rowKey (gobj/get episode "episodeId")
-                                                           :payloadJson (.stringify js/JSON episode)}
+                                                           :rowKey (gobj/get chapter "chapterId")
+                                                           :payloadJson (.stringify js/JSON chapter)}
                                                       "Replace"))
                                      nil)
                      (.then (fn [_]
@@ -138,7 +163,7 @@
                                               (fn [_ row]
                                                 (if (contains? keep (gobj/get row "rowKey"))
                                                   (js/Promise.resolve nil)
-                                                  (.catch (.deleteEntity episodes-client story-id (gobj/get row "rowKey"))
+                                                 (.catch (.deleteEntity chapters-client story-id (gobj/get row "rowKey"))
                                                           (fn [_] nil))))
                                               nil)))))))))
 
@@ -175,14 +200,15 @@
                                   (.then (fn [_] normalized)))))))))))
 
 (defn load-rows [story-id]
-  (-> (js/Promise.all #js [(list-entities episodes-client story-id)
+  (-> (js/Promise.all #js [(list-entities chapters-client story-id)
                            (list-entities frames-client story-id)])
       (.then (fn [pairs]
-               (let [episode-rows (aget pairs 0)
+               (let [chapter-rows (aget pairs 0)
                      frame-rows (aget pairs 1)]
                  (-> (reduce-promise frame-rows
                                      (fn [acc row]
-                                       (let [frame (parse-json (gobj/get row "payloadJson") nil)]
+                                       (let [frame (some-> (parse-json (gobj/get row "payloadJson") nil)
+                                                           normalize-frame-record)]
                                          (if-not frame
                                            (js/Promise.resolve acc)
                                            (if-let [image-path (gobj/get frame "imagePath")]
@@ -193,8 +219,9 @@
                                              (js/Promise.resolve (conj acc frame))))))
                                      [])
                      (.then (fn [frames]
-                              #js {:episodes (->> episode-rows
-                                                  (map #(parse-json (gobj/get % "payloadJson") nil))
+                              #js {:chapters (->> chapter-rows
+                                                  (map #(some-> (parse-json (gobj/get % "payloadJson") nil)
+                                                                normalize-chapter-record))
                                                   (filter some?)
                                                   clj->js)
                                    :frames (clj->js frames)}))))))))
@@ -209,8 +236,8 @@
                                       :revision (or (gobj/get initial-state "revision") 1)
                                       :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
                (.then (fn [_]
-                        (save-episodes! (gobj/get initial-state "storyId")
-                                        (or (gobj/get initial-state "episodes") #js []))))
+                        (save-chapters! (gobj/get initial-state "storyId")
+                                        (or (gobj/get initial-state "chapters") #js []))))
                (.then (fn [_]
                         (save-frames! (gobj/get initial-state "storyId")
                                       (or (gobj/get initial-state "frames") #js []))))
@@ -227,7 +254,7 @@
                       (gobj/set "storyId" story-id)
                       (gobj/set "revision" revision)
                       (gobj/set "failedJobs" failed-jobs)
-                      (gobj/set "episodes" (gobj/get rows "episodes"))
+                      (gobj/set "chapters" (gobj/get rows "chapters"))
                       (gobj/set "frames" (gobj/get rows "frames"))
                       (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
                       (gobj/set "visual" (gobj/get initial-state "visual"))
@@ -242,7 +269,7 @@
                  (save-frames! story-id (or (gobj/get state "frames") #js []))))
         (.then
          (fn [frames]
-           (-> (save-episodes! story-id (or (gobj/get state "episodes") #js []))
+           (-> (save-chapters! story-id (or (gobj/get state "chapters") #js []))
                (.then (fn [_]
                         (set-active-meta! #js {:storyId story-id
                                                :revision (or (gobj/get state "revision") 1)

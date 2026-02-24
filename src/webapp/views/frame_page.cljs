@@ -3,7 +3,7 @@
             [webapp.events.model :as model]
             [webapp.views.frame-view :as frame-view]))
 
-(defn detail-controls [episode-id frames idx]
+(defn detail-controls [chapter-id frames idx]
   (let [prev-frame (when (> idx 0) (nth frames (dec idx)))
         next-frame (when (< idx (dec (count frames))) (nth frames (inc idx)))]
     [:div.detail-controls
@@ -15,26 +15,26 @@
       {:type "button"
        :disabled (nil? prev-frame)
        :on-click #(when prev-frame
-                    (rf/dispatch [:navigate-frame episode-id (:frameNumber prev-frame)]))}
+                    (rf/dispatch [:navigate-frame chapter-id (:frameNumber prev-frame)]))}
       "Previous"]
      [:button.btn
       {:type "button"
        :disabled (nil? next-frame)
        :on-click #(when next-frame
-                    (rf/dispatch [:navigate-frame episode-id (:frameNumber next-frame)]))}
+                    (rf/dispatch [:navigate-frame chapter-id (:frameNumber next-frame)]))}
       "Next"]]))
 
-(defn frame-page [route episodes frame-inputs open-frame-actions]
-  (let [episode-id (:episode route)
-        episode (some (fn [row] (when (= (:episodeId row) episode-id) row)) episodes)
+(defn frame-page [route chapters frame-inputs open-frame-actions]
+  (let [chapter-id (:chapter route)
+        chapter (some (fn [row] (when (= (:chapterId row) chapter-id) row)) chapters)
         frame-number (:frame-number route)
-        ordered (model/ordered-frames (:frames episode))
+        ordered (model/ordered-frames (:frames chapter))
         idx (model/frame-index-by-number ordered frame-number)
         frame (when (some? idx) (nth ordered idx))]
     [:section
      (if frame
        [:div.detail-page
-        [detail-controls episode-id ordered idx]
+        [detail-controls chapter-id ordered idx]
         [frame-view/frame-view frame
          (get frame-inputs (:frameId frame) "")
          {:clickable? false
@@ -46,7 +46,7 @@
            :read-only true
            :value (.-href js/location)}]]]
        [:div.detail-missing
-        [:p "Frame not found in this episode."]
+        [:p "Frame not found in this chapter."]
         [:button.btn
          {:type "button"
           :on-click #(rf/dispatch [:navigate-index])}
