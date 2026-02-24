@@ -1,4 +1,4 @@
-(ns webapp.events.model
+(ns webapp.shared.model
   (:require [clojure.string :as str]))
 
 (defn chapter-number-of [chapter]

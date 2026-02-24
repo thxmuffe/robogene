@@ -1,4 +1,4 @@
-(ns webapp.db)
+(ns webapp.state.db)
 
 (def default-db
   {:status "Loading chapters..."

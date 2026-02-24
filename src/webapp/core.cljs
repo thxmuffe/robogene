@@ -3,8 +3,8 @@
             [clojure.string :as str]
             [reagent.dom.client :as rdom]
             [webapp.events.handlers]
-            [webapp.subs]
-            [webapp.views :as views]))
+            [webapp.state.subs]
+            [webapp.app-shell :as app-shell]))
 
 (defonce root* (atom nil))
 (defonce initialized?* (atom false))
@@ -22,7 +22,7 @@
                    (let [r (rdom/create-root el)]
                      (reset! root* r)
                      r))]
-      (rdom/render root [views/main-view]))))
+      (rdom/render root [app-shell/main-view]))))
 
 (defn ^:dev/after-load after-load! []
   (mount-root)

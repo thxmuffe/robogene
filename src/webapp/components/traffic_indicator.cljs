@@ -1,4 +1,4 @@
-(ns webapp.views.components.traffic-indicator
+(ns webapp.components.traffic-indicator
   (:require [clojure.string :as str]
             [reagent.core :as r]))
 

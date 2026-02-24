@@ -1,9 +1,9 @@
 (ns webapp.events.handlers.common
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
-            [webapp.db :as db]
+            [webapp.state.db :as db]
             [webapp.events.effects]
-            [webapp.events.model :as model]
+            [webapp.shared.model :as model]
             [webapp.events.handlers.shared :as shared]))
 
 (defn push-wait-lights-event [db kind message]

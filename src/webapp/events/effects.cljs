@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [re-frame.core :as rf]
-            [webapp.events.model :as model]
+            [webapp.shared.model :as model]
             ["./fetch_coalescer.js" :as fetch-coalescer]
             ["@microsoft/signalr" :as signalr]))
 

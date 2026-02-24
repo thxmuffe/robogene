@@ -1,7 +1,7 @@
-(ns webapp.views.components.frame
+(ns webapp.components.frame
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
-            [webapp.views.components.frame-actions :as frame-actions]))
+            [webapp.components.frame-actions :as frame-actions]))
 
 (defn frame-image [{:keys [imageDataUrl frameNumber]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])

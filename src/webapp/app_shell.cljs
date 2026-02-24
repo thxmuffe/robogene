@@ -1,8 +1,8 @@
-(ns webapp.views
+(ns webapp.app-shell
   (:require [re-frame.core :as rf]
-            [webapp.views.pages.main-gallery :as gallery-page]
-            [webapp.views.pages.frame-page :as frame-page]
-            [webapp.views.components.traffic-indicator :as traffic-indicator]))
+            [webapp.pages.main-gallery :as gallery-page]
+            [webapp.pages.frame-page :as frame-page]
+            [webapp.components.traffic-indicator :as traffic-indicator]))
 
 (defn frame-page-title [route chapters]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)

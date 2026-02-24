@@ -1,7 +1,7 @@
-(ns webapp.views.pages.frame-page
+(ns webapp.pages.frame-page
   (:require [re-frame.core :as rf]
-            [webapp.events.model :as model]
-            [webapp.views.components.frame :as frame]))
+            [webapp.shared.model :as model]
+            [webapp.components.frame :as frame]))
 
 (defn detail-controls [chapter-id frames idx]
   (let [prev-frame (when (> idx 0) (nth frames (dec idx)))

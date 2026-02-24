@@ -1,6 +1,6 @@
 (ns webapp.events.handlers.navigation
   (:require [re-frame.core :as rf]
-            [webapp.events.model :as model]
+            [webapp.shared.model :as model]
             [webapp.events.handlers.shared :as shared]))
 
 (rf/reg-event-fx
