@@ -56,7 +56,11 @@ jobs:
           test -f "/tmp/robogene-webapi-smoke/ai/robot emperor/references/robot_emperor_ep22_p01.png"
           (
             cd /tmp/robogene-webapi-smoke
-            AzureWebJobsStorage='UseDevelopmentStorage=true' node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
+            AzureWebJobsStorage='UseDevelopmentStorage=true' \
+            ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
+            ROBOGENE_IMAGE_GENERATOR='mock' \
+            FUNCTIONS_WORKER_RUNTIME='node' \
+            node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
           )
 
       - name: Upload Web API deploy artifact
