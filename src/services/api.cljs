@@ -126,20 +126,6 @@
       (fn [value]
         (handler value body))))))
 
-(defn with-required-any-string [request body field-keys missing-msg handler]
-  (let [value (some (fn [field-key]
-                      (some-> (gobj/get body field-key) str str/trim not-empty))
-                    field-keys)]
-    (if (str/blank? (or value ""))
-      (json-response 400 {:error missing-msg} request)
-      (handler value))))
-
-(defn with-synced-required-any-string [request field-keys missing-msg handler]
-  (with-synced-body
-   request
-   (fn [body]
-     (with-required-any-string request body field-keys missing-msg handler))))
-
 (defn queueable-frame-outcome [frame-id]
   (let [snapshot @chapter/state
         frames (:frames snapshot)
@@ -273,9 +259,9 @@
                                       request))})))))
 
 (defn handle-add-frame [request]
-  (with-synced-required-any-string
+  (with-synced-required-string
    request
-   ["chapterId" "episodeId"]
+   "chapterId"
    "Missing chapterId."
    (fn [chapter-id]
      (run-command

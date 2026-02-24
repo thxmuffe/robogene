@@ -39,7 +39,7 @@ rm -f "$APP_DIST_DIR/package-lock.json"
 mkdir -p "$APP_DIST_DIR/dist"
 cp "$COMPILED_WEBAPI_JS" "$APP_DIST_DIR/dist/webapi_compiled.js"
 
-# Story/reference assets consumed by services.
+# Chapter/reference assets consumed by services.
 if [[ -d "$AI_SRC_DIR" ]]; then
   mkdir -p "$APP_DIST_DIR/ai/robot emperor"
   rsync -a --delete --delete-excluded \

@@ -38,10 +38,6 @@
      {:view :frame
       :chapter chapter
       :frame-id frame})
-   (when-let [[_ chapter frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
-     {:view :frame
-      :chapter chapter
-      :frame-id frame})
    {:view :index}))
 
 (defn frame-hash [chapter frame-id]
@@ -83,12 +79,10 @@
       frame)))
 
 (defn normalize-chapters [state]
-  (let [legacy-chapters (map (fn [chapter]
-                               (-> chapter
-                                   (assoc :chapterId (or (:chapterId chapter) (:episodeId chapter)))
-                                   (dissoc :episodeId :episodeNumber)))
-                             (or (:chapters state) (:episodes state) []))
-        raw-chapters (vec legacy-chapters)
+  (let [raw-chapters (->> (or (:chapters state) [])
+                          (map (fn [chapter]
+                                 (assoc chapter :chapterId (:chapterId chapter))))
+                          vec)
         raw-frames (or (:frames state) [])
         fallback-chapter-id (or (:chapterId (first raw-chapters))
                                 (:chapterId (first raw-frames))
@@ -107,7 +101,7 @@
         default-chapter-id (:chapterId (first chapters))
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
-                                    (let [chapter-id (or (:chapterId f) (:episodeId f) default-chapter-id)
+                                    (let [chapter-id (or (:chapterId f) default-chapter-id)
                                           enriched (-> (enrich-frame state f)
                                                        (assoc :chapterId chapter-id))]
                                       (assoc enriched :frameDescription (frame-description enriched)))))

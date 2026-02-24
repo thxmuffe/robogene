@@ -21,7 +21,6 @@
 
 (def table-meta (or (.. js/process -env -ROBOGENE_TABLE_META) "robogeneMeta"))
 (def table-chapters (or (.. js/process -env -ROBOGENE_TABLE_CHAPTERS)
-                        (.. js/process -env -ROBOGENE_TABLE_EPISODES)
                         "robogeneChapters"))
 (def table-frames (or (.. js/process -env -ROBOGENE_TABLE_FRAMES) "robogeneFrames"))
 (def container-name (or (.. js/process -env -ROBOGENE_IMAGE_CONTAINER) "robogene-images"))
@@ -52,8 +51,8 @@
     (.assign js/Object
              #js {}
              chapter
-             #js {:chapterId (or (gobj/get chapter "chapterId") (gobj/get chapter "episodeId"))
-                  :chapterNumber (or (gobj/get chapter "chapterNumber") (gobj/get chapter "episodeNumber"))})
+             #js {:chapterId (gobj/get chapter "chapterId")
+                  :chapterNumber (gobj/get chapter "chapterNumber")})
     chapter))
 
 (defn normalize-frame-record [frame]
@@ -61,7 +60,7 @@
     (.assign js/Object
              #js {}
              frame
-             #js {:chapterId (or (gobj/get frame "chapterId") (gobj/get frame "episodeId"))})
+             #js {:chapterId (gobj/get frame "chapterId")})
     frame))
 
 (defn normalize-image-path [chapter-root-id chapter-id frame-id]
@@ -137,8 +136,7 @@
       (.catch (fn [_] nil))))
 
 (defn read-chapter-id [row]
-  (or (gobj/get row "chapterId")
-      (gobj/get row "storyId")))
+  (gobj/get row "chapterId"))
 
 (defn set-active-meta! [payload]
   (.upsertEntity meta-client

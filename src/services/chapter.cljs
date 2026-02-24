@@ -17,13 +17,20 @@
       (.existsSync fs legacy-path) legacy-path
       :else root-ai-path)))
 (def definitions-root (definitions-root-path))
-(def chapter-dir (.join path definitions-root "story"))
+(def chapter-dir (.join path definitions-root "chapter"))
 (def references-dir (.join path definitions-root "references"))
 
-(def default-chapter-script (.join path chapter-dir "28_Municipal_Firmware_script.md"))
-(def default-prompts (.join path chapter-dir "28_Municipal_Firmware_image_prompts.md"))
+(defn resolved-chapter-dir []
+  (if (.existsSync fs chapter-dir)
+    chapter-dir
+    (.join path definitions-root "story")))
+
+(def resolved-chapter-root (resolved-chapter-dir))
+
+(def default-chapter-script (.join path resolved-chapter-root "28_Municipal_Firmware_script.md"))
+(def default-prompts (.join path resolved-chapter-root "28_Municipal_Firmware_image_prompts.md"))
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
-(def page1-reference-image (.join path chapter-dir "28_page_01_openai_refined.png"))
+(def page1-reference-image (.join path resolved-chapter-root "28_page_01_openai_refined.png"))
 
 (defn mock-image-success? []
   (= "1" (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_SUCCESS) str str/trim)))
@@ -246,19 +253,17 @@
 
 (defn normalize-persisted-chapter [chapter]
   (-> chapter
-      (assoc :chapterId (or (:chapterId chapter) (:episodeId chapter)))
-      (assoc :chapterNumber (or (:chapterNumber chapter) (:episodeNumber chapter) 1))
-      (dissoc :episodeId :episodeNumber)))
+      (assoc :chapterId (:chapterId chapter))
+      (assoc :chapterNumber (or (:chapterNumber chapter) 1))))
 
 (defn normalize-persisted-frame [frame]
   (-> frame
-      (assoc :chapterId (or (:chapterId frame) (:episodeId frame)))
-      (dissoc :episodeId)))
+      (assoc :chapterId (:chapterId frame))))
 
 (defn apply-persisted-state! [raw]
   (let [current @state
         persisted (js->clj raw :keywordize-keys true)
-        persisted-chapters (->> (or (:chapters persisted) (:episodes persisted) [])
+        persisted-chapters (->> (or (:chapters persisted) [])
                                 (map normalize-persisted-chapter)
                                 vec)
         persisted-frames (->> (or (:frames persisted) [])
@@ -267,7 +272,7 @@
     (swap! state
            (fn [s]
              (-> s
-                 (assoc :chapterId (or (:chapterId persisted) (:storyId persisted)))
+                 (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (or (:revision persisted) 1))
                  (assoc :failedJobs (or (:failedJobs persisted) []))
                  (assoc :chapters persisted-chapters)
@@ -353,9 +358,9 @@
               "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
               chapter-label
               (get-in @state [:visual :globalStyle] "")
-              (str "Storyboard description for this frame: " (:description frame))
+              (str "Frame description for this chapter: " (:description frame))
               (str "User direction for this frame:\n" (or (:description frame) ""))
-              (str "Story continuity memory:\n" (continuity-window 6))
+              (str "Chapter continuity memory:\n" (continuity-window 6))
               "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
 
