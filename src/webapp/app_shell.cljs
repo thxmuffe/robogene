@@ -7,8 +7,6 @@
 (defn frame-page-title [route chapters]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)
         chapter-name (or (:description chapter)
-                         (when (some? (:chapterNumber chapter))
-                           (str "Chapter " (:chapterNumber chapter)))
                          "Chapter")]
     (str "Frame Page · " chapter-name " · RoboGene")))
 

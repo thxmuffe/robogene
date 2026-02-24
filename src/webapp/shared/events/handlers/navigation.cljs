@@ -5,10 +5,10 @@
 
 (rf/reg-event-fx
  :navigate-frame
- (fn [{:keys [db]} [_ chapter-id frame-number]]
+ (fn [{:keys [db]} [_ chapter-id frame-id]]
    (let [chapter (or chapter-id (get-in db [:route :chapter]) (get-in db [:latest-state :chapterId]) "local")]
      {:db db
-      :set-hash (model/frame-hash chapter frame-number)})))
+      :set-hash (model/frame-hash chapter frame-id)})))
 
 (rf/reg-event-fx
  :navigate-index
@@ -31,15 +31,11 @@
                                         vec)
                                    [])
              ordered (model/ordered-frames frames-in-chapter)
-             current-frame (:frame-number route)
-             idx (model/frame-index-by-number ordered current-frame)
-             count-frames (count ordered)
-             safe-idx (if (number? idx) idx 0)
-             target-idx (when (pos? count-frames)
-                          (mod (+ safe-idx delta) count-frames))]
-         (if (and (number? target-idx) (pos? count-frames))
+             current-frame-id (:frame-id route)
+             target-frame (model/relative-frame-by-id ordered current-frame-id delta)]
+         (if (some? target-frame)
            {:db db
-            :dispatch [:navigate-frame chapter-id (model/frame-number-of (nth ordered target-idx))]}
+            :dispatch [:navigate-frame chapter-id (:frameId target-frame)]}
            {:db db}))
        {:db db}))))
 
@@ -61,16 +57,10 @@
              chapter-frames (->> all-frames
                                  (filter (fn [frame] (= (:chapterId frame) chapter-id)))
                                  model/ordered-frames)
-             count-frames (count chapter-frames)
-             idx (shared/frame-index-by-id chapter-frames (:frameId current-frame))
-             safe-idx (if (number? idx) idx 0)
-             target-idx (when (pos? count-frames)
-                          (mod (+ safe-idx delta) count-frames))
-             next-frame (when (number? target-idx)
-                          (nth chapter-frames target-idx nil))]
-         (if next-frame
+             target-frame (model/relative-frame-by-id chapter-frames (:frameId current-frame) delta)]
+         (if target-frame
            {:db db
-            :dispatch [:set-active-frame (:frameId next-frame)]}
+            :dispatch [:set-active-frame (:frameId target-frame)]}
            {:db db}))
 
        :else
@@ -117,7 +107,7 @@
 
        (some? active-frame)
        {:db db
-        :dispatch [:navigate-frame (:chapterId active-frame) (:frameNumber active-frame)]}
+        :dispatch [:navigate-frame (:chapterId active-frame) (:frameId active-frame)]}
 
        :else
        {:db db}))))

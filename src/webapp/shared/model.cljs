@@ -1,41 +1,51 @@
 (ns webapp.shared.model
   (:require [clojure.string :as str]))
 
-(defn chapter-number-of [chapter]
-  (:chapterNumber chapter))
-
-(defn frame-number-of [frame]
-  (:frameNumber frame))
+(defn frame-id-of [frame]
+  (:frameId frame))
 
 (defn ordered-chapters [chapters]
-  (->> chapters
-       (sort-by chapter-number-of)
-       vec))
+  (vec chapters))
 
 (defn ordered-frames [frames]
-  (->> frames
-       (sort-by frame-number-of)
-       vec))
+  (vec frames))
 
-(defn frame-index-by-number [frames frame-number]
-  (first (keep-indexed (fn [idx frame]
-                         (when (= (frame-number-of frame) frame-number) idx))
-                       frames)))
+(defn prev-next-by-id [frames frame-id]
+  (loop [remaining (seq frames)
+         prev nil]
+    (if-let [current (first remaining)]
+      (if (= (frame-id-of current) frame-id)
+        {:prev prev
+         :next (second remaining)
+         :current current}
+        (recur (rest remaining) current))
+      {:prev nil :next nil :current nil})))
+
+(defn relative-frame-by-id [frames frame-id delta]
+  (let [{:keys [prev next current]} (prev-next-by-id frames frame-id)
+        first-frame (first frames)
+        last-frame (last frames)]
+    (cond
+      (or (empty? frames) (zero? delta)) nil
+      (pos? delta) (or next first-frame)
+      (neg? delta) (or prev last-frame)
+      (some? current) current
+      :else first-frame)))
 
 (defn parse-hash-route [hash]
   (or
-   (when-let [[_ chapter frame] (re-matches #"^#/chapter/([^/]+)/frame/(\d+)$" (or hash ""))]
+   (when-let [[_ chapter frame] (re-matches #"^#/chapter/([^/]+)/frame/([^/]+)$" (or hash ""))]
      {:view :frame
       :chapter chapter
-      :frame-number (js/Number frame)})
+      :frame-id frame})
    (when-let [[_ chapter frame] (re-matches #"^#/episode/([^/]+)/frame/(\d+)$" (or hash ""))]
      {:view :frame
       :chapter chapter
-      :frame-number (js/Number frame)})
+      :frame-id frame})
    {:view :index}))
 
-(defn frame-hash [chapter frame-number]
-  (str "#/chapter/" chapter "/frame/" frame-number))
+(defn frame-hash [chapter frame-id]
+  (str "#/chapter/" chapter "/frame/" frame-id))
 
 (defn parse-json-safe [text]
   (try
@@ -43,9 +53,8 @@
     (catch :default _
       {:error "Expected JSON from services, got non-JSON response."})))
 
-(defn generic-frame-text? [text frame-number]
-  (= (str/lower-case (str/trim (or text "")))
-     (str "frame " frame-number)))
+(defn generic-frame-text? [text]
+  (boolean (re-matches #"(?i)^frame\s+\d+$" (str/trim (or text "")))))
 
 (defn clamp-text [text limit]
   (let [v (str/trim (or text ""))]
@@ -54,9 +63,8 @@
       v)))
 
 (defn frame-description [frame]
-  (let [frame-number (frame-number-of frame)
-        description (str/trim (or (:description frame) ""))
-        preferred (if (and (seq description) (not (generic-frame-text? description frame-number)))
+  (let [description (str/trim (or (:description frame) ""))
+        preferred (if (and (seq description) (not (generic-frame-text? description)))
                     description
                     "No description yet.")]
     (let [final-text (clamp-text preferred 180)]
@@ -66,28 +74,21 @@
   (let [desc (str/trim (or (:description chapter) ""))]
     (if (seq desc)
       desc
-      (str "Chapter " (:chapterNumber chapter)))))
+      "Chapter")))
 
 (defn enrich-frame [state frame]
-  (let [frame-number (frame-number-of frame)
-        description-fallback (some->> (:descriptions state)
-                                      (some (fn [b] (when (= (:index b) frame-number) (:text b))))
-                                      str/trim)
-        page-prompt (some-> (get-in state [:visual :pagePrompts frame-number]) str/trim)
-        base (assoc frame :frameNumber frame-number)
-        description (str/trim (or (:description base) ""))]
-    (if (or (str/blank? description) (generic-frame-text? description frame-number))
-      (assoc base :description (or page-prompt description-fallback description))
-      base)))
+  (let [description (str/trim (or (:description frame) ""))]
+    (if (or (str/blank? description) (generic-frame-text? description))
+      (assoc frame :description description)
+      frame)))
 
 (defn normalize-chapters [state]
   (let [legacy-chapters (map (fn [chapter]
                                (-> chapter
                                    (assoc :chapterId (or (:chapterId chapter) (:episodeId chapter)))
-                                   (assoc :chapterNumber (or (:chapterNumber chapter) (:episodeNumber chapter) 1))
                                    (dissoc :episodeId :episodeNumber)))
                              (or (:chapters state) (:episodes state) []))
-        raw-chapters (ordered-chapters legacy-chapters)
+        raw-chapters (vec legacy-chapters)
         raw-frames (or (:frames state) [])
         fallback-chapter-id (or (:chapterId (first raw-chapters))
                                 (:chapterId (first raw-frames))
@@ -95,19 +96,14 @@
         chapters (if (seq raw-chapters)
                    (mapv (fn [chapter]
                            (-> chapter
-                               (assoc :chapterNumber (or (:chapterNumber chapter) 1))
                                (assoc :description (chapter-description chapter))))
                          raw-chapters)
                    [{:chapterId fallback-chapter-id
-                     :chapterNumber 1
-                     :description "Chapter 1"}])]
-    (ordered-chapters chapters)))
+                     :description "Chapter"}])]
+    chapters))
 
 (defn normalize-state [state]
   (let [chapters (normalize-chapters state)
-        chapter-number-by-id (into {}
-                                   (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)])
-                                        chapters))
         default-chapter-id (:chapterId (first chapters))
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
@@ -115,9 +111,6 @@
                                           enriched (-> (enrich-frame state f)
                                                        (assoc :chapterId chapter-id))]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
-                             (sort-by (fn [frame]
-                                        [(get chapter-number-by-id (:chapterId frame) 9999)
-                                         (frame-number-of frame)]))
                              vec)
         frames-by-chapter (group-by :chapterId enriched-frames)
         chapters-with-frames (mapv (fn [chapter]

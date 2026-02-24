@@ -3,7 +3,7 @@
             [goog.object :as gobj]
             [re-frame.core :as rf]
             [webapp.shared.model :as model]
-            ["./fetch_coalescer.js" :as fetch-coalescer]
+            [webapp.shared.fetch-coalescer :as fetch-coalescer]
             ["@microsoft/signalr" :as signalr]))
 
 (defonce realtime-conn* (atom nil))
@@ -286,8 +286,7 @@
  (fn [_]
    (when-not @coalesced-fetch-state!*
      (reset! coalesced-fetch-state!*
-             (.createCoalescedRunner
-              fetch-coalescer
+             (fetch-coalescer/create-coalesced-runner
               (fn []
                 (request-json (state-url)
                               {:cache "no-store"}

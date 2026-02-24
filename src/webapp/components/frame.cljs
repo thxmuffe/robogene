@@ -3,8 +3,8 @@
             [clojure.string :as str]
             [webapp.components.frame-actions :as frame-actions]))
 
-(defn frame-image [{:keys [imageDataUrl frameNumber]}]
-  [:img {:src (or imageDataUrl "") :alt (str "Frame " frameNumber)}])
+(defn frame-image [{:keys [imageDataUrl frameId]}]
+  [:img {:src (or imageDataUrl "") :alt (str "Frame " frameId)}])
 
 (defn frame-editor [{:keys [frameId status error]} frame-input editable?]
   (let [busy? (or (= status "queued") (= status "processing"))
@@ -101,13 +101,13 @@
                                    :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
                                    :on-click #(do
                                                 (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                (rf/dispatch [:navigate-frame (:chapterId frame) (:frameNumber frame)]))
+                                                (rf/dispatch [:navigate-frame (:chapterId frame) (:frameId frame)]))
                                    :on-key-down (fn [e]
                                                    (when (or (= "Enter" (.-key e))
                                                              (= " " (.-key e)))
                                                      (.preventDefault e)
                                                      (rf/dispatch [:set-active-frame (:frameId frame)])
-                                                     (rf/dispatch [:navigate-frame (:chapterId frame) (:frameNumber frame)])))))]
+                                                     (rf/dispatch [:navigate-frame (:chapterId frame) (:frameId frame)])))))]
      [:article attrs
       [:div.media-shell
        (if has-image?

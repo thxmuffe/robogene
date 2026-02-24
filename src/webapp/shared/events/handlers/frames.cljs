@@ -3,10 +3,8 @@
             [re-frame.core :as rf]))
 
 (defn deleted-frame-label [frame]
-  (let [frame-number (:frameNumber frame)
-        description (str/trim (or (:description frame) ""))]
+  (let [description (str/trim (or (:description frame) ""))]
     (cond
-      (some? frame-number) (str "Frame " frame-number)
       (seq description) (str "\"" description "\"")
       :else (or (:frameId frame) "frame"))))
 

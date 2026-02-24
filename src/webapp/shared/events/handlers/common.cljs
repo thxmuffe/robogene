@@ -95,9 +95,8 @@
                                (let [frame-id (:frameId frame)
                                      existing-val (get-in db [:frame-inputs frame-id])
                                      description (str/trim (or (:description frame) ""))
-                                     frame-number (model/frame-number-of frame)
                                      services-val (or (when (and (seq description)
-                                                                (not (model/generic-frame-text? description frame-number)))
+                                                                (not (model/generic-frame-text? description)))
                                                        description)
                                                      "")]
                                  (assoc acc frame-id

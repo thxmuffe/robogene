@@ -26,7 +26,7 @@
      [:span.btn-icon icon]
      [:span.btn-hint label]]))
 
-(defn clear-image-button [{:keys [frameId frameNumber status imageDataUrl]}]
+(defn clear-image-button [{:keys [frameId status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
         has-image? (not (str/blank? (or imageDataUrl "")))]
     (when has-image?
@@ -37,7 +37,7 @@
         :on-click (fn [e]
                     (.stopPropagation e)
                     (-> (.fire Swal
-                              (clj->js {:title (str "Remove image from Frame " frameNumber "?")
+                              (clj->js {:title "Remove image from this frame?"
                                         :text "The frame and its description will stay."
                                         :icon "warning"
                                         :showCancelButton true
@@ -50,14 +50,14 @@
        [:span.btn-icon "x"]
        [:span.btn-hint "Remove"]])))
 
-(defn delete-frame-button [{:keys [frameId frameNumber]}]
+(defn delete-frame-button [{:keys [frameId]}]
   [:button.btn.btn-danger.btn-small
    {:type "button"
     :aria-label "Delete frame"
     :on-click (fn [e]
                 (.stopPropagation e)
                 (-> (.fire Swal
-                          (clj->js {:title (str "Delete Frame " frameNumber "?")
+                          (clj->js {:title "Delete this frame?"
                                     :text "This cannot be undone."
                                     :icon "warning"
                                     :showCancelButton true
