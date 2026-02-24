@@ -5,7 +5,12 @@
   (:frameId frame))
 
 (defn ordered-frames [frames]
-  (vec frames))
+  (->> (or frames [])
+       (sort-by (fn [frame]
+                  [(or (:frameNumber frame) js/Number.MAX_SAFE_INTEGER)
+                   (or (:createdAt frame) "")
+                   (or (:frameId frame) "")]))
+       vec))
 
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
@@ -85,10 +90,15 @@
                                 (:chapterId (first raw-frames))
                                 "chapter-1")
         chapters (if (seq raw-chapters)
-                   (mapv (fn [chapter]
-                           (-> chapter
-                               (assoc :description (chapter-description chapter))))
-                         raw-chapters)
+                   (->> raw-chapters
+                        (map (fn [chapter]
+                               (-> chapter
+                                   (assoc :description (chapter-description chapter)))))
+                        (sort-by (fn [chapter]
+                                   [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
+                                    (or (:createdAt chapter) "")
+                                    (or (:chapterId chapter) "")]))
+                        vec)
                    [{:chapterId fallback-chapter-id
                      :description "Chapter"}])]
     chapters))
