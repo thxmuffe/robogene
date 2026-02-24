@@ -67,6 +67,13 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [{:keys [chapters frames]} (model/normalize-state state)
+         chapter-ids (map :chapterId chapters)
+         duplicate-chapter-ids (->> chapter-ids
+                                    (remove nil?)
+                                    frequencies
+                                    (filter (fn [[_ n]] (> n 1)))
+                                    (map first)
+                                    vec)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -82,6 +89,12 @@
                            (seq frames)
                            (:frameId (first frames))
                            :else nil)]
+     (when (or (some nil? chapter-ids)
+               (seq duplicate-chapter-ids))
+       (js/console.warn
+        "[robogene] state-loaded contains invalid chapter IDs"
+        (clj->js {:chapterIds (vec chapter-ids)
+                  :duplicateChapterIds duplicate-chapter-ids})))
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state chapters frames)

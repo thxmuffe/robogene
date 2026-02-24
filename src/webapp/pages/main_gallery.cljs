@@ -13,12 +13,14 @@
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
    [:div.gallery
-    (for [frame (:frames chapter)]
-      ^{:key (:frameId frame)}
-      [frame/frame frame
-       (get frame-inputs (:frameId frame) "")
-       {:active? (= active-frame-id (:frameId frame))
-        :actions-open? (true? (get open-frame-actions (:frameId frame)))}])]])
+    (map-indexed (fn [idx frame]
+                   ^{:key (or (:frameId frame) (str "frame-" idx))}
+                   [frame/frame frame
+                    (get frame-inputs (:frameId frame) "")
+                    {:active? (= active-frame-id (:frameId frame))
+                     :actions-open? (true? (get open-frame-actions (:frameId frame)))}])
+                 (:frames chapter))
+   ]])
 
 (defn new-chapter-form [description]
   [:section.new-chapter-panel
@@ -67,9 +69,10 @@
 (defn main-gallery-page [chapters frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   [:section
    [:h2 "Chapters"]
-   (for [chapter chapters]
-     ^{:key (:chapterId chapter)}
-     [chapter-section chapter frame-inputs open-frame-actions active-frame-id])
+   (map-indexed (fn [idx chapter]
+                  ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
+                  [chapter-section chapter frame-inputs open-frame-actions active-frame-id])
+                chapters)
    (when show-chapter-celebration?
      [chapter-celebration])
    (if new-chapter-panel-open?
