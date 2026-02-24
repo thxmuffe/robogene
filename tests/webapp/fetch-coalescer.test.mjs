@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCoalescedRunner } from '../../src/webapp/events/fetch_coalescer.js';
+import { createCoalescedRunner } from '../../src/webapp/shared/events/fetch_coalescer.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

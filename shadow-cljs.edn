@@ -5,13 +5,13 @@
  {:webapp-debug {:target :browser
                  :output-dir "dist/debug/webapp/js"
                  :asset-path "./js"
-                 :modules {:main {:init-fn webapp.core/init!}}
-                 :devtools {:after-load webapp.core/after-load!}
+                 :modules {:main {:init-fn webapp.shared.core/init!}}
+                 :devtools {:after-load webapp.shared.core/after-load!}
                  :compiler-options {:warnings-as-errors false}}
   :webapp-release {:target :browser
                    :output-dir "dist/release/webapp/js"
                    :asset-path "./js"
-                   :modules {:main {:init-fn webapp.core/init!}}
+                   :modules {:main {:init-fn webapp.shared.core/init!}}
                    :compiler-options {:warnings-as-errors false}}
   :webapi-debug {:target :node-script
                  :main services.api/init!

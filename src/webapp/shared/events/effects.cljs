@@ -1,4 +1,4 @@
-(ns webapp.events.effects
+(ns webapp.shared.events.effects
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [re-frame.core :as rf]

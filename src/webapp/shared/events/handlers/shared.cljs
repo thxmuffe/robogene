@@ -1,4 +1,4 @@
-(ns webapp.events.handlers.shared)
+(ns webapp.shared.events.handlers.shared)
 
 (def new-chapter-frame-id "__new_chapter__")
 

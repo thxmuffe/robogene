@@ -1,7 +1,7 @@
-(ns webapp.events.handlers.navigation
+(ns webapp.shared.events.handlers.navigation
   (:require [re-frame.core :as rf]
             [webapp.shared.model :as model]
-            [webapp.events.handlers.shared :as shared]))
+            [webapp.shared.events.handlers.shared :as shared]))
 
 (rf/reg-event-fx
  :navigate-frame

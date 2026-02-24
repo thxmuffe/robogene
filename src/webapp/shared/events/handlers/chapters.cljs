@@ -1,4 +1,4 @@
-(ns webapp.events.handlers.chapters
+(ns webapp.shared.events.handlers.chapters
   (:require [re-frame.core :as rf]
             [clojure.string :as str]))
 

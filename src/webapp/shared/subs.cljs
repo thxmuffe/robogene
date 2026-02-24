@@ -1,4 +1,4 @@
-(ns webapp.state.subs
+(ns webapp.shared.subs
   (:require [re-frame.core :as rf]))
 
 (rf/reg-sub :status (fn [db _] (:status db)))

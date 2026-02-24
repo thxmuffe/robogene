@@ -1,9 +1,9 @@
-(ns webapp.core
+(ns webapp.shared.core
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
             [reagent.dom.client :as rdom]
-            [webapp.events.handlers]
-            [webapp.state.subs]
+            [webapp.shared.events.handlers]
+            [webapp.shared.subs]
             [webapp.app-shell :as app-shell]))
 
 (defonce root* (atom nil))

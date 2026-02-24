@@ -1,4 +1,4 @@
-(ns webapp.events.handlers.frames
+(ns webapp.shared.events.handlers.frames
   (:require [clojure.string :as str]
             [re-frame.core :as rf]))
 

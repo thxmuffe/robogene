@@ -1,10 +1,10 @@
-(ns webapp.events.handlers.common
+(ns webapp.shared.events.handlers.common
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
-            [webapp.state.db :as db]
-            [webapp.events.effects]
+            [webapp.shared.db :as db]
+            [webapp.shared.events.effects]
             [webapp.shared.model :as model]
-            [webapp.events.handlers.shared :as shared]))
+            [webapp.shared.events.handlers.shared :as shared]))
 
 (defn push-wait-lights-event [db kind message]
   (let [entry {:id (str (.now js/Date) "-" (rand-int 1000000))
