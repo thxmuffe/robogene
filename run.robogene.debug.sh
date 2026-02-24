@@ -85,7 +85,9 @@ else
 fi
 
 if [[ -z "${ROBOGENE_ALLOWED_ORIGIN:-}" ]]; then
-  export ROBOGENE_ALLOWED_ORIGIN="http://localhost:${WEBAPP_PORT},http://127.0.0.1:${WEBAPP_PORT},http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+  echo "Missing ROBOGENE_ALLOWED_ORIGIN in $ENV_FILE"
+  echo "Set it explicitly, e.g. ROBOGENE_ALLOWED_ORIGIN='http://localhost:${WEBAPP_PORT},http://127.0.0.1:${WEBAPP_PORT}'"
+  exit 1
 fi
 
 npm run api_host:start -- --port "$WEBAPI_PORT" --cors "$ROBOGENE_ALLOWED_ORIGIN" &

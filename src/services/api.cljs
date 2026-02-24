@@ -8,12 +8,17 @@
 (def app (.-app azf))
 
 (defn allowed-origins []
-  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN)
-                "https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173")]
+  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN) "")]
     (->> (str/split raw #",")
          (map str/trim)
          (filter seq)
          vec)))
+
+(defn require-startup-env! []
+  (when (empty? (allowed-origins))
+    (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
+
+(require-startup-env!)
 
 (defn request-origin [request]
   (or (some-> request .-headers (.get "origin"))
