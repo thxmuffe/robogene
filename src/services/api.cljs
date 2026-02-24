@@ -1,19 +1,24 @@
 (ns services.api
   (:require [clojure.string :as str]
             [goog.object :as gobj]
-            [services.story :as story]
+            [services.chapter :as chapter]
             [services.realtime :as realtime]
             ["@azure/functions" :as azf]))
 
 (def app (.-app azf))
 
 (defn allowed-origins []
-  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN)
-                "https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173")]
+  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN) "")]
     (->> (str/split raw #",")
          (map str/trim)
          (filter seq)
          vec)))
+
+(defn require-startup-env! []
+  (when (empty? (allowed-origins))
+    (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
+
+(require-startup-env!)
 
 (defn request-origin [request]
   (or (some-> request .-headers (.get "origin"))
@@ -96,7 +101,7 @@
       (.catch (fn [_] #js {}))))
 
 (defn with-synced-body [request handler]
-  (-> (story/sync-state-from-storage!)
+  (-> (chapter/sync-state-from-storage!)
       (.then (fn [_] (request-json request)))
       (.then handler)))
 
@@ -122,9 +127,9 @@
         (handler value body))))))
 
 (defn queueable-frame-outcome [frame-id]
-  (let [snapshot @story/state
+  (let [snapshot @chapter/state
         frames (:frames snapshot)
-        idx (story/find-frame-index frames frame-id)]
+        idx (chapter/find-frame-index frames frame-id)]
     (cond
       (nil? idx)
       {:ok false :status 404 :error "Frame not found."}
@@ -137,7 +142,7 @@
       {:ok true :idx idx :frames frames})))
 
 (defn queue-frame! [idx direction]
-  (swap! story/state
+  (swap! chapter/state
          (fn [s]
            (-> s
                (assoc-in [:frames idx :status] "queued")
@@ -150,28 +155,28 @@
                (update :revision inc)))))
 
 (defn queue-success-response [request idx]
-  (let [post @story/state]
+  (let [post @chapter/state]
     (json-response 202
                    {:accepted true
                     :frame (get (:frames post) idx)
                     :revision (:revision post)
-                    :pendingCount (story/active-queue-count (:frames post))}
+                    :pendingCount (chapter/active-queue-count (:frames post))}
                    request)))
 
 (defn handle-get-state [request]
-  (-> (story/sync-state-from-storage!)
+  (-> (chapter/sync-state-from-storage!)
       (.then (fn [_]
-               (js/Promise.resolve @story/state)))
+               (js/Promise.resolve @chapter/state)))
       (.then (fn [_]
-               (let [snapshot @story/state
+               (let [snapshot @chapter/state
                      frames (:frames snapshot)
-                     pending-count (story/active-queue-count frames)]
+                     pending-count (chapter/active-queue-count frames)]
                  (json-response 200
-                                {:storyId (:storyId snapshot)
+                                {:chapterId (:chapterId snapshot)
                                  :revision (:revision snapshot)
                                  :processing (:processing snapshot)
                                  :pendingCount pending-count
-                                 :episodes (:episodes snapshot)
+                                 :chapters (:chapters snapshot)
                                  :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
@@ -188,52 +193,49 @@
          (json-response (:status outcome) {:error (:error outcome)} request)
          (do
            (queue-frame! (:idx outcome) direction)
-           (-> (story/persist-state!)
+           (-> (chapter/persist-state!)
                (.then (fn [_]
-                        (story/emit-state-changed! "queued")
-                        (story/process-queue!)
+                        (chapter/emit-state-changed! "queued")
+                        (chapter/process-queue!)
                         (queue-success-response request (:idx outcome)))))))))))
-
-(defn emit-persist-and-respond [request emit-reason status response-body]
-  (story/emit-state-changed! emit-reason)
-  (-> (story/persist-state!)
-      (.then (fn [_]
-               (let [snapshot @story/state]
-                 (json-response status (response-body snapshot) request))))))
 
 (defn with-revision [body snapshot]
   (assoc body :revision (:revision snapshot)))
 
-(defn handle-add-episode [request]
+(defn command-error-response [request default-error status-by-message err]
+  (let [message (or (some-> err .-message str) default-error)
+        status (get status-by-message message 500)]
+    (json-response status {:error message} request)))
+
+(defn run-command [request {:keys [run! reason default-error status-by-message on-success]}]
+  (-> (chapter/apply-command! {:run! run! :reason reason})
+      (.then (fn [{:keys [result snapshot]}]
+               (on-success result snapshot)))
+      (.catch (fn [err]
+                (command-error-response request default-error status-by-message err)))))
+
+(defn handle-add-chapter [request]
   (with-synced-body
    request
    (fn [body]
      (let [raw-description (gobj/get body "description")
            description (if (some? raw-description)
                          (some-> raw-description str str/trim)
-                         nil)
-           {:keys [episode frame]} (story/add-episode! description)]
-       (emit-persist-and-respond
+                         nil)]
+       (run-command
         request
-        "episode-added"
-        201
-        (fn [snapshot]
-          (with-revision {:created true
-                          :episode episode
-                          :frame frame}
-                         snapshot)))))))
-
-(defn run-mutation [request {:keys [mutate! default-error status-by-message on-success]}]
-  (let [outcome (try
-                  {:ok true :value (mutate!)}
-                  (catch :default err
-                    (let [msg (or (some-> err .-message str) default-error)
-                          status (get status-by-message msg 500)]
-                      {:ok false
-                       :response (json-response status {:error msg} request)})))]
-    (if (:ok outcome)
-      (on-success (:value outcome))
-      (:response outcome))))
+        {:run! #(chapter/add-chapter! description)
+         :reason "chapter-added"
+         :default-error "Create chapter failed."
+         :status-by-message {}
+         :on-success (fn [result snapshot]
+                       (let [{:keys [chapter frame]} result]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :chapter chapter
+                                                        :frame frame}
+                                                       snapshot)
+                                        request)))})))))
 
 (defn messages->status-map [messages status]
   (into {} (map (fn [msg] [msg status]) messages)))
@@ -245,38 +247,41 @@
      field-key
      missing-msg
      (fn [field-value]
-       (run-mutation
+       (run-command
         request
-        {:mutate! #(mutate! field-value)
+        {:run! #(mutate! field-value)
+         :reason emit-reason
          :default-error default-error
          :status-by-message status-by-message
-         :on-success (fn [result]
-                       (emit-persist-and-respond
-                        request
-                        emit-reason
-                        success-status
-                        (fn [snapshot]
-                          (success-body result snapshot))))})))))
+         :on-success (fn [result snapshot]
+                       (json-response success-status
+                                      (success-body result snapshot)
+                                      request))})))))
 
-(def handle-add-frame
-  (make-required-mutation-handler
-   {:field-key "episodeId"
-    :missing-msg "Missing episodeId."
-    :mutate! story/add-frame!
-    :default-error "Episode not found."
-    :status-by-message {"Episode not found." 404}
-    :emit-reason "frame-added"
-    :success-status 201
-    :success-body (fn [frame snapshot]
-                    (with-revision {:created true
-                                    :frame frame}
-                                   snapshot))}))
+(defn handle-add-frame [request]
+  (with-synced-required-string
+   request
+   "chapterId"
+   "Missing chapterId."
+   (fn [chapter-id]
+     (run-command
+      request
+      {:run! #(chapter/add-frame! chapter-id)
+       :reason "frame-added"
+       :default-error "Chapter not found."
+       :status-by-message {"Chapter not found." 404}
+       :on-success (fn [frame snapshot]
+                     (json-response 201
+                                    (with-revision {:created true
+                                                    :frame frame}
+                                                   snapshot)
+                                    request))}))))
 
 (def handle-delete-frame
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! story/delete-frame!
+    :mutate! chapter/delete-frame!
     :default-error "Delete failed."
     :status-by-message (messages->status-map #{"Frame not found."} 409)
     :emit-reason "frame-deleted"
@@ -290,7 +295,7 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! story/clear-frame-image!
+    :mutate! chapter/clear-frame-image!
     :default-error "Clear image failed."
     :status-by-message (messages->status-map #{"Frame not found."
                                                "Cannot clear image while queued or processing."}
@@ -325,7 +330,7 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
-   {:method :post :name "post-add-episode" :route "add-episode" :handler handle-add-episode}
+   {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}

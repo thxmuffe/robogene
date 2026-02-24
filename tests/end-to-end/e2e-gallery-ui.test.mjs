@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import { getFreePort } from '../helpers/ports.mjs';
-import { commandAvailable, killByPattern } from '../helpers/system.mjs';
-import { stopProcess, waitForHttpOk } from '../helpers/async.mjs';
-import { attachConsoleFailureGuard } from '../helpers/playwright.mjs';
+import { getFreePort } from '../shared/ports.mjs';
+import { commandAvailable, killByPattern } from '../shared/system.mjs';
+import { stopProcess, waitForHttpOk } from '../shared/async.mjs';
+import { attachConsoleFailureGuard } from '../shared/playwright.mjs';
 
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = Number(process.env.ROBOGENE_E2E_UI_STARTUP_TIMEOUT_MS || 90000);
@@ -44,7 +44,6 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
       WEBAPP_PORT: String(webappPort),
       WEBAPI_PORT: String(apiPort),
       FUNCTIONS_WORKER_RUNTIME: 'node',
-      ROBOGENE_MOCK_IMAGE_SUCCESS: '1',
       ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -1,10 +1,10 @@
-(ns webapp.events.handlers.common
+(ns webapp.shared.events.handlers.common
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
-            [webapp.db :as db]
-            [webapp.events.effects]
-            [webapp.events.model :as model]
-            [webapp.events.handlers.shared :as shared]))
+            [webapp.shared.db :as db]
+            [webapp.shared.events.effects]
+            [webapp.shared.model :as model]
+            [webapp.shared.events.handlers.shared :as shared]))
 
 (defn push-wait-lights-event [db kind message]
   (let [entry {:id (str (.now js/Date) "-" (rand-int 1000000))
@@ -66,7 +66,14 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [episodes frames]} (model/normalize-state state)
+   (let [{:keys [chapters frames]} (model/normalize-state state)
+         chapter-ids (map :chapterId chapters)
+         duplicate-chapter-ids (->> chapter-ids
+                                    (remove nil?)
+                                    frequencies
+                                    (filter (fn [[_ n]] (> n 1)))
+                                    (map first)
+                                    vec)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -77,16 +84,22 @@
          active-frame-id (cond
                            (and (some? existing-active-id) (contains? frame-ids existing-active-id))
                            existing-active-id
-                           (= existing-active-id shared/new-episode-frame-id)
+                           (= existing-active-id shared/new-chapter-frame-id)
                            existing-active-id
                            (seq frames)
                            (:frameId (first frames))
                            :else nil)]
+     (when (or (some nil? chapter-ids)
+               (seq duplicate-chapter-ids))
+       (js/console.warn
+        "[robogene] state-loaded contains invalid chapter IDs"
+        (clj->js {:chapterIds (vec chapter-ids)
+                  :duplicateChapterIds duplicate-chapter-ids})))
      {:db (-> db
               (assoc :latest-state state
-                     :status (model/status-line state episodes frames)
+                     :status (model/status-line state chapters frames)
                      :last-rendered-revision (:revision state)
-                     :episodes episodes
+                     :chapters chapters
                      :gallery-items frames
                      :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)
@@ -95,9 +108,8 @@
                                (let [frame-id (:frameId frame)
                                      existing-val (get-in db [:frame-inputs frame-id])
                                      description (str/trim (or (:description frame) ""))
-                                     frame-number (model/frame-number-of frame)
                                      services-val (or (when (and (seq description)
-                                                                (not (model/generic-frame-text? description frame-number)))
+                                                                (not (model/generic-frame-text? description)))
                                                        description)
                                                      "")]
                                  (assoc acc frame-id

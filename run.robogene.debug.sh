@@ -46,6 +46,11 @@ if [[ -z "${AzureWebJobsStorage:-}" && -n "${ROBOGENE_STORAGE_CONNECTION_STRING:
   export AzureWebJobsStorage="$ROBOGENE_STORAGE_CONNECTION_STRING"
 fi
 
+if [[ "${ROBOGENE_IMAGE_GENERATOR:-openai}" == "openai" && -z "${ROBOGENE_IMAGE_GENERATOR_KEY:-}" ]]; then
+  echo "Missing ROBOGENE_IMAGE_GENERATOR_KEY in $ENV_FILE (required for ROBOGENE_IMAGE_GENERATOR=openai)."
+  exit 1
+fi
+
 if lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   echo "Port $WEBAPI_PORT is already in use. Stop that process first."
   lsof -iTCP:"$WEBAPI_PORT" -sTCP:LISTEN -n -P || true
@@ -85,7 +90,9 @@ else
 fi
 
 if [[ -z "${ROBOGENE_ALLOWED_ORIGIN:-}" ]]; then
-  export ROBOGENE_ALLOWED_ORIGIN="http://localhost:${WEBAPP_PORT},http://127.0.0.1:${WEBAPP_PORT},http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+  echo "Missing ROBOGENE_ALLOWED_ORIGIN in $ENV_FILE"
+  echo "Set it explicitly, e.g. ROBOGENE_ALLOWED_ORIGIN='http://localhost:${WEBAPP_PORT},http://127.0.0.1:${WEBAPP_PORT}'"
+  exit 1
 fi
 
 npm run api_host:start -- --port "$WEBAPI_PORT" --cors "$ROBOGENE_ALLOWED_ORIGIN" &

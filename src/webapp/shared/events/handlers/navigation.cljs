@@ -1,14 +1,14 @@
-(ns webapp.events.handlers.navigation
+(ns webapp.shared.events.handlers.navigation
   (:require [re-frame.core :as rf]
-            [webapp.events.model :as model]
-            [webapp.events.handlers.shared :as shared]))
+            [webapp.shared.model :as model]
+            [webapp.shared.events.handlers.shared :as shared]))
 
 (rf/reg-event-fx
  :navigate-frame
- (fn [{:keys [db]} [_ episode-id frame-number]]
-   (let [episode (or episode-id (get-in db [:route :episode]) (get-in db [:latest-state :storyId]) "local")]
+ (fn [{:keys [db]} [_ chapter-id frame-id]]
+   (let [chapter (or chapter-id (get-in db [:route :chapter]) (get-in db [:latest-state :chapterId]) "local")]
      {:db db
-      :set-hash (model/frame-hash episode frame-number)})))
+      :set-hash (model/frame-hash chapter frame-id)})))
 
 (rf/reg-event-fx
  :navigate-index
@@ -21,25 +21,21 @@
  (fn [{:keys [db]} [_ delta]]
    (let [route (:route db)]
      (if (= :frame (:view route))
-       (let [episode-id (:episode route)
-             frames-in-episode (or (->> (:episodes db)
-                                        (some (fn [episode]
-                                                (when (= (:episodeId episode) episode-id)
-                                                  (:frames episode)))))
+       (let [chapter-id (:chapter route)
+             frames-in-chapter (or (->> (:chapters db)
+                                        (some (fn [chapter]
+                                                (when (= (:chapterId chapter) chapter-id)
+                                                  (:frames chapter)))))
                                    (->> (:gallery-items db)
-                                        (filter (fn [frame] (= (:episodeId frame) episode-id)))
+                                        (filter (fn [frame] (= (:chapterId frame) chapter-id)))
                                         vec)
                                    [])
-             ordered (model/ordered-frames frames-in-episode)
-             current-frame (:frame-number route)
-             idx (model/frame-index-by-number ordered current-frame)
-             count-frames (count ordered)
-             safe-idx (if (number? idx) idx 0)
-             target-idx (when (pos? count-frames)
-                          (mod (+ safe-idx delta) count-frames))]
-         (if (and (number? target-idx) (pos? count-frames))
+             ordered (model/ordered-frames frames-in-chapter)
+             current-frame-id (:frame-id route)
+             target-frame (model/relative-frame-by-id ordered current-frame-id delta)]
+         (if (some? target-frame)
            {:db db
-            :dispatch [:navigate-frame episode-id (model/frame-number-of (nth ordered target-idx))]}
+            :dispatch [:navigate-frame chapter-id (:frameId target-frame)]}
            {:db db}))
        {:db db}))))
 
@@ -50,27 +46,21 @@
          current-id (:active-frame-id db)
          current-frame (shared/frame-by-id all-frames current-id)]
      (cond
-       (and (= current-id shared/new-episode-frame-id) (seq all-frames))
+       (and (= current-id shared/new-chapter-frame-id) (seq all-frames))
        {:db db
         :dispatch [:set-active-frame (if (neg? delta)
                                        (:frameId (last all-frames))
                                        (:frameId (first all-frames)))]}
 
        (some? current-frame)
-       (let [episode-id (:episodeId current-frame)
-             episode-frames (->> all-frames
-                                 (filter (fn [frame] (= (:episodeId frame) episode-id)))
+       (let [chapter-id (:chapterId current-frame)
+             chapter-frames (->> all-frames
+                                 (filter (fn [frame] (= (:chapterId frame) chapter-id)))
                                  model/ordered-frames)
-             count-frames (count episode-frames)
-             idx (shared/frame-index-by-id episode-frames (:frameId current-frame))
-             safe-idx (if (number? idx) idx 0)
-             target-idx (when (pos? count-frames)
-                          (mod (+ safe-idx delta) count-frames))
-             next-frame (when (number? target-idx)
-                          (nth episode-frames target-idx nil))]
-         (if next-frame
+             target-frame (model/relative-frame-by-id chapter-frames (:frameId current-frame) delta)]
+         (if target-frame
            {:db db
-            :dispatch [:set-active-frame (:frameId next-frame)]}
+            :dispatch [:set-active-frame (:frameId target-frame)]}
            {:db db}))
 
        :else
@@ -111,13 +101,13 @@
        (= :frame (:view route))
        {:db db}
 
-       (= active-id shared/new-episode-frame-id)
+       (= active-id shared/new-chapter-frame-id)
        {:db db
-        :dispatch [:set-new-episode-panel-open true]}
+        :dispatch [:set-new-chapter-panel-open true]}
 
        (some? active-frame)
        {:db db
-        :dispatch [:navigate-frame (:episodeId active-frame) (:frameNumber active-frame)]}
+        :dispatch [:navigate-frame (:chapterId active-frame) (:frameId active-frame)]}
 
        :else
        {:db db}))))

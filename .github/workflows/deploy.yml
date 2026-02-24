@@ -51,16 +51,15 @@ jobs:
           mkdir -p /tmp/robogene-webapi-smoke
           unzip -q dist/release/webapi/webapi_dist.zip -d /tmp/robogene-webapi-smoke
           test -f /tmp/robogene-webapi-smoke/host.json
-          test -f /tmp/robogene-webapi-smoke/story_routes_host.js
+          test -f /tmp/robogene-webapi-smoke/webapi_host.js
           test -f /tmp/robogene-webapi-smoke/dist/webapi_compiled.js
           test -f "/tmp/robogene-webapi-smoke/ai/robot emperor/references/robot_emperor_ep22_p01.png"
           (
             cd /tmp/robogene-webapi-smoke
             AzureWebJobsStorage='UseDevelopmentStorage=true' \
             ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
-            ROBOGENE_MOCK_IMAGE_SUCCESS='1' \
             FUNCTIONS_WORKER_RUNTIME='node' \
-            node -e "require('./story_routes_host.js'); console.log('webapi-smoke-ok')"
+            node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
           )
 
       - name: Upload Web API deploy artifact
@@ -80,6 +79,11 @@ jobs:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       AZURE_FUNCTIONAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+      ROBOGENE_IMAGE_GENERATOR: ${{ vars.ROBOGENE_IMAGE_GENERATOR }}
+      ROBOGENE_TABLE_META: ${{ vars.ROBOGENE_TABLE_META }}
+      ROBOGENE_TABLE_CHAPTERS: ${{ vars.ROBOGENE_TABLE_CHAPTERS }}
+      ROBOGENE_TABLE_FRAMES: ${{ vars.ROBOGENE_TABLE_FRAMES }}
+      ROBOGENE_IMAGE_GENERATOR_KEY: ${{ secrets.ROBOGENE_IMAGE_GENERATOR_KEY }}
     steps:
       - name: Download Web API deploy artifact
         uses: actions/download-artifact@v4
@@ -135,13 +139,19 @@ jobs:
       - name: Ensure Azure Function runtime settings
         if: steps.auth.outputs.mode == 'oidc'
         run: |
+          set -euo pipefail
           az functionapp config appsettings set \
             --resource-group robogene-rg \
             --name "${FUNCTION_APP_NAME}" \
             --settings \
               FUNCTIONS_WORKER_RUNTIME=node \
               WEBSITE_NODE_DEFAULT_VERSION=~22 \
-              WEBSITE_RUN_FROM_PACKAGE=1
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              ROBOGENE_IMAGE_GENERATOR="${ROBOGENE_IMAGE_GENERATOR:-openai}" \
+              ROBOGENE_IMAGE_GENERATOR_KEY="${ROBOGENE_IMAGE_GENERATOR_KEY}" \
+              ROBOGENE_TABLE_META="${ROBOGENE_TABLE_META:-robogeneState}" \
+              ROBOGENE_TABLE_CHAPTERS="${ROBOGENE_TABLE_CHAPTERS:-robogeneChapter}" \
+              ROBOGENE_TABLE_FRAMES="${ROBOGENE_TABLE_FRAMES:-robogeneFrame}"
 
       - name: Deploy Azure Function (OIDC)
         if: steps.auth.outputs.mode == 'oidc'

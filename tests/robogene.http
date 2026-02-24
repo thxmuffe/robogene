@@ -2,7 +2,7 @@
 # @base = http://localhost:7071
 @json = application/json
 
-### 1) Get current episode state (run this first)
+### 1) Get current chapter state (run this first)
 #
 # This request stores the response as `state`.
 #

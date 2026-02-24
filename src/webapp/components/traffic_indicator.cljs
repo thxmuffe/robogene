@@ -1,44 +1,23 @@
-(ns webapp.views.traffic-indicator
+(ns webapp.components.traffic-indicator
   (:require [clojure.string :as str]
             [reagent.core :as r]))
 
-(defn has-frame-error? [episodes]
-  (boolean
-   (some (fn [episode]
-           (some (fn [frame]
-                   (= "failed" (:status frame)))
-                 (:frames episode)))
-         episodes)))
-
-(defn has-frame-pending? [episodes]
-  (boolean
-   (some (fn [episode]
-           (some (fn [frame]
-                   (or (= "queued" (:status frame))
-                       (= "processing" (:status frame))))
-                 (:frames episode)))
-         episodes)))
-
-(defn count-frame-pending [episodes]
+(defn frame-status-stats [chapters]
   (reduce
-   (fn [acc episode]
-     (+ acc
-        (count (filter (fn [frame]
-                         (or (= "queued" (:status frame))
-                             (= "processing" (:status frame))))
-                       (:frames episode)))))
-   0
-   episodes))
-
-(defn count-frame-errors [episodes]
-  (reduce
-   (fn [acc episode]
-     (+ acc
-        (count (filter (fn [frame]
-                         (= "failed" (:status frame)))
-                       (:frames episode)))))
-   0
-   episodes))
+   (fn [{:keys [pending errors]} chapter]
+     (reduce (fn [{:keys [pending errors]} frame]
+               (let [status (:status frame)]
+                 {:pending (if (or (= "queued" status)
+                                   (= "processing" status))
+                             (inc pending)
+                             pending)
+                  :errors (if (= "failed" status)
+                            (inc errors)
+                            errors)}))
+             {:pending pending :errors errors}
+             (:frames chapter)))
+   {:pending 0 :errors 0}
+   chapters))
 
 (defn status-error? [status-text]
   (let [v (str/lower-case (str (or status-text "")))]
@@ -55,15 +34,16 @@
         (str/includes? v "removing")
         (str/includes? v "creating"))))
 
-(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status episodes]}]
-  (cond
-    (or (status-error? status) (has-frame-error? episodes)) :red
-    (or (pos? (or pending-api-requests 0))
-        (true? wait-lights-visible?)
-        (status-working? status)
-        (has-frame-pending? episodes))
-    :yellow
-    :else :green))
+(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status chapters]}]
+  (let [{:keys [pending errors]} (frame-status-stats chapters)]
+    (cond
+      (or (status-error? status) (pos? errors)) :red
+      (or (pos? (or pending-api-requests 0))
+          (true? wait-lights-visible?)
+          (status-working? status)
+          (pos? pending))
+      :yellow
+      :else :green)))
 
 (defn traffic-indicator [state]
   (r/with-let [prev-phase* (r/atom nil)
@@ -75,14 +55,13 @@
                blink-interval-id* (atom nil)
                hide-timeout-id* (atom nil)
                inactivity-timeout-id* (atom nil)]
-    (let [phase (signal-state state)
+    (let [{:keys [pending errors]} (frame-status-stats (:chapters state))
+          phase (signal-state state)
           changed? (not= phase @prev-phase*)
           pending-api-requests (or (:pending-api-requests state) 0)
-          pending-frames (count-frame-pending (:episodes state))
-          error-frames (count-frame-errors (:episodes state))
           activity-key [pending-api-requests
-                        pending-frames
-                        error-frames
+                        pending
+                        errors
                         (:wait-lights-visible? state)
                         (:status state)]
           activity-changed? (not= activity-key @prev-activity*)

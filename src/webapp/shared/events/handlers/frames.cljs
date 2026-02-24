@@ -1,12 +1,10 @@
-(ns webapp.events.handlers.frames
+(ns webapp.shared.events.handlers.frames
   (:require [clojure.string :as str]
             [re-frame.core :as rf]))
 
 (defn deleted-frame-label [frame]
-  (let [frame-number (:frameNumber frame)
-        description (str/trim (or (:description frame) ""))]
+  (let [description (str/trim (or (:description frame) ""))]
     (cond
-      (some? frame-number) (str "Frame " frame-number)
       (seq description) (str "\"" description "\"")
       :else (or (:frameId frame) "frame"))))
 
@@ -35,9 +33,9 @@
 
 (rf/reg-event-fx
  :add-frame
- (fn [{:keys [db]} [_ episode-id]]
+ (fn [{:keys [db]} [_ chapter-id]]
    {:db (assoc db :status "Adding frame...")
-    :post-add-frame {:episode-id episode-id}}))
+    :post-add-frame {:chapter-id chapter-id}}))
 
 (rf/reg-event-fx
  :add-frame-accepted

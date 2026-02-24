@@ -141,18 +141,18 @@ h2 { margin: 24px 0 10px; }
   align-items: start;
 }
 
-.episode-block {
+.chapter-block {
   margin: 14px 0 26px;
 }
 
-.episode-separator {
+.chapter-separator {
   height: 8px;
   border-radius: 999px;
   background: linear-gradient(90deg, #20639b, #3caea3, #f6d55c, #ed553b);
   margin: 8px 0 14px;
 }
 
-.episode-header {
+.chapter-header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -160,7 +160,7 @@ h2 { margin: 24px 0 10px; }
   margin-bottom: 12px;
 }
 
-.episode-description {
+.chapter-description {
   margin: 0;
   padding: 6px 12px;
   border-radius: 999px;
@@ -169,7 +169,7 @@ h2 { margin: 24px 0 10px; }
   font-weight: 700;
 }
 
-.new-episode-panel {
+.new-chapter-panel {
   margin-top: 26px;
   width: min(420px, 100%);
   margin-left: auto;
@@ -184,12 +184,12 @@ h2 { margin: 24px 0 10px; }
   color: #f2f7ff;
 }
 
-.new-episode-panel h3 {
+.new-chapter-panel h3 {
   margin-top: 0;
   color: #f2f7ff;
 }
 
-.new-episode-close {
+.new-chapter-close {
   float: right;
   border: 0;
   background: transparent;
@@ -198,16 +198,16 @@ h2 { margin: 24px 0 10px; }
   font-weight: 700;
 }
 
-.new-episode-panel .dir-label {
+.new-chapter-panel .dir-label {
   color: #d9e9ff;
 }
 
-.new-episode-panel .direction-input {
+.new-chapter-panel .direction-input {
   background: rgba(236, 244, 255, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
-.new-episode-teaser {
+.new-chapter-teaser {
   position: relative;
   width: min(360px, 100%);
   aspect-ratio: 3 / 2;
@@ -222,12 +222,12 @@ h2 { margin: 24px 0 10px; }
   overflow: hidden;
 }
 
-.new-episode-teaser:focus-visible {
+.new-chapter-teaser:focus-visible {
   outline: 3px solid #7ec8ff;
   outline-offset: 3px;
 }
 
-.new-episode-teaser .teaser-content {
+.new-chapter-teaser .teaser-content {
   position: absolute;
   inset: 0;
   display: grid;
@@ -261,7 +261,7 @@ h2 { margin: 24px 0 10px; }
   opacity: 0.9;
 }
 
-.episode-celebration {
+.chapter-celebration {
   width: min(820px, 100%);
   margin: 10px auto 8px;
   pointer-events: none;

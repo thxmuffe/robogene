@@ -1,6 +1,6 @@
-(ns services.story
+(ns services.chapter
   (:require [clojure.string :as str]
-            [goog.object :as gobj]
+            [services.image-generator :as image-generator]
             [services.realtime :as realtime]
             [services.azure-store :as store]
             ["crypto" :as crypto]
@@ -17,22 +17,20 @@
       (.existsSync fs legacy-path) legacy-path
       :else root-ai-path)))
 (def definitions-root (definitions-root-path))
-(def story-dir (.join path definitions-root "story"))
+(def chapter-dir (.join path definitions-root "chapter"))
 (def references-dir (.join path definitions-root "references"))
 
-(def default-storyboard (.join path story-dir "28_Municipal_Firmware_script.md"))
-(def default-prompts (.join path story-dir "28_Municipal_Firmware_image_prompts.md"))
+(defn resolved-chapter-dir []
+  (if (.existsSync fs chapter-dir)
+    chapter-dir
+    (.join path definitions-root "story")))
+
+(def resolved-chapter-root (resolved-chapter-dir))
+
+(def default-chapter-script (.join path resolved-chapter-root "28_Municipal_Firmware_script.md"))
+(def default-prompts (.join path resolved-chapter-root "28_Municipal_Firmware_image_prompts.md"))
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
-(def page1-reference-image (.join path story-dir "28_page_01_openai_refined.png"))
-
-(defn mock-image-success? []
-  (= "1" (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_SUCCESS) str str/trim)))
-
-(defn require-startup-env! []
-  (let [api-key (some-> (.. js/process -env -OPENAI_API_KEY) str str/trim)]
-    (when (and (not (mock-image-success?))
-               (str/blank? (or api-key "")))
-      (throw (js/Error. "Missing OPENAI_API_KEY in Function App settings.")))))
+(def page1-reference-image (.join path resolved-chapter-root "28_page_01_openai_refined.png"))
 
 (defn read-file-or
   ([file-path fallback]
@@ -51,7 +49,7 @@
 (defn read-bytes [file-path]
   (read-file-or file-path nil))
 
-(require-startup-env!)
+(image-generator/require-startup-env!)
 
 (defn parse-descriptions [markdown]
   (let [section (or (second (re-find #"(?is)##\s*Page-by-page descriptions([\s\S]*?)(?:\n##\s|$)" markdown))
@@ -83,10 +81,10 @@
   (.randomUUID crypto))
 
 (defonce state
-  (atom {:storyId nil
+  (atom {:chapterId nil
          :descriptions []
          :visual {:globalStyle "" :pagePrompts {}}
-         :episodes []
+         :chapters []
          :frames []
          :failedJobs []
          :processing false
@@ -96,9 +94,9 @@
          :size (or (.. js/process -env -ROBOGENE_IMAGE_SIZE) "1024x1024")
          :referenceImageBytes nil}))
 
-(defn make-episode [episode-number description]
-  {:episodeId (new-uuid)
-   :episodeNumber episode-number
+(defn make-chapter [chapter-number description]
+  {:chapterId (new-uuid)
+   :chapterNumber chapter-number
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
@@ -114,52 +112,52 @@
                           (:visual @state)
                           frame-number))
 
-(defn make-draft-frame [episode-id frame-number]
+(defn make-draft-frame [chapter-id frame-number]
   {:frameId (new-uuid)
-   :episodeId episode-id
+   :chapterId chapter-id
    :frameNumber frame-number
    :description (default-frame-description frame-number)
    :status "draft"
    :createdAt (.toISOString (js/Date.))})
 
-(defn next-episode-number [episodes]
-  (inc (reduce max 0 (map :episodeNumber episodes))))
+(defn next-chapter-number [chapters]
+  (inc (reduce max 0 (map :chapterNumber chapters))))
 
-(defn episode-by-id [episodes episode-id]
-  (some (fn [episode] (when (= (:episodeId episode) episode-id) episode)) episodes))
+(defn chapter-by-id [chapters chapter-id]
+  (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) chapters))
 
-(defn frames-for-episode [frames episode-id]
+(defn frames-for-chapter [frames chapter-id]
   (->> frames
-       (filter (fn [f] (= (:episodeId f) episode-id)))
+       (filter (fn [f] (= (:chapterId f) chapter-id)))
        (sort-by :frameNumber)
        vec))
 
-(defn next-frame-number [frames episode-id]
-  (inc (reduce max 0 (map :frameNumber (frames-for-episode frames episode-id)))))
+(defn next-frame-number [frames chapter-id]
+  (inc (reduce max 0 (map :frameNumber (frames-for-chapter frames chapter-id)))))
 
-(defn add-episode! [description]
-  (let [episode (make-episode (next-episode-number (:episodes @state))
+(defn add-chapter! [description]
+  (let [chapter (make-chapter (next-chapter-number (:chapters @state))
                               (if (str/blank? (or description ""))
-                                (str "Episode " (next-episode-number (:episodes @state)))
+                                (str "Chapter " (next-chapter-number (:chapters @state)))
                                 description))
-        episode-id (:episodeId episode)
-        first-frame (assoc (make-draft-frame episode-id 1)
-                           :description (str/trim (or description "Episode opening scene.")))]
+        chapter-id (:chapterId chapter)
+        first-frame (assoc (make-draft-frame chapter-id 1)
+                           :description (str/trim (or description "Chapter opening scene.")))]
     (swap! state
            (fn [s]
              (-> s
-                 (update :episodes conj episode)
+                 (update :chapters conj chapter)
                  (update :frames conj first-frame)
                  (update :revision inc))))
-    {:episode episode
+    {:chapter chapter
      :frame first-frame}))
 
-(defn add-frame! [episode-id]
-  (let [episode (episode-by-id (:episodes @state) episode-id)]
-    (when-not episode
-      (throw (js/Error. "Episode not found.")))
-    (let [frame-number (next-frame-number (:frames @state) episode-id)
-          frame (make-draft-frame episode-id frame-number)]
+(defn add-frame! [chapter-id]
+  (let [chapter (chapter-by-id (:chapters @state) chapter-id)]
+    (when-not chapter
+      (throw (js/Error. "Chapter not found.")))
+    (let [frame-number (next-frame-number (:frames @state) chapter-id)
+          frame (make-draft-frame chapter-id frame-number)]
       (swap! state
              (fn [s]
                (-> s
@@ -207,16 +205,16 @@
     (get (:frames @state) idx)))
 
 (defn initialize-state! []
-  (let [storyboard-text (read-text default-storyboard)
+  (let [chapter-script-text (read-text default-chapter-script)
         prompts-text (read-text default-prompts)
-        descriptions (parse-descriptions storyboard-text)
+        descriptions (parse-descriptions chapter-script-text)
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
-        episode1 (make-episode 1 "Episode 1")
-        episode-id (:episodeId episode1)
+        chapter1 (make-chapter 1 "Chapter 1")
+        chapter-id (:chapterId chapter1)
         frame1 {:frameId (new-uuid)
-                :episodeId episode-id
+                :chapterId chapter-id
                 :frameNumber 1
                 :description (best-frame-description descriptions visual 1)
                 :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
@@ -224,15 +222,15 @@
                 :reference true
                 :createdAt (.toISOString (js/Date.))}
         frames (if page1-bytes
-                 [frame1 (assoc (make-draft-frame episode-id 2)
+                 [frame1 (assoc (make-draft-frame chapter-id 2)
                                :description (best-frame-description descriptions visual 2))]
-                 [(assoc (make-draft-frame episode-id 1)
+                 [(assoc (make-draft-frame chapter-id 1)
                          :description (best-frame-description descriptions visual 1))])]
     (reset! state
-            {:storyId (new-uuid)
+            {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
-             :episodes [episode1]
+             :chapters [chapter1]
              :frames frames
              :failedJobs []
              :processing false
@@ -244,17 +242,32 @@
 
 (initialize-state!)
 
+(defn normalize-persisted-chapter [chapter]
+  (-> chapter
+      (assoc :chapterId (:chapterId chapter))
+      (assoc :chapterNumber (or (:chapterNumber chapter) 1))))
+
+(defn normalize-persisted-frame [frame]
+  (-> frame
+      (assoc :chapterId (:chapterId frame))))
+
 (defn apply-persisted-state! [raw]
   (let [current @state
-        persisted (js->clj raw :keywordize-keys true)]
+        persisted (js->clj raw :keywordize-keys true)
+        persisted-chapters (->> (or (:chapters persisted) [])
+                                (map normalize-persisted-chapter)
+                                vec)
+        persisted-frames (->> (or (:frames persisted) [])
+                              (map normalize-persisted-frame)
+                              vec)]
     (swap! state
            (fn [s]
              (-> s
-                 (assoc :storyId (:storyId persisted))
+                 (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (or (:revision persisted) 1))
                  (assoc :failedJobs (or (:failedJobs persisted) []))
-                 (assoc :episodes (or (:episodes persisted) []))
-                 (assoc :frames (or (:frames persisted) []))
+                 (assoc :chapters persisted-chapters)
+                 (assoc :frames persisted-frames)
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
                  (assoc :referenceImageBytes (:referenceImageBytes current))
@@ -266,7 +279,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:storyId :revision :failedJobs :episodes :frames
+                             [:chapterId :revision :failedJobs :chapters :frames
                               :descriptions :visual :model :quality :size])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
@@ -276,29 +289,45 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:storyId :revision :failedJobs :episodes :frames])))
+                             [:chapterId :revision :failedJobs :chapters :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
                 (throw err)))))
 
+(declare emit-state-changed!)
+
+(defn apply-command!
+  "Runs a domain mutation, persists state, and emits realtime stateChanged."
+  [{:keys [run! reason]}]
+  (try
+    (let [result (run!)]
+      (-> (persist-state!)
+          (.then (fn [_]
+                   (when (some? reason)
+                     (emit-state-changed! reason))
+                   {:result result
+                    :snapshot @state}))))
+    (catch :default err
+      (js/Promise.reject err))))
+
 (-> (sync-state-from-storage!)
     (.catch (fn [err]
               (js/console.warn "[robogene] startup storage sync skipped" err))))
 
-(defn episode-order-map [episodes]
-  (into {} (map (fn [episode] [(:episodeId episode) (:episodeNumber episode)]) episodes)))
+(defn chapter-order-map [chapters]
+  (into {} (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)]) chapters)))
 
-(defn sort-frames-for-story [episodes frames]
-  (let [order-by-episode (episode-order-map episodes)]
+(defn sort-frames-for-chapter [chapters frames]
+  (let [order-by-chapter (chapter-order-map chapters)]
     (->> frames
          (sort-by (fn [f]
-                    [(get order-by-episode (:episodeId f) 99999)
+                    [(get order-by-chapter (:chapterId f) 99999)
                      (:frameNumber f)]))
          vec)))
 
 (defn completed-frames []
-  (->> (sort-frames-for-story (:episodes @state) (:frames @state))
+  (->> (sort-frames-for-chapter (:chapters @state) (:frames @state))
        (filter (fn [f] (not (str/blank? (or (:imageDataUrl f) "")))))
        vec))
 
@@ -309,43 +338,26 @@
       (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:description s) ".")) tail)))))
 
 (defn build-prompt-for-frame [frame]
-  (let [episode (episode-by-id (:episodes @state) (:episodeId frame))
-        episode-label (when episode
-                        (str "Episode " (:episodeNumber episode)
-                             " theme: " (:description episode)))]
+  (let [chapter (chapter-by-id (:chapters @state) (:chapterId frame))
+        chapter-label (when chapter
+                        (str "Chapter " (:chapterNumber chapter)
+                             " theme: " (:description chapter)))]
     (str/join
      "\n\n"
      (filter seq
-             ["Create ONE comic story image for the next frame."
+             ["Create ONE comic chapter image for the next frame."
               "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
-              episode-label
+              chapter-label
               (get-in @state [:visual :globalStyle] "")
-              (str "Storyboard description for this frame: " (:description frame))
+              (str "Frame description for this chapter: " (:description frame))
               (str "User direction for this frame:\n" (or (:description frame) ""))
-              (str "Story continuity memory:\n" (continuity-window 6))
-              "Keep this image as the next chronological frame in the same story world."
+              (str "Chapter continuity memory:\n" (continuity-window 6))
+              "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
 
 (defn image-data-url->bytes [data-url]
   (when (and (string? data-url) (str/starts-with? data-url "data:image/png;base64,"))
     (js/Buffer.from (subs data-url (count "data:image/png;base64,")) "base64")))
-
-(defn fetch-json [url options]
-  (-> (js/fetch url options)
-      (.then (fn [response]
-               (-> (.json response)
-                   (.then (fn [body]
-                            {:ok (.-ok response)
-                             :status (.-status response)
-                             :body body})))))))
-
-(defn openai-image-response->data-url [body]
-  (let [data (gobj/get body "data")
-        first-item (when (and data (> (.-length data) 0)) (aget data 0))
-        b64 (when first-item (gobj/get first-item "b64_json"))]
-    (if (not b64)
-      (throw (js/Error. (str "Unexpected OpenAI response: " (.stringify js/JSON body))))
-      (str "data:image/png;base64," b64))))
 
 (defn reference-images []
   (let [prev-frame (last (completed-frames))]
@@ -354,86 +366,15 @@
              [{:bytes (:referenceImageBytes @state) :name "character_ref.png"}
               {:bytes (image-data-url->bytes (:imageDataUrl prev-frame)) :name "previous_frame.png"}]))))
 
-(defn append-reference-image! [form {:keys [bytes name]}]
-  (let [blob (js/Blob. (clj->js [bytes]) #js {:type "image/png"})]
-    (.append form "image[]" blob name)))
-
-(defn openai-image-request! [api-key prompt refs]
-  (if (seq refs)
-    (let [form (js/FormData.)]
-      (.append form "model" (:model @state))
-      (.append form "prompt" prompt)
-      (.append form "quality" (:quality @state))
-      (.append form "size" (:size @state))
-      (doseq [ref refs]
-        (append-reference-image! form ref))
-      (fetch-json "https://api.openai.com/v1/images/edits"
-                  #js {:method "POST"
-                       :headers #js {:Authorization (str "Bearer " api-key)}
-                       :body form}))
-    (fetch-json "https://api.openai.com/v1/images/generations"
-                #js {:method "POST"
-                     :headers #js {:Authorization (str "Bearer " api-key)
-                                   "Content-Type" "application/json"}
-                     :body (.stringify js/JSON
-                                       (clj->js {:model (:model @state)
-                                                 :prompt prompt
-                                                 :quality (:quality @state)
-                                                 :size (:size @state)}))})))
-
-(defn invalid-second-reference? [status body]
-  (let [err (gobj/get body "error")
-        code (some-> err (gobj/get "code"))
-        message (some-> err (gobj/get "message") str)]
-    (and (= status 400)
-         (= code "invalid_image_file")
-         (str/includes? (or message "") "image 2"))))
-
-(defn invalid-reference-image? [status body]
-  (let [err (gobj/get body "error")
-        code (some-> err (gobj/get "code"))]
-    (and (= status 400)
-         (= code "invalid_image_file"))))
-
-(defn openai-response->result [{:keys [ok status body]}]
-  (if-not ok
-    (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
-    (openai-image-response->data-url body)))
+(defn set-image-generator! [f]
+  (image-generator/set-image-generator! f))
 
 (defn generate-image! [frame]
-  (if (mock-image-success?)
-    (let [mock-data-url (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_DATA_URL) str str/trim)]
-      (js/Promise.resolve
-       (or (when (seq mock-data-url) mock-data-url)
-           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")))
-    (let [api-key (.. js/process -env -OPENAI_API_KEY)]
-      (if (not (seq api-key))
-        (js/Promise.reject (js/Error. "Missing OPENAI_API_KEY in Function App settings."))
-        (let [prompt (build-prompt-for-frame frame)
-              refs (reference-images)]
-          (letfn [(request-with-refs! [attempt-refs]
-                    (-> (openai-image-request! api-key prompt attempt-refs)
-                        (.then (fn [{:keys [ok status body]}]
-                                 (cond
-                                   (and (not ok)
-                                        (invalid-second-reference? status body)
-                                        (> (count attempt-refs) 1))
-                                   (do
-                                     (js/console.warn
-                                      "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
-                                     (request-with-refs! (vec (take 1 attempt-refs))))
-
-                                   (and (not ok)
-                                        (invalid-reference-image? status body)
-                                        (seq attempt-refs))
-                                   (do
-                                     (js/console.warn
-                                      "[robogene] OpenAI rejected reference image; retrying without reference images.")
-                                     (request-with-refs! []))
-
-                                   :else
-                                   (openai-response->result {:ok ok :status status :body body}))))))]
-            (request-with-refs! refs)))))))
+  (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
+                                    :refs (reference-images)
+                                    :model (:model @state)
+                                    :quality (:quality @state)
+                                    :size (:size @state)}))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
@@ -495,7 +436,7 @@
 (defn emit-state-changed! [reason]
   (let [snapshot @state
         payload (clj->js {:reason reason
-                          :storyId (:storyId snapshot)
+                          :chapterId (:chapterId snapshot)
                           :revision (:revision snapshot)
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
