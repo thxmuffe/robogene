@@ -58,6 +58,7 @@ jobs:
             cd /tmp/robogene-webapi-smoke
             AzureWebJobsStorage='UseDevelopmentStorage=true' \
             ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
+            ROBOGENE_IMAGE_GENERATOR='mock' \
             FUNCTIONS_WORKER_RUNTIME='node' \
             node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
           )
