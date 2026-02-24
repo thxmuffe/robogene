@@ -51,12 +51,12 @@ jobs:
           mkdir -p /tmp/robogene-webapi-smoke
           unzip -q dist/release/webapi/webapi_dist.zip -d /tmp/robogene-webapi-smoke
           test -f /tmp/robogene-webapi-smoke/host.json
-          test -f /tmp/robogene-webapi-smoke/story_routes_host.js
+          test -f /tmp/robogene-webapi-smoke/webapi_host.js
           test -f /tmp/robogene-webapi-smoke/dist/webapi_compiled.js
           test -f "/tmp/robogene-webapi-smoke/ai/robot emperor/references/robot_emperor_ep22_p01.png"
           (
             cd /tmp/robogene-webapi-smoke
-            AzureWebJobsStorage='UseDevelopmentStorage=true' node -e "require('./story_routes_host.js'); console.log('webapi-smoke-ok')"
+            AzureWebJobsStorage='UseDevelopmentStorage=true' node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
           )
 
       - name: Upload Web API deploy artifact

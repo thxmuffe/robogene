@@ -6,7 +6,7 @@
 (rf/reg-event-fx
  :navigate-frame
  (fn [{:keys [db]} [_ chapter-id frame-number]]
-   (let [chapter (or chapter-id (get-in db [:route :chapter]) (get-in db [:latest-state :storyId]) "local")]
+   (let [chapter (or chapter-id (get-in db [:route :chapter]) (get-in db [:latest-state :chapterId]) "local")]
      {:db db
       :set-hash (model/frame-hash chapter frame-number)})))
 

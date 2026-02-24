@@ -35,7 +35,7 @@ cp "$REPO_ROOT/package-lock.json" "$APP_DIST_DIR/package-lock.json"
 mv "$APP_DIST_DIR/package.host.json" "$APP_DIST_DIR/package.json"
 rm -f "$APP_DIST_DIR/package-lock.json"
 
-# Compiled ClojureScript services loaded by story_routes_host.js.
+# Compiled ClojureScript services loaded by webapi_host.js.
 mkdir -p "$APP_DIST_DIR/dist"
 cp "$COMPILED_WEBAPI_JS" "$APP_DIST_DIR/dist/webapi_compiled.js"
 

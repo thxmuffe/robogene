@@ -2,7 +2,7 @@
   "name": "robogene",
   "version": "0.1.0",
   "private": true,
-  "main": "src/api_host/story_routes_host.js",
+  "main": "src/api_host/webapi_host.js",
   "engines": {
     "node": ">=22"
   },

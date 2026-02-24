@@ -1,4 +1,4 @@
-(ns services.story
+(ns services.chapter
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [services.realtime :as realtime]
@@ -17,13 +17,13 @@
       (.existsSync fs legacy-path) legacy-path
       :else root-ai-path)))
 (def definitions-root (definitions-root-path))
-(def story-dir (.join path definitions-root "story"))
+(def chapter-dir (.join path definitions-root "story"))
 (def references-dir (.join path definitions-root "references"))
 
-(def default-storyboard (.join path story-dir "28_Municipal_Firmware_script.md"))
-(def default-prompts (.join path story-dir "28_Municipal_Firmware_image_prompts.md"))
+(def default-chapter-script (.join path chapter-dir "28_Municipal_Firmware_script.md"))
+(def default-prompts (.join path chapter-dir "28_Municipal_Firmware_image_prompts.md"))
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
-(def page1-reference-image (.join path story-dir "28_page_01_openai_refined.png"))
+(def page1-reference-image (.join path chapter-dir "28_page_01_openai_refined.png"))
 
 (defn mock-image-success? []
   (= "1" (some-> (.. js/process -env -ROBOGENE_MOCK_IMAGE_SUCCESS) str str/trim)))
@@ -83,7 +83,7 @@
   (.randomUUID crypto))
 
 (defonce state
-  (atom {:storyId nil
+  (atom {:chapterId nil
          :descriptions []
          :visual {:globalStyle "" :pagePrompts {}}
          :chapters []
@@ -207,9 +207,9 @@
     (get (:frames @state) idx)))
 
 (defn initialize-state! []
-  (let [storyboard-text (read-text default-storyboard)
+  (let [chapter-script-text (read-text default-chapter-script)
         prompts-text (read-text default-prompts)
-        descriptions (parse-descriptions storyboard-text)
+        descriptions (parse-descriptions chapter-script-text)
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
@@ -229,7 +229,7 @@
                  [(assoc (make-draft-frame chapter-id 1)
                          :description (best-frame-description descriptions visual 1))])]
     (reset! state
-            {:storyId (new-uuid)
+            {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
              :chapters [chapter1]
@@ -267,7 +267,7 @@
     (swap! state
            (fn [s]
              (-> s
-                 (assoc :storyId (:storyId persisted))
+                 (assoc :chapterId (or (:chapterId persisted) (:storyId persisted)))
                  (assoc :revision (or (:revision persisted) 1))
                  (assoc :failedJobs (or (:failedJobs persisted) []))
                  (assoc :chapters persisted-chapters)
@@ -283,7 +283,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:storyId :revision :failedJobs :chapters :frames
+                             [:chapterId :revision :failedJobs :chapters :frames
                               :descriptions :visual :model :quality :size])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
@@ -293,7 +293,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:storyId :revision :failedJobs :chapters :frames])))
+                             [:chapterId :revision :failedJobs :chapters :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
@@ -322,7 +322,7 @@
 (defn chapter-order-map [chapters]
   (into {} (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)]) chapters)))
 
-(defn sort-frames-for-story [chapters frames]
+(defn sort-frames-for-chapter [chapters frames]
   (let [order-by-chapter (chapter-order-map chapters)]
     (->> frames
          (sort-by (fn [f]
@@ -331,7 +331,7 @@
          vec)))
 
 (defn completed-frames []
-  (->> (sort-frames-for-story (:chapters @state) (:frames @state))
+  (->> (sort-frames-for-chapter (:chapters @state) (:frames @state))
        (filter (fn [f] (not (str/blank? (or (:imageDataUrl f) "")))))
        vec))
 
@@ -349,14 +349,14 @@
     (str/join
      "\n\n"
      (filter seq
-             ["Create ONE comic story image for the next frame."
+             ["Create ONE comic chapter image for the next frame."
               "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
               chapter-label
               (get-in @state [:visual :globalStyle] "")
               (str "Storyboard description for this frame: " (:description frame))
               (str "User direction for this frame:\n" (or (:description frame) ""))
               (str "Story continuity memory:\n" (continuity-window 6))
-              "Keep this image as the next chronological frame in the same story world."
+              "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
 
 (defn image-data-url->bytes [data-url]
@@ -528,7 +528,7 @@
 (defn emit-state-changed! [reason]
   (let [snapshot @state
         payload (clj->js {:reason reason
-                          :storyId (:storyId snapshot)
+                          :chapterId (:chapterId snapshot)
                           :revision (:revision snapshot)
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))

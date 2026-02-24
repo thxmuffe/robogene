@@ -79,4 +79,4 @@ After deploy:
 curl -fsS "https://<function-app-name>.azurewebsites.net/api/state?t=$(date +%s)"
 ```
 
-Should return JSON with story/frames state.
+Should return JSON with chapter/frames state.

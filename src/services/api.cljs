@@ -1,7 +1,7 @@
 (ns services.api
   (:require [clojure.string :as str]
             [goog.object :as gobj]
-            [services.story :as story]
+            [services.chapter :as chapter]
             [services.realtime :as realtime]
             ["@azure/functions" :as azf]))
 
@@ -96,7 +96,7 @@
       (.catch (fn [_] #js {}))))
 
 (defn with-synced-body [request handler]
-  (-> (story/sync-state-from-storage!)
+  (-> (chapter/sync-state-from-storage!)
       (.then (fn [_] (request-json request)))
       (.then handler)))
 
@@ -136,9 +136,9 @@
      (with-required-any-string request body field-keys missing-msg handler))))
 
 (defn queueable-frame-outcome [frame-id]
-  (let [snapshot @story/state
+  (let [snapshot @chapter/state
         frames (:frames snapshot)
-        idx (story/find-frame-index frames frame-id)]
+        idx (chapter/find-frame-index frames frame-id)]
     (cond
       (nil? idx)
       {:ok false :status 404 :error "Frame not found."}
@@ -151,7 +151,7 @@
       {:ok true :idx idx :frames frames})))
 
 (defn queue-frame! [idx direction]
-  (swap! story/state
+  (swap! chapter/state
          (fn [s]
            (-> s
                (assoc-in [:frames idx :status] "queued")
@@ -164,24 +164,24 @@
                (update :revision inc)))))
 
 (defn queue-success-response [request idx]
-  (let [post @story/state]
+  (let [post @chapter/state]
     (json-response 202
                    {:accepted true
                     :frame (get (:frames post) idx)
                     :revision (:revision post)
-                    :pendingCount (story/active-queue-count (:frames post))}
+                    :pendingCount (chapter/active-queue-count (:frames post))}
                    request)))
 
 (defn handle-get-state [request]
-  (-> (story/sync-state-from-storage!)
+  (-> (chapter/sync-state-from-storage!)
       (.then (fn [_]
-               (js/Promise.resolve @story/state)))
+               (js/Promise.resolve @chapter/state)))
       (.then (fn [_]
-               (let [snapshot @story/state
+               (let [snapshot @chapter/state
                      frames (:frames snapshot)
-                     pending-count (story/active-queue-count frames)]
+                     pending-count (chapter/active-queue-count frames)]
                  (json-response 200
-                                {:storyId (:storyId snapshot)
+                                {:chapterId (:chapterId snapshot)
                                  :revision (:revision snapshot)
                                  :processing (:processing snapshot)
                                  :pendingCount pending-count
@@ -202,10 +202,10 @@
          (json-response (:status outcome) {:error (:error outcome)} request)
          (do
            (queue-frame! (:idx outcome) direction)
-           (-> (story/persist-state!)
+           (-> (chapter/persist-state!)
                (.then (fn [_]
-                        (story/emit-state-changed! "queued")
-                        (story/process-queue!)
+                        (chapter/emit-state-changed! "queued")
+                        (chapter/process-queue!)
                         (queue-success-response request (:idx outcome)))))))))))
 
 (defn with-revision [body snapshot]
@@ -217,7 +217,7 @@
     (json-response status {:error message} request)))
 
 (defn run-command [request {:keys [run! reason default-error status-by-message on-success]}]
-  (-> (story/apply-command! {:run! run! :reason reason})
+  (-> (chapter/apply-command! {:run! run! :reason reason})
       (.then (fn [{:keys [result snapshot]}]
                (on-success result snapshot)))
       (.catch (fn [err]
@@ -233,7 +233,7 @@
                          nil)]
        (run-command
         request
-        {:run! #(story/add-chapter! description)
+        {:run! #(chapter/add-chapter! description)
          :reason "chapter-added"
          :default-error "Create chapter failed."
          :status-by-message {}
@@ -275,7 +275,7 @@
    (fn [chapter-id]
      (run-command
       request
-      {:run! #(story/add-frame! chapter-id)
+      {:run! #(chapter/add-frame! chapter-id)
        :reason "frame-added"
        :default-error "Chapter not found."
        :status-by-message {"Chapter not found." 404}
@@ -290,7 +290,7 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! story/delete-frame!
+    :mutate! chapter/delete-frame!
     :default-error "Delete failed."
     :status-by-message (messages->status-map #{"Frame not found."} 409)
     :emit-reason "frame-deleted"
@@ -304,7 +304,7 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! story/clear-frame-image!
+    :mutate! chapter/clear-frame-image!
     :default-error "Clear image failed."
     :status-by-message (messages->status-map #{"Frame not found."
                                                "Cannot clear image while queued or processing."}
