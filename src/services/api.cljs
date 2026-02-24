@@ -208,15 +208,20 @@
                         (story/process-queue!)
                         (queue-success-response request (:idx outcome)))))))))))
 
-(defn emit-persist-and-respond [request emit-reason status response-body]
-  (story/emit-state-changed! emit-reason)
-  (-> (story/persist-state!)
-      (.then (fn [_]
-               (let [snapshot @story/state]
-                 (json-response status (response-body snapshot) request))))))
-
 (defn with-revision [body snapshot]
   (assoc body :revision (:revision snapshot)))
+
+(defn command-error-response [request default-error status-by-message err]
+  (let [message (or (some-> err .-message str) default-error)
+        status (get status-by-message message 500)]
+    (json-response status {:error message} request)))
+
+(defn run-command [request {:keys [run! reason default-error status-by-message on-success]}]
+  (-> (story/apply-command! {:run! run! :reason reason})
+      (.then (fn [{:keys [result snapshot]}]
+               (on-success result snapshot)))
+      (.catch (fn [err]
+                (command-error-response request default-error status-by-message err)))))
 
 (defn handle-add-chapter [request]
   (with-synced-body
@@ -225,29 +230,21 @@
      (let [raw-description (gobj/get body "description")
            description (if (some? raw-description)
                          (some-> raw-description str str/trim)
-                         nil)
-           {:keys [chapter frame]} (story/add-chapter! description)]
-       (emit-persist-and-respond
+                         nil)]
+       (run-command
         request
-        "chapter-added"
-        201
-        (fn [snapshot]
-          (with-revision {:created true
-                          :chapter chapter
-                          :frame frame}
-                         snapshot)))))))
-
-(defn run-mutation [request {:keys [mutate! default-error status-by-message on-success]}]
-  (let [outcome (try
-                  {:ok true :value (mutate!)}
-                  (catch :default err
-                    (let [msg (or (some-> err .-message str) default-error)
-                          status (get status-by-message msg 500)]
-                      {:ok false
-                       :response (json-response status {:error msg} request)})))]
-    (if (:ok outcome)
-      (on-success (:value outcome))
-      (:response outcome))))
+        {:run! #(story/add-chapter! description)
+         :reason "chapter-added"
+         :default-error "Create chapter failed."
+         :status-by-message {}
+         :on-success (fn [result snapshot]
+                       (let [{:keys [chapter frame]} result]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :chapter chapter
+                                                        :frame frame}
+                                                       snapshot)
+                                        request)))})))))
 
 (defn messages->status-map [messages status]
   (into {} (map (fn [msg] [msg status]) messages)))
@@ -259,18 +256,16 @@
      field-key
      missing-msg
      (fn [field-value]
-       (run-mutation
+       (run-command
         request
-        {:mutate! #(mutate! field-value)
+        {:run! #(mutate! field-value)
+         :reason emit-reason
          :default-error default-error
          :status-by-message status-by-message
-         :on-success (fn [result]
-                       (emit-persist-and-respond
-                        request
-                        emit-reason
-                        success-status
-                        (fn [snapshot]
-                          (success-body result snapshot))))})))))
+         :on-success (fn [result snapshot]
+                       (json-response success-status
+                                      (success-body result snapshot)
+                                      request))})))))
 
 (defn handle-add-frame [request]
   (with-synced-required-any-string
@@ -278,20 +273,18 @@
    ["chapterId" "episodeId"]
    "Missing chapterId."
    (fn [chapter-id]
-     (run-mutation
+     (run-command
       request
-      {:mutate! #(story/add-frame! chapter-id)
+      {:run! #(story/add-frame! chapter-id)
+       :reason "frame-added"
        :default-error "Chapter not found."
        :status-by-message {"Chapter not found." 404}
-       :on-success (fn [frame]
-                     (emit-persist-and-respond
-                      request
-                      "frame-added"
-                      201
-                      (fn [snapshot]
-                        (with-revision {:created true
-                                        :frame frame}
-                                       snapshot))))}))))
+       :on-success (fn [frame snapshot]
+                     (json-response 201
+                                    (with-revision {:created true
+                                                    :frame frame}
+                                                   snapshot)
+                                    request))}))))
 
 (def handle-delete-frame
   (make-required-mutation-handler

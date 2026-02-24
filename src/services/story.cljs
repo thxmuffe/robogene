@@ -299,6 +299,22 @@
                 (js/console.error "[robogene] storage persist failed" err)
                 (throw err)))))
 
+(declare emit-state-changed!)
+
+(defn apply-command!
+  "Runs a domain mutation, persists state, and emits realtime stateChanged."
+  [{:keys [run! reason]}]
+  (try
+    (let [result (run!)]
+      (-> (persist-state!)
+          (.then (fn [_]
+                   (when (some? reason)
+                     (emit-state-changed! reason))
+                   {:result result
+                    :snapshot @state}))))
+    (catch :default err
+      (js/Promise.reject err))))
+
 (-> (sync-state-from-storage!)
     (.catch (fn [err]
               (js/console.warn "[robogene] startup storage sync skipped" err))))
