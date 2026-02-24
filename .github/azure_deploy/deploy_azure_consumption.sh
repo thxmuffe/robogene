@@ -80,10 +80,6 @@ az functionapp config appsettings set -g "$RG" -n "$APP" --settings \
   ROBOGENE_IMAGE_MODEL="gpt-image-1-mini" \
   ROBOGENE_IMAGE_QUALITY="low" \
   ROBOGENE_IMAGE_SIZE="1024x1024" \
-  ROBOGENE_TABLE_META="robogeneState" \
-  ROBOGENE_TABLE_CHAPTERS="robogeneChapter" \
-  ROBOGENE_TABLE_FRAMES="robogeneFrame" \
-  ROBOGENE_IMAGE_CONTAINER="robogene-images" \
   ROBOGENE_ALLOWED_ORIGIN="https://thxmuffe.github.io,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173" \
   AzureWebJobsFeatureFlags="EnableWorkerIndexing" >/dev/null
 
