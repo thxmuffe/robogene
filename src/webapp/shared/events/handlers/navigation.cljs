@@ -25,7 +25,7 @@
              ordered (model/frames-for-chapter (:gallery-items db) chapter-id)
              current-frame-id (:frame-id route)
              target-frame (model/relative-frame-by-id ordered current-frame-id delta)]
-         (if (some? target-frame)
+         (if target-frame
            {:db db
             :dispatch [:navigate-frame chapter-id (:frameId target-frame)]}
            {:db db}))
@@ -34,29 +34,9 @@
 (rf/reg-event-fx
  :move-active-frame-horizontal
  (fn [{:keys [db]} [_ delta]]
-   (let [all-frames (model/ordered-frames (:gallery-items db))
-         current-id (:active-frame-id db)
-         current-frame (shared/frame-by-id all-frames current-id)]
-     (cond
-       (and (= current-id shared/new-chapter-frame-id) (seq all-frames))
-       {:db db
-        :dispatch [:set-active-frame (if (neg? delta)
-                                       (:frameId (last all-frames))
-                                       (:frameId (first all-frames)))]}
-
-       (some? current-frame)
-       (let [chapter-id (:chapterId current-frame)
-             chapter-frames (->> all-frames
-                                 (filter (fn [frame] (= (:chapterId frame) chapter-id)))
-                                 model/ordered-frames)
-             target-frame (model/relative-frame-by-id chapter-frames (:frameId current-frame) delta)]
-         (if target-frame
-           {:db db
-            :dispatch [:set-active-frame (:frameId target-frame)]}
-           {:db db}))
-
-       :else
-       {:db db}))))
+   {:db db
+    :move-active-frame-horizontal-dom {:frame-id (:active-frame-id db)
+                                       :delta delta}}))
 
 (rf/reg-event-fx
  :move-active-frame-vertical

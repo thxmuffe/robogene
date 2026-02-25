@@ -7,6 +7,18 @@
 (defn frame-id-of [el]
   (.getAttribute el "data-frame-id"))
 
+(defn adjacent-frame-id [current-id delta]
+  (let [nodes (vec (frame-node-list))
+        n (count nodes)]
+    (when (pos? n)
+      (let [idx (or (some (fn [[i el]]
+                            (when (= current-id (frame-id-of el)) i))
+                          (map-indexed vector nodes))
+                    (if (neg? delta) 0 (dec n)))
+            next-idx (mod (+ idx (if (neg? delta) -1 1)) n)
+            next-el (nth nodes next-idx nil)]
+        (some-> next-el frame-id-of)))))
+
 (defn frame-centers [el]
   (let [r (.getBoundingClientRect el)]
     {:x (+ (.-left r) (/ (.-width r) 2))
@@ -59,6 +71,12 @@
    (when (seq (or frame-id ""))
      (when-let [next-id (nearest-vertical-frame-id frame-id direction)]
        (rf/dispatch [:set-active-frame next-id])))))
+
+(rf/reg-fx
+ :move-active-frame-horizontal-dom
+ (fn [{:keys [frame-id delta]}]
+   (when-let [next-id (adjacent-frame-id frame-id delta)]
+     (rf/dispatch [:set-active-frame next-id]))))
 
 (rf/reg-fx
  :start-chapter-celebration
