@@ -2,22 +2,19 @@
   (:require [clojure.string :as str]
             [reagent.core :as r]))
 
-(defn frame-status-stats [chapters]
+(defn frame-status-stats [frames]
   (reduce
-   (fn [{:keys [pending errors]} chapter]
-     (reduce (fn [{:keys [pending errors]} frame]
-               (let [status (:status frame)]
-                 {:pending (if (or (= "queued" status)
-                                   (= "processing" status))
-                             (inc pending)
-                             pending)
-                  :errors (if (= "failed" status)
-                            (inc errors)
-                            errors)}))
-             {:pending pending :errors errors}
-             (:frames chapter)))
+   (fn [{:keys [pending errors]} frame]
+     (let [status (:status frame)]
+       {:pending (if (or (= "queued" status)
+                         (= "processing" status))
+                   (inc pending)
+                   pending)
+        :errors (if (= "failed" status)
+                  (inc errors)
+                  errors)}))
    {:pending 0 :errors 0}
-   chapters))
+   (or frames [])))
 
 (defn status-error? [status-text]
   (let [v (str/lower-case (str (or status-text "")))]
@@ -34,8 +31,8 @@
         (str/includes? v "removing")
         (str/includes? v "creating"))))
 
-(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status chapters]}]
-  (let [{:keys [pending errors]} (frame-status-stats chapters)]
+(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status frames]}]
+  (let [{:keys [pending errors]} (frame-status-stats frames)]
     (cond
       (or (status-error? status) (pos? errors)) :red
       (or (pos? (or pending-api-requests 0))
@@ -55,7 +52,7 @@
                blink-interval-id* (atom nil)
                hide-timeout-id* (atom nil)
                inactivity-timeout-id* (atom nil)]
-    (let [{:keys [pending errors]} (frame-status-stats (:chapters state))
+    (let [{:keys [pending errors]} (frame-status-stats (:frames state))
           phase (signal-state state)
           changed? (not= phase @prev-phase*)
           pending-api-requests (or (:pending-api-requests state) 0)

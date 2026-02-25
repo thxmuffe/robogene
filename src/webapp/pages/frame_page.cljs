@@ -3,6 +3,17 @@
             [webapp.shared.model :as model]
             [webapp.components.frame :as frame]))
 
+(defn prev-next-by-id [frames frame-id]
+  (loop [remaining (seq frames)
+         prev nil]
+    (if-let [current (first remaining)]
+      (if (= (:frameId current) frame-id)
+        {:prev prev
+         :next (second remaining)
+         :current current}
+        (recur (rest remaining) current))
+      {:prev nil :next nil :current nil})))
+
 (defn detail-controls [chapter-id frame-neighbors]
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)]
@@ -24,12 +35,11 @@
                     (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame)]))}
       "Next"]]))
 
-(defn frame-page [route chapters frame-inputs open-frame-actions]
+(defn frame-page [route frame-inputs open-frame-actions]
   (let [chapter-id (:chapter route)
-        chapter (some (fn [row] (when (= (:chapterId row) chapter-id) row)) chapters)
+        ordered @(rf/subscribe [:frames-for-chapter chapter-id])
         frame-id (:frame-id route)
-        ordered (model/ordered-frames (:frames chapter))
-        frame-neighbors (model/prev-next-by-id ordered frame-id)
+        frame-neighbors (prev-next-by-id ordered frame-id)
         frame (:current frame-neighbors)]
     [:section
      (if frame

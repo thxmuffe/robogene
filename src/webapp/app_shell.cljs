@@ -12,6 +12,7 @@
 
 (defn main-view []
   (let [chapters @(rf/subscribe [:chapters])
+        gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
         open-frame-actions @(rf/subscribe [:open-frame-actions])
@@ -31,7 +32,7 @@
      [:header.hero
       [:h1 "RoboGene"]]
      (if (= :frame (:view route))
-       [frame-page/frame-page route chapters frame-inputs open-frame-actions]
+       [frame-page/frame-page route frame-inputs open-frame-actions]
        [gallery-page/main-gallery-page chapters
         frame-inputs
         open-frame-actions
@@ -43,5 +44,5 @@
       {:pending-api-requests pending-api-requests
        :wait-lights-visible? wait-lights-visible?
        :status status
-       :chapters chapters
+       :frames gallery-items
        :events wait-lights-events}]]))

@@ -1,5 +1,6 @@
 (ns webapp.shared.subs
-  (:require [re-frame.core :as rf]))
+  (:require [re-frame.core :as rf]
+            [webapp.shared.model :as model]))
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
@@ -12,6 +13,9 @@
 (rf/reg-sub :show-chapter-celebration? (fn [db _] (:show-chapter-celebration? db)))
 (rf/reg-sub :route (fn [db _] (:route db)))
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
+(rf/reg-sub :frames-for-chapter
+            (fn [db [_ chapter-id]]
+              (model/frames-for-chapter (:gallery-items db) chapter-id)))
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))

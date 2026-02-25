@@ -22,15 +22,7 @@
    (let [route (:route db)]
      (if (= :frame (:view route))
        (let [chapter-id (:chapter route)
-             frames-in-chapter (or (->> (:chapters db)
-                                        (some (fn [chapter]
-                                                (when (= (:chapterId chapter) chapter-id)
-                                                  (:frames chapter)))))
-                                   (->> (:gallery-items db)
-                                        (filter (fn [frame] (= (:chapterId frame) chapter-id)))
-                                        vec)
-                                   [])
-             ordered (model/ordered-frames frames-in-chapter)
+             ordered (model/frames-for-chapter (:gallery-items db) chapter-id)
              current-frame-id (:frame-id route)
              target-frame (model/relative-frame-by-id ordered current-frame-id delta)]
          (if (some? target-frame)

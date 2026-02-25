@@ -1,7 +1,7 @@
 (ns webapp.pages.main-gallery
   (:require [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
-            [webapp.components.frame :as frame]))
+            [webapp.components.frames :as frames]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
   [:section.chapter-block
@@ -12,15 +12,7 @@
      {:type "button"
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
-   [:div.gallery
-    (map-indexed (fn [idx frame]
-                   ^{:key (or (:frameId frame) (str "frame-" idx))}
-                   [frame/frame frame
-                    (get frame-inputs (:frameId frame) "")
-                    {:active? (= active-frame-id (:frameId frame))
-                     :actions-open? (true? (get open-frame-actions (:frameId frame)))}])
-                 (:frames chapter))
-   ]])
+   [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
 
 (defn new-chapter-form [description]
   [:section.new-chapter-panel

@@ -12,19 +12,17 @@
                    (or (:frameId frame) "")]))
        vec))
 
-(defn prev-next-by-id [frames frame-id]
-  (loop [remaining (seq frames)
-         prev nil]
-    (if-let [current (first remaining)]
-      (if (= (frame-id-of current) frame-id)
-        {:prev prev
-         :next (second remaining)
-         :current current}
-        (recur (rest remaining) current))
-      {:prev nil :next nil :current nil})))
-
 (defn relative-frame-by-id [frames frame-id delta]
-  (let [{:keys [prev next current]} (prev-next-by-id frames frame-id)
+  (let [{:keys [prev next current]}
+        (loop [remaining (seq frames)
+               prev nil]
+          (if-let [current (first remaining)]
+            (if (= (frame-id-of current) frame-id)
+              {:prev prev
+               :next (second remaining)
+               :current current}
+              (recur (rest remaining) current))
+            {:prev nil :next nil :current nil}))
         first-frame (first frames)
         last-frame (last frames)]
     (cond
@@ -82,18 +80,19 @@
                    (or (:chapterId chapter) "")]))
        vec))
 
+(defn frames-for-chapter [frames chapter-id]
+  (->> (or frames [])
+       (filter (fn [frame] (= (:chapterId frame) chapter-id)))
+       ordered-frames))
+
 (defn derived-state [state]
   (let [chapters (derived-chapters state)
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
                                     (let [enriched (enrich-frame f)]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
-                             vec)
-        frames-by-chapter (group-by :chapterId enriched-frames)
-        chapters-with-frames (mapv (fn [chapter]
-                                     (assoc chapter :frames (ordered-frames (get frames-by-chapter (:chapterId chapter) []))))
-                                   chapters)]
-    {:chapters chapters-with-frames
+                             vec)]
+    {:chapters chapters
      :frames enriched-frames}))
 
 (defn status-line [state chapters frames]
