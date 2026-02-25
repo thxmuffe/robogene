@@ -68,49 +68,25 @@
     (let [final-text (clamp-text preferred 180)]
       (if (str/blank? final-text) "No description yet." final-text))))
 
-(defn chapter-description [chapter]
-  (let [desc (str/trim (or (:description chapter) ""))]
-    (if (seq desc)
-      desc
-      "Chapter")))
-
 (defn enrich-frame [frame]
   (let [description (str/trim (or (:description frame) ""))]
     (if (or (str/blank? description) (generic-frame-text? description))
       (assoc frame :description description)
       frame)))
 
-(defn normalize-chapters [state]
-  (let [raw-chapters (->> (or (:chapters state) [])
-                          (map (fn [chapter]
-                                 (assoc chapter :chapterId (:chapterId chapter))))
-                          vec)
-        raw-frames (or (:frames state) [])
-        fallback-chapter-id (or (:chapterId (first raw-chapters))
-                                (:chapterId (first raw-frames))
-                                "chapter-1")
-        chapters (if (seq raw-chapters)
-                   (->> raw-chapters
-                        (map (fn [chapter]
-                               (-> chapter
-                                   (assoc :description (chapter-description chapter)))))
-                        (sort-by (fn [chapter]
-                                   [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
-                                    (or (:createdAt chapter) "")
-                                    (or (:chapterId chapter) "")]))
-                        vec)
-                   [{:chapterId fallback-chapter-id
-                     :description "Chapter"}])]
-    chapters))
+(defn derived-chapters [state]
+  (->> (or (:chapters state) [])
+       (sort-by (fn [chapter]
+                  [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
+                   (or (:createdAt chapter) "")
+                   (or (:chapterId chapter) "")]))
+       vec))
 
-(defn normalize-state [state]
-  (let [chapters (normalize-chapters state)
-        default-chapter-id (:chapterId (first chapters))
+(defn derived-state [state]
+  (let [chapters (derived-chapters state)
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
-                                    (let [chapter-id (or (:chapterId f) default-chapter-id)
-                                          enriched (-> (enrich-frame f)
-                                                       (assoc :chapterId chapter-id))]
+                                    (let [enriched (enrich-frame f)]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
                              vec)
         frames-by-chapter (group-by :chapterId enriched-frames)

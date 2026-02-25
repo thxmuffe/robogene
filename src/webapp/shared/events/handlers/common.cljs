@@ -67,7 +67,7 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [chapters frames]} (model/normalize-state state)
+   (let [{:keys [chapters frames]} (model/derived-state state)
          chapter-ids (map :chapterId chapters)
          duplicate-chapter-ids (->> chapter-ids
                                     (remove nil?)
