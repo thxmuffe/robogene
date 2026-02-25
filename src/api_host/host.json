@@ -2,25 +2,11 @@
   "version": "2.0",
   "logging": {
     "logLevel": {
-      "default": "Warning",
+      "default": "Information",
       "Microsoft": "Warning",
-      "Worker": "Warning",
       "Host": "Warning",
-      "Host.Startup": "Warning",
-      "Host.Executor": "Warning",
-      "Host.General": "Warning",
-      "Host.Http": "Warning",
       "Host.Results": "Error",
-      "Host.Aggregator": "Error",
-      "Function": "Warning",
-      "Function.get-state.User": "Information",
-      "Function.options-preflight.User": "Information",
-      "Function.post-add-chapter.User": "Information",
-      "Function.post-add-frame.User": "Information",
-      "Function.post-clear-frame-image.User": "Information",
-      "Function.post-delete-frame.User": "Information",
-      "Function.post-generate-frame.User": "Information",
-      "Function.signalr-negotiate.User": "Information"
+      "Host.Aggregator": "Error"
     },
     "applicationInsights": {
       "samplingSettings": {
@@ -32,5 +18,10 @@
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
+  },
+  "OPENAI_IMAGE_OPTIONS_JSON": {
+    "model": "gpt-image-1-mini",
+    "quality": "low",
+    "size": "1024x1024"
   }
 }

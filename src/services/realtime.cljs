@@ -1,12 +1,11 @@
 (ns services.realtime
   (:require [clojure.string :as str]
+            [api-host.settings :as settings]
             [goog.object :as gobj]
             ["crypto" :as crypto]))
 
-(def hub-name (or (.. js/process -env -ROBOGENE_SIGNALR_HUB) "robogene"))
-(def connection-setting-name
-  (or (.. js/process -env -ROBOGENE_SIGNALR_CONNECTION_SETTING)
-      "AzureSignalRConnectionString"))
+(def hub-name (settings/signalr-hub-name))
+(def connection-setting-name (settings/signalr-connection-setting-name))
 
 (defn parse-int [value fallback]
   (let [n (js/Number value)]
@@ -15,7 +14,7 @@
       fallback)))
 
 (defn client-token-ttl-seconds []
-  (parse-int (.. js/process -env -ROBOGENE_SIGNALR_CLIENT_TOKEN_TTL_SECONDS) 3600))
+  (settings/signalr-client-token-ttl-seconds))
 
 (defn parse-connection-string [raw]
   (when (string? raw)
@@ -65,8 +64,7 @@
     (str content "." signature))))
 
 (defn connection-config []
-  (let [raw (gobj/get (.-env js/process) connection-setting-name)]
-    (parse-connection-string raw)))
+  (parse-connection-string (settings/signalr-connection-string)))
 
 (defn create-client-connection-info []
   (when-let [{:keys [endpoint access-key]} (connection-config)]

@@ -3,19 +3,13 @@
             [goog.object :as gobj]
             [services.chapter :as chapter]
             [services.realtime :as realtime]
+            [api-host.settings :as settings]
             ["@azure/functions" :as azf]))
 
 (def app (.-app azf))
 
-(defn allowed-origins []
-  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN) "")]
-    (->> (str/split raw #",")
-         (map str/trim)
-         (filter seq)
-         vec)))
-
 (defn require-startup-env! []
-  (when (empty? (allowed-origins))
+  (when (empty? (settings/allowed-origins))
     (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
 
 (require-startup-env!)
@@ -25,7 +19,7 @@
       (some-> request .-headers (.get "Origin"))))
 
 (defn cors-origin [request]
-  (let [origins (allowed-origins)
+  (let [origins (settings/allowed-origins)
         req-origin (request-origin request)]
     (cond
       (and (seq req-origin) (some #(= % req-origin) origins)) req-origin

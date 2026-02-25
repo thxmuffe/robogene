@@ -1,30 +1,11 @@
 (ns services.image-generator
   (:require [clojure.string :as str]
+            [api-host.settings :as settings]
             [goog.object :as gobj]))
 
-(defn image-generator []
-  (some-> (.. js/process -env -ROBOGENE_IMAGE_GENERATOR) str str/trim str/lower-case not-empty))
-
-(defn image-generator-key []
-  (some-> (.. js/process -env -ROBOGENE_IMAGE_GENERATOR_KEY) str str/trim))
-
-(def default-mock-data-url
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")
-
-(defn mock-data-url []
-  (or (some-> (.. js/process -env -ROBOGENE_IMAGE_GENERATOR_MOCK_DATA_URL) str str/trim not-empty)
-      default-mock-data-url))
-
-(defn mock-delay-ms []
-  (let [raw (some-> (.. js/process -env -ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS) str str/trim)
-        n (js/Number raw)]
-    (if (and (seq (or raw "")) (js/Number.isFinite n) (>= n 0))
-      n
-      0)))
-
 (defn require-startup-env! []
-  (let [generator (or (image-generator) "openai")
-        key (image-generator-key)]
+  (let [generator (or (settings/image-generator) "openai")
+        key (settings/image-generator-key)]
     (case generator
       "openai" (when (str/blank? key)
                  (throw (js/Error. "Missing ROBOGENE_IMAGE_GENERATOR_KEY in Function App settings.")))
@@ -52,28 +33,55 @@
   (let [blob (js/Blob. (clj->js [bytes]) #js {:type "image/png"})]
     (.append form "image[]" blob name)))
 
-(defn openai-image-request! [{:keys [key model quality size prompt refs]}]
+(defn setting-key->field-name [k]
+  (if (keyword? k) (name k) (str k)))
+
+(defn setting-value->field-value [v]
+  (if (string? v) v (str v)))
+
+(defn sanitize-openai-options [options]
+  (let [opts (or options {})]
+    (-> opts
+        (dissoc :prompt "prompt")
+        (dissoc :image "image"))))
+
+(defn log-openai-request! [mode options refs]
+  (let [opts (sanitize-openai-options options)
+        model (or (get opts "model") (get opts :model) "-")
+        size (or (get opts "size") (get opts :size) "-")
+        quality (or (get opts "quality") (get opts :quality) "-")
+        refs-count (count (or refs []))]
+    (js/console.info
+     (str "[robogene] openai image request"
+          " mode=" mode
+          " refs=" refs-count
+          " model=" model
+          " size=" size
+          " quality=" quality))))
+
+(defn openai-image-request! [{:keys [key options prompt refs]}]
+  (let [options (sanitize-openai-options options)]
   (if (seq refs)
     (let [form (js/FormData.)]
-      (.append form "model" model)
+      (log-openai-request! "edits" options refs)
       (.append form "prompt" prompt)
-      (.append form "quality" quality)
-      (.append form "size" size)
+      (doseq [[k v] options]
+        (when (some? v)
+          (.append form (setting-key->field-name k) (setting-value->field-value v))))
       (doseq [ref refs]
         (append-reference-image! form ref))
       (fetch-json "https://api.openai.com/v1/images/edits"
                   #js {:method "POST"
                        :headers #js {:Authorization (str "Bearer " key)}
                        :body form}))
-    (fetch-json "https://api.openai.com/v1/images/generations"
+    (do
+      (log-openai-request! "generations" options refs)
+      (fetch-json "https://api.openai.com/v1/images/generations"
                 #js {:method "POST"
                      :headers #js {:Authorization (str "Bearer " key)
                                    "Content-Type" "application/json"}
                      :body (.stringify js/JSON
-                                       (clj->js {:model model
-                                                 :prompt prompt
-                                                 :quality quality
-                                                 :size size}))})))
+                                       (clj->js (assoc options :prompt prompt)))})))))
 
 (defn invalid-second-reference? [status body]
   (let [err (gobj/get body "error")
@@ -94,41 +102,36 @@
     (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
     (openai-image-response->data-url body)))
 
-(defn openai-generate-image! [{:keys [key prompt refs model quality size]}]
-  (if-not (seq key)
-    (js/Promise.reject (js/Error. "Missing ROBOGENE_IMAGE_GENERATOR_KEY in Function App settings."))
-    (letfn [(request-with-refs! [attempt-refs]
-              (-> (openai-image-request! {:key key
-                                          :model model
-                                          :quality quality
-                                          :size size
-                                          :prompt prompt
-                                          :refs attempt-refs})
-                  (.then (fn [{:keys [ok status body]}]
-                           (cond
-                             (and (not ok)
-                                  (invalid-second-reference? status body)
-                                  (> (count attempt-refs) 1))
-                             (do
-                               (js/console.warn
-                                "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
-                               (request-with-refs! (vec (take 1 attempt-refs))))
+(defn openai-generate-image! [{:keys [prompt refs options]}]
+  (let [key (settings/image-generator-key)]
+    (if-not (seq key)
+      (js/Promise.reject (js/Error. "Missing ROBOGENE_IMAGE_GENERATOR_KEY in Function App settings."))
+      (letfn [(request-with-refs! [attempt-refs]
+                (-> (openai-image-request! {:key key
+                                            :options options
+                                            :prompt prompt
+                                            :refs attempt-refs})
+                    (.then (fn [{:keys [ok status body]}]
+                             (cond
+                               (and (not ok)
+                                    (invalid-second-reference? status body)
+                                    (> (count attempt-refs) 1))
+                               (do
+                                 (js/console.warn
+                                  "[robogene] OpenAI rejected secondary reference image; retrying with single reference image.")
+                                 (request-with-refs! (vec (take 1 attempt-refs))))
 
-                             (and (not ok)
-                                  (invalid-reference-image? status body)
-                                  (seq attempt-refs))
-                             (do
-                               (js/console.warn
-                                "[robogene] OpenAI rejected reference image; retrying without reference images.")
-                               (request-with-refs! []))
+                               (and (not ok)
+                                    (invalid-reference-image? status body)
+                                    (seq attempt-refs))
+                               (do
+                                 (js/console.warn
+                                  "[robogene] OpenAI rejected reference image; retrying without reference images.")
+                                 (request-with-refs! []))
 
-                             :else
-                             (openai-response->result {:ok ok :status status :body body}))))))]
-      (request-with-refs! refs))))
-
-(defn openai-generator []
-  (fn [request]
-    (openai-generate-image! (assoc request :key (image-generator-key)))))
+                               :else
+                               (openai-response->result {:ok ok :status status :body body}))))))]
+        (request-with-refs! refs)))))
 
 (defn mock-generator []
   (fn [_request]
@@ -136,16 +139,16 @@
      (fn [resolve _reject]
        (js/setTimeout
         (fn []
-          (resolve (mock-data-url)))
-        (mock-delay-ms))))))
+          (resolve (settings/mock-data-url)))
+        (settings/mock-delay-ms))))))
 
 (defonce generator!* (atom nil))
 
 (defn select-image-generator! []
-  (let [selected (or (image-generator) "openai")]
+  (let [selected (or (settings/image-generator) "openai")]
     (reset! generator!*
             (case selected
-              "openai" (openai-generator)
+              "openai" openai-generate-image!
               "mock" (mock-generator)
               (throw (js/Error. (str "Unsupported ROBOGENE_IMAGE_GENERATOR: " selected)))))))
 
@@ -158,4 +161,4 @@
 
 (defn generate-image! [request]
   (ensure-image-generator!)
-  ((or @generator!* (openai-generator)) request))
+  ((or @generator!* openai-generate-image!) request))
