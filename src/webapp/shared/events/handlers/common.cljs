@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [webapp.shared.db :as db]
             [webapp.shared.events.effects]
+            [webapp.shared.events.transport]
             [webapp.shared.model :as model]
             [webapp.shared.events.handlers.shared :as shared]))
 
