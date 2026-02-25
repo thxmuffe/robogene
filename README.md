@@ -62,3 +62,9 @@ You need:
 
 Full hosting + CLI deploy guide:
 - [HOSTING.md](HOSTING.md)
+
+## Monitoring
+
+- Azure dashboard (direct): [Application Insights - robogene-func-prod](https://portal.azure.com/#@hbceducation.onmicrosoft.com/resource/subscriptions/aaa0b596-1388-40cf-a166-cbbf5731a57f/resourceGroups/robogene-rg/providers/microsoft.insights/components/robogene-func-prod/overview)
+- CLI summary: `./scripts/azure-monitor-summary.sh`
+- Optional: `./scripts/azure-monitor-summary.sh robogene-func-prod robogene-rg 6h`
