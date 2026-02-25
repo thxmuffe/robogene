@@ -95,8 +95,13 @@ if [[ -z "${ROBOGENE_ALLOWED_ORIGIN:-}" ]]; then
   exit 1
 fi
 
-npm run api_host:start -- --port "$WEBAPI_PORT" --cors "$ROBOGENE_ALLOWED_ORIGIN" &
-API_PID=$!
+if [[ "$WEBAPP_RUN_MODE" == "static" ]]; then
+  npm run api_host:start -- --port "$WEBAPI_PORT" --cors "$ROBOGENE_ALLOWED_ORIGIN" &
+  API_PID=$!
+else
+  ./scripts/run-api-host-watch.sh "$WEBAPI_PORT" "$ROBOGENE_ALLOWED_ORIGIN" "$WEBAPI_BUILD_CMD" &
+  API_PID=$!
+fi
 
 trap 'kill $WEBAPP_PID $API_PID 2>/dev/null || true' EXIT INT TERM
 
