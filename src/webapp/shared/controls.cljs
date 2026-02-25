@@ -4,6 +4,56 @@
 
 (def new-chapter-frame-id "__new_chapter__")
 
+(defn frame-node-list []
+  (array-seq (.querySelectorAll js/document ".frame[data-frame-id]")))
+
+(defn frame-id-of [el]
+  (.getAttribute el "data-frame-id"))
+
+(defn frame-centers [el]
+  (let [r (.getBoundingClientRect el)]
+    {:x (+ (.-left r) (/ (.-width r) 2))
+     :y (+ (.-top r) (/ (.-height r) 2))
+     :el el}))
+
+(defn adjacent-frame-id [current-id delta]
+  (let [nodes (vec (frame-node-list))
+        n (count nodes)]
+    (when (pos? n)
+      (let [idx (or (some (fn [[i el]]
+                            (when (= current-id (frame-id-of el)) i))
+                          (map-indexed vector nodes))
+                    (if (neg? delta) 0 (dec n)))
+            next-idx (mod (+ idx (if (neg? delta) -1 1)) n)
+            next-el (nth nodes next-idx nil)]
+        (some-> next-el frame-id-of)))))
+
+(defn nearest-vertical-frame-id [current-id direction]
+  (let [nodes (frame-node-list)
+        current-el (some (fn [el] (when (= current-id (frame-id-of el)) el)) nodes)]
+    (when current-el
+      (let [{cx :x cy :y} (frame-centers current-el)
+            candidates (->> nodes
+                            (filter (fn [el]
+                                      (let [{x :x y :y} (frame-centers el)]
+                                        (case direction
+                                          :up (< y (- cy 8))
+                                          :down (> y (+ cy 8))
+                                          false))))
+                            (map (fn [el]
+                                   (let [{x :x y :y} (frame-centers el)
+                                         dy (js/Math.abs (- y cy))
+                                         dx (js/Math.abs (- x cx))]
+                                     {:id (frame-id-of el)
+                                      :dy dy
+                                      :dx dx})))
+                            (sort-by (fn [{:keys [dy dx]}] [dy dx])))]
+        (or (:id (first candidates))
+            (case direction
+              :up (some-> nodes last frame-id-of)
+              :down (some-> nodes first frame-id-of)
+              nil))))))
+
 (defn typing-target? [el]
   (let [tag (some-> el .-tagName str/lower-case)]
     (or (= tag "input")
@@ -138,3 +188,73 @@
             (= " " (.-key e)))
     (.preventDefault e)
     (open-new-chapter-panel!)))
+
+(defn frame-by-id [frames frame-id]
+  (some (fn [frame] (when (= (:frameId frame) frame-id) frame)) frames))
+
+(rf/reg-fx
+ :scroll-frame-into-view
+ (fn [frame-id]
+   (when (seq (or frame-id ""))
+     (when-let [el (.querySelector js/document (str ".frame[data-frame-id=\"" frame-id "\"]"))]
+       (.scrollIntoView el #js {:behavior "smooth"
+                                :block (if (= frame-id "__new_chapter__") "center" "nearest")
+                                :inline "nearest"})))))
+
+(rf/reg-fx
+ :move-active-frame-vertical
+ (fn [{:keys [frame-id direction]}]
+   (when (seq (or frame-id ""))
+     (when-let [next-id (nearest-vertical-frame-id frame-id direction)]
+       (rf/dispatch [:set-active-frame next-id])))))
+
+(rf/reg-fx
+ :move-active-frame-horizontal-dom
+ (fn [{:keys [frame-id delta]}]
+   (when-let [next-id (adjacent-frame-id frame-id delta)]
+     (rf/dispatch [:set-active-frame next-id]))))
+
+(rf/reg-event-fx
+ :keyboard-arrow
+ (fn [{:keys [db]} [_ key]]
+   (let [view (get-in db [:route :view])]
+     (if (= :frame view)
+       (case key
+         "ArrowLeft" {:db db :dispatch [:navigate-relative-frame -1]}
+         "ArrowRight" {:db db :dispatch [:navigate-relative-frame 1]}
+         {:db db})
+       (case key
+         "ArrowLeft" {:db db
+                      :move-active-frame-horizontal-dom {:frame-id (:active-frame-id db)
+                                                         :delta -1}}
+         "ArrowRight" {:db db
+                       :move-active-frame-horizontal-dom {:frame-id (:active-frame-id db)
+                                                          :delta 1}}
+         "ArrowUp" {:db db
+                    :move-active-frame-vertical {:frame-id (:active-frame-id db)
+                                                 :direction :up}}
+         "ArrowDown" {:db db
+                      :move-active-frame-vertical {:frame-id (:active-frame-id db)
+                                                   :direction :down}}
+         {:db db})))))
+
+(rf/reg-event-fx
+ :open-active-frame
+ (fn [{:keys [db]} _]
+   (let [route (:route db)
+         active-id (:active-frame-id db)
+         active-frame (frame-by-id (:gallery-items db) active-id)]
+     (cond
+       (= :frame (:view route))
+       {:db db}
+
+       (= active-id new-chapter-frame-id)
+       {:db db
+        :dispatch [:set-new-chapter-panel-open true]}
+
+       (some? active-frame)
+       {:db db
+        :dispatch [:navigate-frame (:chapterId active-frame) (:frameId active-frame)]}
+
+       :else
+       {:db db}))))

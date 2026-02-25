@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [reagent.dom.client :as rdom]
             [webapp.shared.controls :as controls]
-            [webapp.shared.events.handlers]
+            [webapp.shared.events.handlers.common]
             [webapp.shared.subs]
             [webapp.app-shell :as app-shell]))
 
