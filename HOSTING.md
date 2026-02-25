@@ -67,6 +67,31 @@ az functionapp deployment source config-zip \
   --src dist/release/webapi/webapi_dist.zip
 ```
 
+## One-shot Infra Rebuild
+
+If the resource group is deleted (or you need to recreate infra), use:
+
+```bash
+./scripts/azure-rebuild.sh --yes
+```
+
+This script is idempotent and creates/updates:
+- Resource group
+- Storage account
+- Application Insights
+- SignalR Service
+- Function App
+- Required Function App settings (including App Insights and SignalR wiring)
+
+Optional deploy in same command:
+
+```bash
+./scripts/azure-rebuild.sh --yes --deploy-zip dist/release/webapi/webapi_dist.zip
+```
+
+Required env vars are listed at the top of:
+- `scripts/azure-rebuild.sh`
+
 ## Webapp Hosting
 
 Webapp static bundle is deployed by the same workflow to GitHub Pages.
