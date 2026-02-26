@@ -32,6 +32,20 @@ npm install
 npm start
 ```
 
+## Tooling
+
+Required:
+- Node.js 22+ and npm
+- Java (required by `shadow-cljs`)
+- Clojure CLI (`clojure`) required by `shadow-cljs`
+- Azure Functions Core Tools v4 (`func`)
+
+Only for release mode:
+- Python 3 (static webapp server)
+
+Note:
+- Using `az` and `gh`, it is possible to regenerate a working `.env` file.
+
 Run UI E2E with same env mechanism:
 
 ```bash
