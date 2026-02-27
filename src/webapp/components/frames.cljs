@@ -1,10 +1,15 @@
 (ns webapp.components.frames
   (:require [re-frame.core :as rf]
-            [webapp.components.frame :as frame]))
+            [webapp.components.frame :as frame]
+            ["@mui/material/Box" :default Box]))
 
 (defn chapter-frames [chapter-id frame-inputs open-frame-actions active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-chapter chapter-id])]
-    [:div.gallery
+    [:> Box {:className "gallery"
+             :sx {:display "grid"
+                  :gap "14px"
+                  :gridTemplateColumns "repeat(auto-fit, minmax(280px, 1fr))"
+                  :alignItems "start"}}
      (map-indexed (fn [idx frame-row]
                     ^{:key (or (:frameId frame-row) (str "frame-" idx))}
                     [frame/frame frame-row

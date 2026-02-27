@@ -5,7 +5,10 @@
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mui/material/styles" :refer [ThemeProvider]]
-            ["@mui/material/CssBaseline" :default CssBaseline]))
+            ["@mui/material/CssBaseline" :default CssBaseline]
+            ["@mui/material/Container" :default Container]
+            ["@mui/material/Stack" :default Stack]
+            ["@mui/material/Box" :default Box]))
 
 (defn frame-page-title [route chapters]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)
@@ -33,21 +36,23 @@
             "RoboGene"))
     [:> ThemeProvider {:theme theme/app-theme}
      [:> CssBaseline]
-     [:main.app
-      [:header.hero
-       [:h1 "RoboGene"]]
-      (if (= :frame (:view route))
-        [frame-page/frame-page route frame-inputs open-frame-actions]
-        [gallery-page/main-gallery-page chapters
-         frame-inputs
-         open-frame-actions
-         active-frame-id
-         new-chapter-description
-         new-chapter-panel-open?
-         show-chapter-celebration?])
-      [traffic-indicator/traffic-indicator
-       {:pending-api-requests pending-api-requests
-        :wait-lights-visible? wait-lights-visible?
-        :status status
-        :frames gallery-items
-        :events wait-lights-events}]]]))
+     [:> Container {:maxWidth "lg"}
+      [:main.app
+       [:> Stack {:spacing 2}
+        [:> Box {:component "header" :className "hero"}
+         [:h1 "RoboGene"]]
+        (if (= :frame (:view route))
+          [frame-page/frame-page route frame-inputs open-frame-actions]
+          [gallery-page/main-gallery-page chapters
+           frame-inputs
+           open-frame-actions
+           active-frame-id
+           new-chapter-description
+           new-chapter-panel-open?
+           show-chapter-celebration?])
+        [traffic-indicator/traffic-indicator
+         {:pending-api-requests pending-api-requests
+          :wait-lights-visible? wait-lights-visible?
+          :status status
+          :frames gallery-items
+          :events wait-lights-events}]]]]]))

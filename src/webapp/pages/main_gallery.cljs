@@ -5,12 +5,18 @@
             ["@mui/material/Button" :default Button]
             ["@mui/material/TextField" :default TextField]
             ["@mui/material/IconButton" :default IconButton]
+            ["@mui/material/Stack" :default Stack]
+            ["@mui/material/Box" :default Box]
             ["@mui/icons-material/Close" :default CloseIcon]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
-  [:section.chapter-block
+  [:> Box {:component "section" :className "chapter-block"}
    [:div.chapter-separator]
-   [:div.chapter-header
+   [:> Stack {:className "chapter-header"
+              :direction "row"
+              :spacing 1.5
+              :alignItems "center"
+              :flexWrap "wrap"}
     [:p.chapter-description (:description chapter)]
     [:> Button
      {:variant "contained"
@@ -73,7 +79,7 @@
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
 (defn main-gallery-page [chapters frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
-  [:section
+  [:> Stack {:component "section" :spacing 2}
    [:h2 "Chapters"]
    (map-indexed (fn [idx chapter]
                   ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
