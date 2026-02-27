@@ -1,9 +1,41 @@
 (ns webapp.components.frame-actions
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
+            [reagent.core :as r]
             ["@mui/material/Button" :default Button]
             ["@mui/material/Stack" :default Stack]
-            ["sweetalert2" :as Swal]))
+            ["@mui/material/Dialog" :default Dialog]
+            ["@mui/material/DialogTitle" :default DialogTitle]
+            ["@mui/material/DialogContent" :default DialogContent]
+            ["@mui/material/DialogContentText" :default DialogContentText]
+            ["@mui/material/DialogActions" :default DialogActions]))
+
+(defonce confirm-state* (r/atom nil))
+
+(defn open-confirm! [payload]
+  (reset! confirm-state* payload))
+
+(defn close-confirm! []
+  (reset! confirm-state* nil))
+
+(defn confirm-dialog []
+  (let [{:keys [title text confirm-label confirm-color on-confirm]} @confirm-state*]
+    [:> Dialog {:open (boolean @confirm-state*)
+                :on-close close-confirm!}
+     [:> DialogTitle (or title "Confirm action")]
+     [:> DialogContent
+      [:> DialogContentText (or text "")]]
+     [:> DialogActions
+      [:> Button {:variant "text"
+                  :on-click close-confirm!}
+       "Cancel"]
+      [:> Button {:variant "contained"
+                  :color (or confirm-color "primary")
+                  :on-click (fn []
+                              (close-confirm!)
+                              (when (fn? on-confirm)
+                                (on-confirm)))}
+       (or confirm-label "Confirm")]]]))
 
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
   (let [busy? (or (= status "queued") (= status "processing"))
@@ -44,17 +76,11 @@
         :disabled busy?
         :on-click (fn [e]
                     (.stopPropagation e)
-                    (-> (.fire Swal
-                              (clj->js {:title "Remove image from this frame?"
-                                        :text "The frame and its description will stay."
-                                        :icon "warning"
-                                        :showCancelButton true
-                                        :confirmButtonText "Remove image"
-                                        :cancelButtonText "Cancel"
-                                        :confirmButtonColor "#20639b"}))
-                        (.then (fn [result]
-                                 (when (true? (.-isConfirmed result))
-                                   (rf/dispatch [:clear-frame-image frameId]))))))}
+                    (open-confirm! {:title "Remove image from this frame?"
+                                    :text "The frame and its description will stay."
+                                    :confirm-label "Remove image"
+                                    :confirm-color "primary"
+                                    :on-confirm #(rf/dispatch [:clear-frame-image frameId])}))}
        [:span.btn-icon "x"]
        [:span.btn-hint "Remove"]])))
 
@@ -62,30 +88,26 @@
   [:> Button
    {:className "btn btn-danger btn-small"
     :variant "contained"
-    :color "error"
+   :color "error"
     :size "small"
     :aria-label "Delete frame"
     :on-click (fn [e]
                 (.stopPropagation e)
-                (-> (.fire Swal
-                          (clj->js {:title "Delete this frame?"
-                                    :text "This cannot be undone."
-                                    :icon "warning"
-                                    :showCancelButton true
-                                    :confirmButtonText "Delete"
-                                    :cancelButtonText "Cancel"
-                                    :confirmButtonColor "#8b1e3f"}))
-                    (.then (fn [result]
-                             (when (true? (.-isConfirmed result))
-                               (rf/dispatch [:delete-frame frameId]))))))}
+                (open-confirm! {:title "Delete this frame?"
+                                :text "This cannot be undone."
+                                :confirm-label "Delete"
+                                :confirm-color "error"
+                                :on-confirm #(rf/dispatch [:delete-frame frameId])}))}
    [:span.btn-icon "!"]
    [:span.btn-hint "Delete"]])
 
 (defn frame-actions-row [frame editable?]
-  (when editable?
-    [:> Stack {:className "frame-actions"
-               :direction "row"
-               :spacing 1}
-     [frame-action-button frame]
-     [clear-image-button frame]
-     [delete-frame-button frame]]))
+  [:<>
+   (when editable?
+     [:> Stack {:className "frame-actions"
+                :direction "row"
+                :spacing 1}
+      [frame-action-button frame]
+      [clear-image-button frame]
+      [delete-frame-button frame]])
+   [confirm-dialog]])
