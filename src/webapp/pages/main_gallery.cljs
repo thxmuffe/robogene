@@ -1,15 +1,21 @@
 (ns webapp.pages.main-gallery
   (:require [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
-            [webapp.components.frames :as frames]))
+            [webapp.components.frames :as frames]
+            ["@mui/material/Button" :default Button]
+            ["@mui/material/TextField" :default TextField]
+            ["@mui/material/IconButton" :default IconButton]
+            ["@mui/icons-material/Close" :default CloseIcon]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
   [:section.chapter-block
    [:div.chapter-separator]
    [:div.chapter-header
     [:p.chapter-description (:description chapter)]
-    [:button.btn
-     {:type "button"
+    [:> Button
+     {:variant "contained"
+      :color "primary"
+      :size "small"
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
    [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
@@ -17,19 +23,27 @@
 (defn new-chapter-form [description]
   [:section.new-chapter-panel
    [:h3 "Add New Chapter"]
-   [:button.new-chapter-close
-    {:type "button"
+   [:> IconButton
+    {:className "new-chapter-close"
+     :aria-label "Close"
      :on-click #(rf/dispatch [:set-new-chapter-panel-open false])}
-    "Close"]
+    [:> CloseIcon]]
    [:label.dir-label {:for "new-chapter-description"} "Chapter Theme"]
-   [:textarea.direction-input
+   [:> TextField
     {:id "new-chapter-description"
+     :className "direction-input"
+     :multiline true
+     :minRows 3
+     :maxRows 10
+     :fullWidth true
      :value (or description "")
      :placeholder "Describe the next chapter theme..."
      :on-key-down controls/on-new-chapter-form-keydown
      :on-change #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
-   [:button.btn.btn-primary
-    {:type "button"
+   [:> Button
+    {:className "btn btn-primary"
+     :variant "contained"
+     :color "secondary"
      :on-click #(rf/dispatch [:add-chapter])}
     "Add New Chapter"]])
 

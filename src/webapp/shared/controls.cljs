@@ -159,11 +159,17 @@
        (.focus el))
      0)))
 
+(defn resolve-textarea [el]
+  (cond
+    (= "TEXTAREA" (some-> el .-tagName)) el
+    (fn? (some-> el .-querySelector)) (.querySelector el "textarea")
+    :else nil))
+
 (defn resize-textarea-to-content! [el]
-  (when (= "TEXTAREA" (some-> el .-tagName))
-    (when-let [style (some-> el .-style)]
+  (when-let [ta (resolve-textarea el)]
+    (when-let [style (some-> ta .-style)]
       (gobj/set style "height" "auto")
-      (gobj/set style "height" (str (.-scrollHeight el) "px")))))
+      (gobj/set style "height" (str (.-scrollHeight ta) "px")))))
 
 (defn on-frame-editor-enable [frame-id]
   (fn [e]

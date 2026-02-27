@@ -1,8 +1,11 @@
 (ns webapp.app-shell
   (:require [re-frame.core :as rf]
+            [webapp.shared.theme :as theme]
             [webapp.pages.main-gallery :as gallery-page]
             [webapp.pages.frame-page :as frame-page]
-            [webapp.components.traffic-indicator :as traffic-indicator]))
+            [webapp.components.traffic-indicator :as traffic-indicator]
+            ["@mui/material/styles" :refer [ThemeProvider]]
+            ["@mui/material/CssBaseline" :default CssBaseline]))
 
 (defn frame-page-title [route chapters]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)
@@ -28,21 +31,23 @@
           (if (= :frame (:view route))
             (frame-page-title route chapters)
             "RoboGene"))
-    [:main.app
-     [:header.hero
-      [:h1 "RoboGene"]]
-     (if (= :frame (:view route))
-       [frame-page/frame-page route frame-inputs open-frame-actions]
-       [gallery-page/main-gallery-page chapters
-        frame-inputs
-        open-frame-actions
-        active-frame-id
-        new-chapter-description
-        new-chapter-panel-open?
-        show-chapter-celebration?])
-     [traffic-indicator/traffic-indicator
-      {:pending-api-requests pending-api-requests
-       :wait-lights-visible? wait-lights-visible?
-       :status status
-       :frames gallery-items
-       :events wait-lights-events}]]))
+    [:> ThemeProvider {:theme theme/app-theme}
+     [:> CssBaseline]
+     [:main.app
+      [:header.hero
+       [:h1 "RoboGene"]]
+      (if (= :frame (:view route))
+        [frame-page/frame-page route frame-inputs open-frame-actions]
+        [gallery-page/main-gallery-page chapters
+         frame-inputs
+         open-frame-actions
+         active-frame-id
+         new-chapter-description
+         new-chapter-panel-open?
+         show-chapter-celebration?])
+      [traffic-indicator/traffic-indicator
+       {:pending-api-requests pending-api-requests
+        :wait-lights-visible? wait-lights-visible?
+        :status status
+        :frames gallery-items
+        :events wait-lights-events}]]]))

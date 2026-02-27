@@ -1,7 +1,9 @@
 (ns webapp.components.frame
   (:require [clojure.string :as str]
             [webapp.shared.controls :as controls]
-            [webapp.components.frame-actions :as frame-actions]))
+            [webapp.components.frame-actions :as frame-actions]
+            ["@mui/material/Button" :default Button]
+            ["@mui/material/TextField" :default TextField]))
 
 (defn frame-image [{:keys [imageDataUrl frameId]}]
   [:img {:src (or imageDataUrl "") :alt (str "Frame " frameId)}])
@@ -24,9 +26,21 @@
                      "Click to edit prompt")]
     [:div.frame-editor
      [:div.chat-composer
-      [:textarea.direction-input.subtitle-input textarea-props]
-      [:button.send-btn
-       {:type "button"
+      [:> TextField
+       (merge {:className "direction-input subtitle-input"
+               :multiline true
+               :minRows 2
+               :maxRows 14
+               :fullWidth true
+               :variant "filled"
+               :InputProps #js {:disableUnderline true
+                                :readOnly (not editable?)}}
+              textarea-props)]
+      [:> Button
+       {:className "send-btn"
+        :variant "contained"
+        :color "secondary"
+        :size "small"
         :aria-label send-title
         :title send-title
         :disabled send-disabled?
@@ -81,12 +95,14 @@
        [frame-editor frame* frame-input editable?]
        (when media-nav?
          [:div.media-nav-zones
-          [:button.media-nav-zone.media-nav-prev
-           {:type "button"
+          [:> Button
+           {:className "media-nav-zone media-nav-prev"
+            :variant "text"
             :aria-label "Previous frame"
             :on-click (controls/on-media-nav-click -1)}]
-          [:button.media-nav-zone.media-nav-next
-           {:type "button"
+          [:> Button
+           {:className "media-nav-zone media-nav-next"
+            :variant "text"
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
       [:div.meta

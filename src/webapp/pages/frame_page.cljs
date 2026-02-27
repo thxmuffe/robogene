@@ -3,6 +3,9 @@
             [webapp.shared.model :as model]
             [webapp.shared.controls :as controls]
             [webapp.components.frame :as frame]
+            ["@mui/material/Button" :default Button]
+            ["@mui/material/IconButton" :default IconButton]
+            ["@mui/material/Tooltip" :default Tooltip]
             ["react-icons/fa6" :refer [FaFacebookF FaLinkedinIn FaXTwitter FaLink FaXmark]]))
 
 (defn current-share-url []
@@ -25,35 +28,35 @@
   [:div.detail-share
    [:span.share-label "Share"]
    [:div.share-actions
-    [:button.share-icon-btn.share-facebook
-     {:type "button"
-      :aria-label "Share on Facebook"
-      :title "Share on Facebook"
-      :on-click #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
-     [:> FaFacebookF]]
-    [:button.share-icon-btn.share-linkedin
-     {:type "button"
-      :aria-label "Share on LinkedIn"
-      :title "Share on LinkedIn"
-      :on-click #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
-     [:> FaLinkedinIn]]
-    [:button.share-icon-btn.share-x
-     {:type "button"
-      :aria-label "Share on X"
-      :title "Share on X"
-      :on-click #(let [url (js/encodeURIComponent (current-share-url))
-                       text (js/encodeURIComponent "Check out this RoboGene frame")]
-                   (.open js/window
-                          (str "https://twitter.com/intent/tweet?url=" url "&text=" text)
-                          "_blank"
-                          "noopener,noreferrer"))}
-     [:> FaXTwitter]]
-    [:button.share-icon-btn.share-copy
-     {:type "button"
-      :aria-label "Copy link"
-      :title "Copy link"
-      :on-click #(copy-link!)}
-     [:> FaLink]]]])
+    [:> Tooltip {:title "Share on Facebook"}
+     [:> IconButton
+      {:className "share-icon-btn share-facebook"
+       :aria-label "Share on Facebook"
+       :on-click #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
+      [:> FaFacebookF]]]
+    [:> Tooltip {:title "Share on LinkedIn"}
+     [:> IconButton
+      {:className "share-icon-btn share-linkedin"
+       :aria-label "Share on LinkedIn"
+       :on-click #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
+      [:> FaLinkedinIn]]]
+    [:> Tooltip {:title "Share on X"}
+     [:> IconButton
+      {:className "share-icon-btn share-x"
+       :aria-label "Share on X"
+       :on-click #(let [url (js/encodeURIComponent (current-share-url))
+                        text (js/encodeURIComponent "Check out this RoboGene frame")]
+                    (.open js/window
+                           (str "https://twitter.com/intent/tweet?url=" url "&text=" text)
+                           "_blank"
+                           "noopener,noreferrer"))}
+      [:> FaXTwitter]]]
+    [:> Tooltip {:title "Copy link"}
+     [:> IconButton
+      {:className "share-icon-btn share-copy"
+       :aria-label "Copy link"
+       :on-click #(copy-link!)}
+      [:> FaLink]]]]])
 
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
@@ -70,24 +73,29 @@
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)]
     [:div.detail-controls
-     [:button.btn
-      {:type "button"
+     [:> Button
+      {:variant "outlined"
+       :size "small"
        :on-click #(rf/dispatch [:navigate-index])}
       "Back to Gallery"]
-     [:button.btn
-      {:type "button"
+     [:> Button
+      {:variant "outlined"
+       :size "small"
        :disabled (nil? prev-frame)
        :on-click #(when prev-frame
                     (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame)]))}
       "Previous"]
-     [:button.btn
-      {:type "button"
+     [:> Button
+      {:variant "outlined"
+       :size "small"
        :disabled (nil? next-frame)
        :on-click #(when next-frame
                     (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame)]))}
       "Next"]
-     [:button.btn
-      {:type "button"
+     [:> Button
+      {:variant "contained"
+       :size "small"
+       :color "secondary"
        :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
@@ -110,8 +118,9 @@
           :on-media-double-click controls/on-media-double-click
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         (if fullscreen?
-          [:button.btn.btn-secondary.fullscreen-close
-           {:type "button"
+          [:> IconButton
+           {:className "fullscreen-close"
+            :color "secondary"
             :aria-label "Close fullscreen"
             :title "Close fullscreen"
             :on-click #(rf/dispatch [:set-frame-fullscreen false])}
@@ -119,7 +128,8 @@
           [share-actions])]
        [:div.detail-missing
         [:p "Frame not found in this chapter."]
-        [:button.btn
-         {:type "button"
+        [:> Button
+         {:variant "outlined"
+          :size "small"
           :on-click #(rf/dispatch [:navigate-index])}
          "Back to Gallery"]])]))

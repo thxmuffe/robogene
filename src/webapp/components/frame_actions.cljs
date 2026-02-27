@@ -1,6 +1,7 @@
 (ns webapp.components.frame-actions
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
+            ["@mui/material/Button" :default Button]
             ["sweetalert2" :as Swal]))
 
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
@@ -15,8 +16,11 @@
         icon (if busy?
                (if (= status "processing") "..." "o")
                (if has-image? "R" "+"))]
-    [:button.btn.btn-primary.btn-small
-     {:type "button"
+    [:> Button
+     {:className "btn btn-primary btn-small"
+      :variant "contained"
+      :color "secondary"
+      :size "small"
       :aria-label hint
       :disabled busy?
       :on-mouse-down #(.stopPropagation %)
@@ -30,8 +34,11 @@
   (let [busy? (or (= status "queued") (= status "processing"))
         has-image? (not (str/blank? (or imageDataUrl "")))]
     (when has-image?
-      [:button.btn.btn-secondary.btn-small
-       {:type "button"
+      [:> Button
+       {:className "btn btn-secondary btn-small"
+        :variant "contained"
+        :color "primary"
+        :size "small"
         :aria-label "Remove image"
         :disabled busy?
         :on-click (fn [e]
@@ -51,8 +58,11 @@
        [:span.btn-hint "Remove"]])))
 
 (defn delete-frame-button [{:keys [frameId]}]
-  [:button.btn.btn-danger.btn-small
-   {:type "button"
+  [:> Button
+   {:className "btn btn-danger btn-small"
+    :variant "contained"
+    :color "error"
+    :size "small"
     :aria-label "Delete frame"
     :on-click (fn [e]
                 (.stopPropagation e)
