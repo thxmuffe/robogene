@@ -522,7 +522,7 @@ h2 { margin: 24px 0 10px; }
   paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
   background: rgba(10, 18, 28, 0.52);
-  border-radius: 8px;
+  border-radius: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
