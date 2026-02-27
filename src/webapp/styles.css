@@ -326,6 +326,7 @@ h2 { margin: 24px 0 10px; }
 
 .media-shell {
   position: relative;
+  overflow: hidden;
 }
 
 .media-loading-overlay {
@@ -536,17 +537,75 @@ h2 { margin: 24px 0 10px; }
 }
 
 .frame-editor {
-  margin-top: 10px;
-  display: grid;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 10px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
+  background: linear-gradient(to top, rgba(5, 12, 22, 0.84) 0%, rgba(5, 12, 22, 0.5) 58%, rgba(5, 12, 22, 0) 100%);
 }
 
-.frame-editor .direction-input {
-  min-height: 110px;
+.subtitle-input.direction-input {
+  min-height: 56px;
+  max-height: none;
   margin: 0;
-  font-size: 1.08rem;
-  line-height: 1.45;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.02);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  resize: none;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
+}
+
+.subtitle-input.direction-input::placeholder {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.subtitle-input.direction-input:focus,
+.subtitle-input.direction-input:focus-visible {
+  border: 0;
+  background: rgba(20, 32, 48, 0.44);
+  outline: 2px solid rgba(126, 200, 255, 0.95);
+  outline-offset: 1px;
+}
+
+.frame-editor .error-line {
+  color: #ffd3dd;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.media-nav-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.media-nav-zone {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.media-nav-zone:focus-visible {
+  outline: 2px solid rgba(126, 200, 255, 0.95);
+  outline-offset: -2px;
+}
+
+.media-nav-prev {
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .frame-actions {

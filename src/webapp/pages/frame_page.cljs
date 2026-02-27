@@ -48,6 +48,7 @@
         [frame/frame frame
          (get frame-inputs (:frameId frame) "")
          {:clickable? false
+          :media-nav? true
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         [:div.detail-share
          [:label "Share URL"]

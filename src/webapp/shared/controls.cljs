@@ -1,5 +1,6 @@
 (ns webapp.shared.controls
   (:require [clojure.string :as str]
+            [goog.object :as gobj]
             [re-frame.core :as rf]))
 
 (def new-chapter-frame-id "__new_chapter__")
@@ -114,6 +115,12 @@
   (fn [_]
     (navigate-frame! chapter-id frame-id)))
 
+(defn on-media-nav-click [delta]
+  (fn [e]
+    (.preventDefault e)
+    (.stopPropagation e)
+    (rf/dispatch [:navigate-relative-frame delta])))
+
 (defn on-frame-keydown-open [chapter-id frame-id]
   (fn [e]
     (when (or (= "Enter" (.-key e))
@@ -141,12 +148,20 @@
        (.focus el))
      0)))
 
+(defn resize-textarea-to-content! [el]
+  (when (= "TEXTAREA" (some-> el .-tagName))
+    (when-let [style (some-> el .-style)]
+      (gobj/set style "height" "auto")
+      (gobj/set style "height" (str (.-scrollHeight el) "px")))))
+
 (defn on-frame-editor-enable [frame-id]
   (fn [e]
     (rf/dispatch [:set-frame-actions-open frame-id true])
+    (resize-textarea-to-content! (.-currentTarget e))
     (focus-current-target! e)))
 
 (defn on-frame-editor-focus [e]
+  (resize-textarea-to-content! (.-currentTarget e))
   (.stopPropagation e))
 
 (defn on-frame-editor-keydown [frame-id busy? editable?]
@@ -170,6 +185,7 @@
 
 (defn on-frame-editor-change [frame-id editable?]
   (fn [e]
+    (resize-textarea-to-content! (.-target e))
     (when editable?
       (let [next-value (.. e -target -value)]
         (rf/dispatch [:frame-direction-changed frame-id next-value])))))
