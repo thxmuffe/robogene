@@ -21,4 +21,13 @@
                    :main services.api/init!
                    :output-to "dist/release/webapi/webapi_compiled.js"
                    :compiler-options {:warnings-as-errors false
-                                      :optimizations :simple}}}}
+                                      :optimizations :simple}}
+  :host-debug {:target :node-script
+                      :main host.main/init!
+                      :output-to "src/host/dist/main.js"
+                      :compiler-options {:warnings-as-errors false}}
+  :host-release {:target :node-script
+                        :main host.main/init!
+                        :output-to "src/host/dist/main.js"
+                        :compiler-options {:warnings-as-errors false
+                                           :optimizations :simple}}}}

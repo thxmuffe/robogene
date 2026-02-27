@@ -1,43 +1,55 @@
 (ns webapp.pages.main-gallery
   (:require [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
-            [webapp.components.frame :as frame]))
+            [webapp.components.frames :as frames]
+            ["@mui/material/Button" :default Button]
+            ["@mui/material/TextField" :default TextField]
+            ["@mui/material/IconButton" :default IconButton]
+            ["@mui/material/Stack" :default Stack]
+            ["@mui/material/Box" :default Box]
+            ["@mui/icons-material/Close" :default CloseIcon]))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
-  [:section.chapter-block
+  [:> Box {:component "section" :className "chapter-block"}
    [:div.chapter-separator]
-   [:div.chapter-header
+   [:> Stack {:className "chapter-header"
+              :direction "row"
+              :spacing 1.5
+              :alignItems "center"
+              :flexWrap "wrap"}
     [:p.chapter-description (:description chapter)]
-    [:button.btn
-     {:type "button"
+    [:> Button
+     {:variant "contained"
+      :color "primary"
+      :size "small"
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
-   [:div.gallery
-    (map-indexed (fn [idx frame]
-                   ^{:key (or (:frameId frame) (str "frame-" idx))}
-                   [frame/frame frame
-                    (get frame-inputs (:frameId frame) "")
-                    {:active? (= active-frame-id (:frameId frame))
-                     :actions-open? (true? (get open-frame-actions (:frameId frame)))}])
-                 (:frames chapter))
-   ]])
+   [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
 
 (defn new-chapter-form [description]
   [:section.new-chapter-panel
    [:h3 "Add New Chapter"]
-   [:button.new-chapter-close
-    {:type "button"
+   [:> IconButton
+    {:className "new-chapter-close"
+     :aria-label "Close"
      :on-click #(rf/dispatch [:set-new-chapter-panel-open false])}
-    "Close"]
+    [:> CloseIcon]]
    [:label.dir-label {:for "new-chapter-description"} "Chapter Theme"]
-   [:textarea.direction-input
+   [:> TextField
     {:id "new-chapter-description"
+     :multiline true
+     :minRows 3
+     :maxRows 10
+     :fullWidth true
+     :sx {:mt 0.75}
      :value (or description "")
      :placeholder "Describe the next chapter theme..."
      :on-key-down controls/on-new-chapter-form-keydown
      :on-change #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
-   [:button.btn.btn-primary
-    {:type "button"
+   [:> Button
+    {:sx {:alignSelf "start"}
+     :variant "contained"
+     :color "secondary"
      :on-click #(rf/dispatch [:add-chapter])}
     "Add New Chapter"]])
 
@@ -67,7 +79,7 @@
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
 (defn main-gallery-page [chapters frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
-  [:section
+  [:> Stack {:component "section" :spacing 2}
    [:h2 "Chapters"]
    (map-indexed (fn [idx chapter]
                   ^{:key (or (:chapterId chapter) (str "chapter-" idx))}

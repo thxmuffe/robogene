@@ -1,0 +1,27 @@
+{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "default": "Information",
+      "Microsoft": "Warning",
+      "Host": "Warning",
+      "Host.Results": "Error",
+      "Host.Aggregator": "Error"
+    },
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    }
+  },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
+  },
+  "OPENAI_IMAGE_OPTIONS_JSON": {
+    "model": "gpt-image-1-mini",
+    "quality": "low",
+    "size": "1024x1024"
+  }
+}

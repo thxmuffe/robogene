@@ -16,12 +16,8 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
     t.skip('Azure Functions Core Tools (`func`) not found.');
     return;
   }
-  if (!commandAvailable('python3')) {
-    t.skip('python3 not found (required for release webapp static server).');
-    return;
-  }
   if (!fs.existsSync('robogen.debug.env')) {
-    t.skip('robogen.debug.env is required to run ./run.robogene.debug.sh.');
+    t.skip('robogen.debug.env is required to run npm start:release.');
     return;
   }
 
@@ -37,7 +33,7 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
   const apiPort = await getFreePort(Number(process.env.ROBOGENE_E2E_UI_API_PORT || 7186));
   let logs = '';
 
-  const app = spawn('./run.robogene.debug.sh', ['--release'], {
+  const app = spawn('node', ['scripts/run-robogene.js', '--release'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -116,6 +112,6 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
       await browser.close();
     }
     await stopProcess(app);
-    killByPattern(`func start --script-root src/api_host --port ${apiPort}`);
+    killByPattern(`func start --script-root src/host --port ${apiPort}`);
   }
 });

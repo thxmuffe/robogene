@@ -1,21 +1,18 @@
 (ns services.azure-store
   (:require [clojure.string :as str]
+            [host.settings :as settings]
             [goog.object :as gobj]
             ["@azure/data-tables" :refer [TableClient]]
             ["@azure/storage-blob" :refer [BlobServiceClient]]))
 
 (def connection-string
-  (or (.. js/process -env -ROBOGENE_STORAGE_CONNECTION_STRING)
-      (.. js/process -env -AzureWebJobsStorage)))
-
-(defn allow-dev-storage-for-smoke? []
-  (= "1" (some-> (.. js/process -env -ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE) str str/trim)))
+  (settings/storage-connection-string))
 
 (when-not (seq connection-string)
   (throw (js/Error. "Missing AzureWebJobsStorage or ROBOGENE_STORAGE_CONNECTION_STRING.")))
 
 (when (and (= (str/trim connection-string) "UseDevelopmentStorage=true")
-           (not (allow-dev-storage-for-smoke?)))
+           (not (settings/allow-dev-storage-for-smoke?)))
   (throw (js/Error.
           "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string. For CI packaging smoke checks only, set ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE=1.")))
 
@@ -44,23 +41,6 @@
       (catch :default _
         fallback))
     fallback))
-
-(defn normalize-chapter-record [chapter]
-  (if (some? chapter)
-    (.assign js/Object
-             #js {}
-             chapter
-             #js {:chapterId (gobj/get chapter "chapterId")
-                  :chapterNumber (gobj/get chapter "chapterNumber")})
-    chapter))
-
-(defn normalize-frame-record [frame]
-  (if (some? frame)
-    (.assign js/Object
-             #js {}
-             frame
-             #js {:chapterId (gobj/get frame "chapterId")})
-    frame))
 
 (defn normalize-image-path [chapter-root-id chapter-id frame-id]
   (str "chapters/" chapter-root-id "/chapters/" chapter-id "/frames/" frame-id ".png"))
@@ -114,9 +94,8 @@
 (defn upload-data-url-if-needed [chapter-root-id frame]
   (let [data (or (gobj/get frame "imageDataUrl") "")]
     (if-not (str/starts-with? data "data:image/png;base64,")
-      (js/Promise.resolve (normalize-frame-record frame))
-      (let [frame (normalize-frame-record frame)
-            chapter-id (gobj/get frame "chapterId")
+      (js/Promise.resolve frame)
+      (let [chapter-id (gobj/get frame "chapterId")
             frame-id (gobj/get frame "frameId")
             image-path (normalize-image-path chapter-root-id chapter-id frame-id)
             blob (.getBlockBlobClient image-container image-path)
@@ -149,9 +128,9 @@
 (defn save-chapters! [chapter-root-id chapters]
   (-> (list-entities chapters-client chapter-root-id)
       (.then (fn [existing]
-               (let [normalized-chapters (vec (map normalize-chapter-record chapters))
-                     keep (set (map #(gobj/get % "chapterId") normalized-chapters))]
-                 (-> (reduce-promise normalized-chapters
+               (let [chapters (vec chapters)
+                     keep (set (map #(gobj/get % "chapterId") chapters))]
+                 (-> (reduce-promise chapters
                                      (fn [_ chapter]
                                        (.upsertEntity chapters-client
                                                       #js {:partitionKey chapter-root-id
@@ -208,8 +187,7 @@
                      frame-rows (aget pairs 1)]
                  (-> (reduce-promise frame-rows
                                      (fn [acc row]
-                                       (let [frame (some-> (parse-json (gobj/get row "payloadJson") nil)
-                                                           normalize-frame-record)]
+                                      (let [frame (parse-json (gobj/get row "payloadJson") nil)]
                                          (if-not frame
                                            (js/Promise.resolve acc)
                                            (if-let [image-path (gobj/get frame "imagePath")]
@@ -221,8 +199,7 @@
                                      [])
                      (.then (fn [frames]
                               #js {:chapters (->> chapter-rows
-                                                  (map #(some-> (parse-json (gobj/get % "payloadJson") nil)
-                                                                normalize-chapter-record))
+                                                  (map #(parse-json (gobj/get % "payloadJson") nil))
                                                   (filter some?)
                                                   clj->js)
                                    :frames (clj->js frames)}))))))))
@@ -258,10 +235,7 @@
                       (gobj/set "chapters" (gobj/get rows "chapters"))
                       (gobj/set "frames" (gobj/get rows "frames"))
                       (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
-                      (gobj/set "visual" (gobj/get initial-state "visual"))
-                      (gobj/set "model" (gobj/get initial-state "model"))
-                      (gobj/set "quality" (gobj/get initial-state "quality"))
-                      (gobj/set "size" (gobj/get initial-state "size"))))))))))))
+                      (gobj/set "visual" (gobj/get initial-state "visual"))))))))))))
 
 (defn save-state [state]
   (let [chapter-root-id (read-chapter-id state)]

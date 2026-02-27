@@ -3,19 +3,13 @@
             [goog.object :as gobj]
             [services.chapter :as chapter]
             [services.realtime :as realtime]
+            [host.settings :as settings]
             ["@azure/functions" :as azf]))
 
 (def app (.-app azf))
 
-(defn allowed-origins []
-  (let [raw (or (.. js/process -env -ROBOGENE_ALLOWED_ORIGIN) "")]
-    (->> (str/split raw #",")
-         (map str/trim)
-         (filter seq)
-         vec)))
-
 (defn require-startup-env! []
-  (when (empty? (allowed-origins))
+  (when (empty? (settings/allowed-origins))
     (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
 
 (require-startup-env!)
@@ -25,7 +19,7 @@
       (some-> request .-headers (.get "Origin"))))
 
 (defn cors-origin [request]
-  (let [origins (allowed-origins)
+  (let [origins (settings/allowed-origins)
         req-origin (request-origin request)]
     (cond
       (and (seq req-origin) (some #(= % req-origin) origins)) req-origin
@@ -70,10 +64,108 @@
 (defn promise-like? [value]
   (fn? (some-> value (gobj/get "then"))))
 
+(def max-error-log-chars 200)
+
+(defn truncate-string [s max-chars]
+  (let [text (str s)]
+    (if (> (count text) max-chars)
+      (str (subs text 0 max-chars) "...(truncated)")
+      text)))
+
+(defn safe-json-length [value]
+  (try
+    (count (.stringify js/JSON (clj->js value)))
+    (catch :default _
+      -1)))
+
+(defn parse-url-query [url]
+  (try
+    (let [search-params (some-> (js/URL. (or (some-> url str) "") "http://localhost") .-searchParams)
+          entries (if search-params
+                    (js/Array.from (.entries search-params))
+                    #js [])
+          pairs (js->clj entries)]
+      (into {}
+            (map (fn [[k v]] [k v]))
+            pairs))
+    (catch :default _
+      {})))
+
+(defn request-snapshot [request route-name]
+  (let [method (or (some-> request .-method str/upper-case) "UNKNOWN")
+        params (js->clj (or (gobj/get request "params") #js {}))
+        query (parse-url-query (some-> request .-url))
+        content-type (or (some-> request .-headers (.get "content-type"))
+                         (some-> request .-headers (.get "Content-Type")))]
+    {:route route-name
+     :method method
+     :paramCount (count params)
+     :queryCount (count query)
+     :hasBodyType (boolean (seq content-type))}))
+
+(defn response-snapshot [response]
+  (let [body (js->clj (or (some-> response (gobj/get "jsonBody")) #js {}))]
+    {:status (or (some-> response (gobj/get "status")) 200)
+     :bytes (safe-json-length body)
+     :keyCount (if (map? body) (count body) nil)}))
+
+(defn log-invocation! [{:keys [route-name started-at request response error context]}]
+  (let [duration-ms (- (.now js/Date) started-at)
+        function-name (or (some-> context (gobj/get "functionName")) route-name)
+        invocation-id (or (some-> context (gobj/get "invocationId")) "-")
+        status (or (:status response) "ERR")
+        res-bytes (or (:bytes response) -1)
+        res-keys (or (:keyCount response) 0)
+        error-text (when error (truncate-string (error-message error) max-error-log-chars))
+        line (str "[robogene] invoke " function-name
+                  " | id " invocation-id "\n"
+                  "  - req: method " (:method request)
+                  " | params " (:paramCount request)
+                  " | query " (:queryCount request)
+                  " | content-type? " (:hasBodyType request) "\n"
+                  "  - res: status " status
+                  " | bytes " res-bytes
+                  " | keys " res-keys
+                  " | duration " duration-ms " ms"
+                  (if error-text (str "\n  - err: " error-text) ""))]
+    (if (fn? (some-> context (gobj/get "log")))
+      (.log context line)
+      (.log js/console line))))
+
+(defn with-invocation-logging [route-name handler]
+  (fn [request context]
+    (let [started-at (.now js/Date)
+          req-snapshot (request-snapshot request route-name)
+          log-success! (fn [response]
+                         (log-invocation! {:route-name route-name
+                                           :started-at started-at
+                                           :request req-snapshot
+                                           :context context
+                                           :response (response-snapshot response)})
+                         response)
+          log-error! (fn [err]
+                       (log-invocation! {:route-name route-name
+                                         :started-at started-at
+                                         :request req-snapshot
+                                         :context context
+                                         :error err})
+                       (throw err))]
+      (try
+        (let [result (handler request context)]
+          (if (promise-like? result)
+            (-> result
+                (.then log-success!)
+                (.catch log-error!))
+            (do
+              (log-success! result)
+              result)))
+        (catch :default err
+          (log-error! err))))))
+
 (defn with-error-handling [route handler]
-  (fn [request]
+  (fn [request context]
     (try
-      (let [result (handler request)]
+      (let [result (handler request context)]
         (if (promise-like? result)
           (.catch result (fn [err] (internal-error-response request route err)))
           result))
@@ -85,7 +177,9 @@
          #js {:methods (clj->js methods)
               :authLevel "anonymous"
               :route route
-              :handler (with-error-handling route-name handler)}))
+              :handler (->> handler
+                            (with-invocation-logging route-name)
+                            (with-error-handling route-name))}))
 
 (defn register-get! [name route handler]
   (register-http! name ["GET"] route route handler))

@@ -2,9 +2,14 @@
   (:require [re-frame.core :as rf]
             [clojure.string :as str]
             [webapp.shared.db :as db]
+            [webapp.shared.events.browser]
+            [webapp.shared.controls :as controls]
             [webapp.shared.events.effects]
-            [webapp.shared.model :as model]
-            [webapp.shared.events.handlers.shared :as shared]))
+            [webapp.shared.events.transport]
+            [webapp.shared.events.handlers.frame-page]
+            [webapp.shared.events.handlers.chapters]
+            [webapp.shared.events.handlers.frames]
+            [webapp.shared.model :as model]))
 
 (defn push-wait-lights-event [db kind message]
   (let [entry {:id (str (.now js/Date) "-" (rand-int 1000000))
@@ -66,7 +71,7 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [chapters frames]} (model/normalize-state state)
+   (let [{:keys [chapters frames]} (model/derived-state state)
          chapter-ids (map :chapterId chapters)
          duplicate-chapter-ids (->> chapter-ids
                                     (remove nil?)
@@ -84,7 +89,7 @@
          active-frame-id (cond
                            (and (some? existing-active-id) (contains? frame-ids existing-active-id))
                            existing-active-id
-                           (= existing-active-id shared/new-chapter-frame-id)
+                           (= existing-active-id controls/new-chapter-frame-id)
                            existing-active-id
                            (seq frames)
                            (:frameId (first frames))

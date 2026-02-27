@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [services.image-generator :as image-generator]
             [services.realtime :as realtime]
+            [host.settings :as settings]
             [services.azure-store :as store]
             ["crypto" :as crypto]
             ["fs" :as fs]
@@ -81,18 +82,17 @@
   (.randomUUID crypto))
 
 (defonce state
-  (atom {:chapterId nil
-         :descriptions []
-         :visual {:globalStyle "" :pagePrompts {}}
-         :chapters []
-         :frames []
-         :failedJobs []
-         :processing false
-         :revision 0
-         :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1-mini")
-         :quality (or (.. js/process -env -ROBOGENE_IMAGE_QUALITY) "low")
-         :size (or (.. js/process -env -ROBOGENE_IMAGE_SIZE) "1024x1024")
-         :referenceImageBytes nil}))
+  (let [openai-options (settings/image-settings)]
+    (atom {:chapterId nil
+           :descriptions []
+           :visual {:globalStyle "" :pagePrompts {}}
+           :chapters []
+           :frames []
+           :failedJobs []
+           :processing false
+           :revision 0
+           :openaiOptions openai-options
+           :referenceImageBytes nil})))
 
 (defn make-chapter [chapter-number description]
   {:chapterId (new-uuid)
@@ -205,7 +205,8 @@
     (get (:frames @state) idx)))
 
 (defn initialize-state! []
-  (let [chapter-script-text (read-text default-chapter-script)
+  (let [openai-options (settings/image-settings)
+        chapter-script-text (read-text default-chapter-script)
         prompts-text (read-text default-prompts)
         descriptions (parse-descriptions chapter-script-text)
         visual (parse-visual-prompts prompts-text)
@@ -235,31 +236,16 @@
              :failedJobs []
              :processing false
              :revision 1
-             :model (or (.. js/process -env -ROBOGENE_IMAGE_MODEL) "gpt-image-1-mini")
-             :quality (or (.. js/process -env -ROBOGENE_IMAGE_QUALITY) "low")
-             :size (or (.. js/process -env -ROBOGENE_IMAGE_SIZE) "1024x1024")
+             :openaiOptions openai-options
              :referenceImageBytes ref-bytes})))
 
 (initialize-state!)
 
-(defn normalize-persisted-chapter [chapter]
-  (-> chapter
-      (assoc :chapterId (:chapterId chapter))
-      (assoc :chapterNumber (or (:chapterNumber chapter) 1))))
-
-(defn normalize-persisted-frame [frame]
-  (-> frame
-      (assoc :chapterId (:chapterId frame))))
-
 (defn apply-persisted-state! [raw]
   (let [current @state
         persisted (js->clj raw :keywordize-keys true)
-        persisted-chapters (->> (or (:chapters persisted) [])
-                                (map normalize-persisted-chapter)
-                                vec)
-        persisted-frames (->> (or (:frames persisted) [])
-                              (map normalize-persisted-frame)
-                              vec)]
+        persisted-chapters (vec (or (:chapters persisted) []))
+        persisted-frames (vec (or (:frames persisted) []))]
     (swap! state
            (fn [s]
              (-> s
@@ -271,16 +257,14 @@
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
                  (assoc :referenceImageBytes (:referenceImageBytes current))
-                 (assoc :model (:model current))
-                 (assoc :quality (:quality current))
-                 (assoc :size (:size current)))))
+                 (assoc :openaiOptions (:openaiOptions current)))))
     @state))
 
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
                              [:chapterId :revision :failedJobs :chapters :frames
-                              :descriptions :visual :model :quality :size])))
+                              :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -372,9 +356,7 @@
 (defn generate-image! [frame]
   (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
                                     :refs (reference-images)
-                                    :model (:model @state)
-                                    :quality (:quality @state)
-                                    :size (:size @state)}))
+                                    :options (:openaiOptions @state)}))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
@@ -426,13 +408,6 @@
 
 (declare process-step! active-queue-count)
 
-(def ansi-reset "\u001b[0m")
-(def ansi-white "\u001b[97m")
-(def ansi-green "\u001b[32m")
-
-(defn colorize [ansi-color text]
-  (str ansi-color text ansi-reset))
-
 (defn emit-state-changed! [reason]
   (let [snapshot @state
         payload (clj->js {:reason reason
@@ -453,29 +428,61 @@
                         (or (some-> err .-message) err))))))))
 
 (defn log-generation-start! [frame queue-size]
-  (js/console.log
-   (colorize ansi-white
-             (str "[robogene] generation started"
-                  " frameNumber=" (:frameNumber frame)
-                  " frameId=" (:frameId frame)
-                  " queueSize=" queue-size))))
+  (let [chapter-number (some->> (:chapters @state)
+                                (some (fn [chapter]
+                                        (when (= (:chapterId chapter) (:chapterId frame))
+                                          (:chapterNumber chapter)))))]
+    (js/console.info
+     (str "[robogene] generation started"
+          " chapterNumber=" (or chapter-number "-")
+          " frameNumber=" (:frameNumber frame)
+          " frameId=" (:frameId frame)
+          " queueSize=" queue-size))))
 
 (defn log-generation-success! [frame duration-ms]
-  (js/console.log
-   (colorize ansi-green
-             (str "[robogene] generation finished"
-                  " frameNumber=" (:frameNumber frame)
-                  " frameId=" (:frameId frame)
-                  " durationMs=" duration-ms))))
+  (let [chapter-number (some->> (:chapters @state)
+                                (some (fn [chapter]
+                                        (when (= (:chapterId chapter) (:chapterId frame))
+                                          (:chapterNumber chapter)))))]
+    (js/console.warn
+     (str "[robogene] generation finished"
+          " chapterNumber=" (or chapter-number "-")
+          " frameNumber=" (:frameNumber frame)
+          " frameId=" (:frameId frame)
+          " durationMs=" duration-ms))))
+
+(defn data-url-size-bytes [data-url]
+  (let [prefix "data:image/png;base64,"]
+    (if (and (string? data-url) (str/starts-with? data-url prefix))
+      (try
+        (.-length (js/Buffer.from (subs data-url (count prefix)) "base64"))
+        (catch :default _
+          -1))
+      -1)))
+
+(defn log-generation-result-summary! [frame duration-ms image-data-url]
+  (let [opts (:openaiOptions @state)
+        bytes (data-url-size-bytes image-data-url)]
+    (js/console.warn
+     (str "[robogene] generation result"
+          " frameId=" (:frameId frame)
+          " frameNumber=" (:frameNumber frame)
+          " durationMs=" duration-ms
+          " bytes=" bytes
+          " options=" (pr-str opts)))))
 
 (defn log-generation-failed! [frame duration-ms err]
-  (js/console.error
-   (colorize ansi-white
-             (str "[robogene] generation failed"
-                  " frameNumber=" (:frameNumber frame)
-                  " frameId=" (:frameId frame)
-                  " durationMs=" duration-ms
-                  " error=" (or (some-> err .-message str) err)))))
+  (let [chapter-number (some->> (:chapters @state)
+                                (some (fn [chapter]
+                                        (when (= (:chapterId chapter) (:chapterId frame))
+                                          (:chapterNumber chapter)))))]
+    (js/console.error
+     (str "[robogene] generation failed"
+          " chapterNumber=" (or chapter-number "-")
+          " frameNumber=" (:frameNumber frame)
+          " frameId=" (:frameId frame)
+          " durationMs=" duration-ms
+          " error=" (or (some-> err .-message str) err)))))
 
 (defn process-step! []
   (let [snapshot @state
@@ -506,7 +513,9 @@
                        (emit-state-changed! "processing")
                        (generate-image! frame)))
               (.then (fn [image-data-url]
-                       (log-generation-success! frame (- (.now js/Date) started-ms))
+                       (let [duration-ms (- (.now js/Date) started-ms)]
+                         (log-generation-success! frame duration-ms)
+                         (log-generation-result-summary! frame duration-ms image-data-url))
                        (if (mark-frame-ready! frame-id image-data-url)
                          (do
                            (-> (persist-state!)
