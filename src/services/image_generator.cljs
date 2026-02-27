@@ -1,6 +1,6 @@
 (ns services.image-generator
   (:require [clojure.string :as str]
-            [api-host.settings :as settings]
+            [host.settings :as settings]
             [goog.object :as gobj]))
 
 (defn require-startup-env! []

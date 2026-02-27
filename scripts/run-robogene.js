@@ -130,7 +130,7 @@ async function listFilesRecursive(startDir) {
 
 async function apiSnapshot() {
   const files = [];
-  const dirs = [path.join(ROOT, "src", "api_host"), path.join(ROOT, "src", "services")];
+  const dirs = [path.join(ROOT, "src", "host"), path.join(ROOT, "src", "services")];
   for (const dir of dirs) {
     const listed = await listFilesRecursive(dir);
     files.push(...listed);
@@ -257,7 +257,7 @@ async function main() {
   function startApiHost() {
     apiHost = runNpm([
       "run",
-      "api_host:start",
+      "host:start",
       "--",
       "--port",
       String(webapiPort),

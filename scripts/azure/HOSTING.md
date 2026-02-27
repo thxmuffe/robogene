@@ -41,7 +41,7 @@ Common optional:
 - `AZ_SIGNALR_SKU` (default `Standard_S1`)
 
 Static image defaults are in:
-- `src/api_host/host.json` -> `robogene.imageDefaults`
+- `src/host/host.json` -> `robogene.imageDefaults`
 
 ## Commands
 

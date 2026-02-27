@@ -1,4 +1,4 @@
-(ns api-host.config
+(ns host.config
   (:require [clojure.string :as str]
             ["fs" :as fs]
             ["path" :as path]))
@@ -28,7 +28,7 @@
         search-roots (mapcat #(ancestor-paths % 8) roots)
         candidates (mapcat (fn [root]
                              [(.resolve path root "host.json")
-                              (.resolve path root "src" "api_host" "host.json")])
+                              (.resolve path root "src" "host" "host.json")])
                            search-roots)]
     (unique-paths candidates)))
 

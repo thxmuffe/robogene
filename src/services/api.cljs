@@ -3,7 +3,7 @@
             [goog.object :as gobj]
             [services.chapter :as chapter]
             [services.realtime :as realtime]
-            [api-host.settings :as settings]
+            [host.settings :as settings]
             ["@azure/functions" :as azf]))
 
 (def app (.-app azf))

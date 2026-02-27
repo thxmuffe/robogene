@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [services.image-generator :as image-generator]
             [services.realtime :as realtime]
-            [api-host.settings :as settings]
+            [host.settings :as settings]
             [services.azure-store :as store]
             ["crypto" :as crypto]
             ["fs" :as fs]

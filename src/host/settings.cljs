@@ -1,6 +1,6 @@
-(ns api-host.settings
+(ns host.settings
   (:require [clojure.string :as str]
-            [api-host.config :as config]))
+            [host.config :as config]))
 
 (def default-mock-data-url
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")

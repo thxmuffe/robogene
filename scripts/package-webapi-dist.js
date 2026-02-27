@@ -7,11 +7,12 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
-const HOST_SRC_DIR = path.join(ROOT, "src", "api_host");
+const HOST_SRC_DIR = path.join(ROOT, "src", "host");
 const AI_SRC_DIR = path.join(ROOT, "ai", "robot emperor");
 const WEBAPI_DIST_DIR = path.join(ROOT, "dist", "release", "webapi");
 const APP_DIST_DIR = path.join(WEBAPI_DIST_DIR, "app");
 const COMPILED_WEBAPI_JS = path.join(WEBAPI_DIST_DIR, "webapi_compiled.js");
+const COMPILED_WEBAPI_HOST_JS = path.join(HOST_SRC_DIR, "dist", "main.js");
 const WEBAPI_ZIP = path.join(WEBAPI_DIST_DIR, "webapi_dist.zip");
 
 function run(command, args, options = {}) {
@@ -74,6 +75,11 @@ async function makeZip(zipPath, sourceDir) {
 async function main() {
   if (!(await exists(COMPILED_WEBAPI_JS))) {
     console.error(`Missing compiled services output: ${COMPILED_WEBAPI_JS}`);
+    console.error("Run: npm run build:webapi");
+    process.exit(1);
+  }
+  if (!(await exists(COMPILED_WEBAPI_HOST_JS))) {
+    console.error(`Missing compiled host output: ${COMPILED_WEBAPI_HOST_JS}`);
     console.error("Run: npm run build:webapi");
     process.exit(1);
   }

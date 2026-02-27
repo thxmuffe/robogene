@@ -112,6 +112,6 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
       await browser.close();
     }
     await stopProcess(app);
-    killByPattern(`func start --script-root src/api_host --port ${apiPort}`);
+    killByPattern(`func start --script-root src/host --port ${apiPort}`);
   }
 });

@@ -1,6 +1,6 @@
 (ns services.azure-store
   (:require [clojure.string :as str]
-            [api-host.settings :as settings]
+            [host.settings :as settings]
             [goog.object :as gobj]
             ["@azure/data-tables" :refer [TableClient]]
             ["@azure/storage-blob" :refer [BlobServiceClient]]))
