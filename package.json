@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "./run.robogene.debug.sh",
-    "start:release": "./run.robogene.release.sh",
+    "start": "node scripts/run-robogene.js",
+    "start:release": "node scripts/run-robogene.js --release",
     "watch": "shadow-cljs watch webapp-debug",
     "webapi:watch": "shadow-cljs watch webapi-debug",
     "watch:all": "shadow-cljs watch webapp-debug webapi-debug",
@@ -16,7 +16,7 @@
     "build": "shadow-cljs release webapp-release",
     "build:webapi": "shadow-cljs release webapi-release",
     "build:webapi:debug": "shadow-cljs compile webapi-debug",
-    "package:webapi": "./.github/azure_deploy/package_webapi_dist.sh",
+    "package:webapi": "node scripts/package-webapi-dist.js",
     "dist:webapi": "npm run build:webapi && npm run package:webapi",
     "build:all": "shadow-cljs release webapp-release webapi-release",
     "test": "node --test tests/webapp/*.test.mjs tests/services/*.test.mjs",
@@ -24,8 +24,8 @@
     "test:services": "node --test tests/services/*.test.mjs",
     "test:e2e": "npm run test:e2e:ui",
     "test:e2e:ui": "ROBOGENE_RUN_E2E_UI=1 node --test tests/end-to-end/e2e-gallery-ui.test.mjs",
-    "test:e2e:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e",
-    "test:e2e:ui:env": "./scripts/run-with-env.sh robogen.test.env npm run test:e2e:ui",
+    "test:e2e:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e",
+    "test:e2e:ui:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e:ui",
     "test:all": "npm test && npm run test:e2e"
   },
   "dependencies": {
