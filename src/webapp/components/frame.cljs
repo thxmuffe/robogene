@@ -1,14 +1,14 @@
 (ns webapp.components.frame
   (:require [clojure.string :as str]
             [webapp.shared.controls :as controls]
-            [webapp.components.frame-actions :as frame-actions]
+            [webapp.components.prompt :as prompt]
             ["@mui/material/Button" :default Button]
-            ["@mui/material/TextField" :default TextField]
             ["@mui/material/Card" :default Card]
-            ["@mui/material/CardContent" :default CardContent]
             ["@mui/material/CardMedia" :default CardMedia]
             ["@mui/material/Box" :default Box]
-            ["@mui/material/Chip" :default Chip]))
+            ["@mui/material/Chip" :default Chip]
+            ["@mui/material/IconButton" :default IconButton]
+            ["@mui/icons-material/Close" :default CloseIcon]))
 
 (defn frame-image [{:keys [imageDataUrl frameId]}]
   [:> CardMedia
@@ -16,46 +16,23 @@
     :src (or imageDataUrl "")
     :alt (str "Frame " frameId)}])
 
-(defn frame-editor [{:keys [frameId status error]} frame-input editable?]
-  (let [busy? (or (= status "queued") (= status "processing"))
-        textarea-props
-        {:value (or frame-input "")
-         :placeholder "Describe this frame..."
-         :readOnly (not editable?)
-         :title (when-not editable? "Click to edit this description.")
-         :on-click (controls/on-frame-editor-enable frameId)
-         :on-double-click (controls/on-frame-editor-enable frameId)
-         :on-focus controls/on-frame-editor-focus
-         :on-key-down (controls/on-frame-editor-keydown frameId busy? editable?)
-         :on-change (controls/on-frame-editor-change frameId editable?)}
-        send-disabled? busy?
-        send-title (if editable?
-                     (if busy? "Generating..." "Generate frame (Cmd/Ctrl+Enter)")
-                     "Click to edit prompt")]
-    [:> Box {:className "frame-editor"}
-     [:> Box {:className "chat-composer"}
-      [:> TextField
-       (merge {:className "direction-input subtitle-input"
-               :multiline true
-               :minRows 2
-               :maxRows 14
-               :fullWidth true
-               :variant "filled"
-               :InputProps #js {:disableUnderline true
-                                :readOnly (not editable?)}}
-              textarea-props)]
-      [:> Button
-       {:className "send-btn"
-        :variant "contained"
-        :color "secondary"
-        :size "small"
-        :aria-label send-title
-        :title send-title
-        :disabled send-disabled?
-        :on-click (controls/on-frame-send-click frameId busy? editable?)}
-       "Send"]]
-     (when (and (seq (or error "")) (not busy?))
-       [:div.error-line (str "Last error: " error)])]))
+(defn subtitle-display [{:keys [frameId description]} frame-input]
+  (let [subtitle (str/trim (or frame-input description ""))]
+    [:> Box {:className "subtitle-display"
+             :role "button"
+             :tab-index 0
+             :title "Click subtitle to edit prompt"
+             :on-click (controls/on-frame-editor-enable frameId)
+             :on-double-click (controls/on-frame-editor-enable frameId)
+             :on-key-down (fn [e]
+                            (when (or (= "Enter" (.-key e))
+                              (= " " (.-key e)))
+                              (.preventDefault e)
+                              ((controls/on-frame-editor-enable frameId) e)))}
+     [:span {:className "subtitle-display-text"}
+      (if (seq subtitle)
+        subtitle
+        "Click subtitle to add prompt")]]))
 
 (defn frame-placeholder [{:keys [status]}]
   (let [label (case status
@@ -83,8 +60,7 @@
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
                                     (when active? " frame-active"))
-                        :on-mouse-enter (controls/on-frame-activate (:frameId frame))
-                        :on-blur (controls/on-frame-blur-close-actions (:frameId frame) actions-open?)}
+                        :on-mouse-enter (controls/on-frame-activate (:frameId frame))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
                                    :on-focus (controls/on-frame-activate (:frameId frame))
@@ -95,7 +71,7 @@
              {:component "article"
               :variant "outlined"
               :sx {:borderWidth 2}})
-      [:> Box (merge {:className "media-shell"} media-attrs)
+     [:> Box (merge {:className "media-shell"} media-attrs)
        (if has-image?
          [:<>
           [frame-image frame*]
@@ -104,7 +80,16 @@
              [:div.spinner]
              [:div.placeholder-text "Generating..."]])]
          [frame-placeholder frame])
-       [frame-editor frame* frame-input editable?]
+       (if editable?
+         [prompt/prompt-panel frame* frame-input]
+         [subtitle-display frame* frame-input])
+       (when editable?
+         [:> IconButton
+          {:className "frame-prompt-close"
+           :aria-label "Close prompt"
+           :title "Close prompt"
+           :on-click (controls/on-frame-editor-close (:frameId frame))}
+          [:> CloseIcon]])
        (when media-nav?
          [:div.media-nav-zones
           [:> Button
@@ -113,13 +98,15 @@
             :aria-label "Previous frame"
             :on-click (controls/on-media-nav-click -1)}]
           [:> Button
-           {:className "media-nav-zone media-nav-next"
+          {:className "media-nav-zone media-nav-next"
             :variant "text"
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
-      [:> CardContent {:className "meta"}
-       (when busy?
-         [:> Chip {:className "badge queue"
-                   :size "small"
-                   :label "In Queue"}])
-       [frame-actions/frame-actions-row frame* editable?]]])))
+      (when busy?
+        [:> Chip {:className "badge queue"
+                  :size "small"
+                  :label "In Queue"
+                  :sx {:position "absolute"
+                       :top 10
+                       :left 10
+                       :zIndex 4}}])])))

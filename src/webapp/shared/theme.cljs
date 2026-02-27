@@ -11,4 +11,18 @@
              :background #js {:default "#ffe8c2"}}
         :shape #js {:borderRadius 12}
         :typography
-        #js {:fontFamily "\"Avenir Next\",\"Trebuchet MS\",sans-serif"}}))
+        #js {:fontFamily "\"Avenir Next\",\"Trebuchet MS\",sans-serif"}
+        :components
+        #js {:MuiButton
+             #js {:styleOverrides
+                  #js {:root #js {:borderRadius 999
+                                  :fontWeight 800
+                                  :textTransform "none"}}}
+             :MuiIconButton
+             #js {:styleOverrides
+                  #js {:root #js {:borderRadius 999}}}
+             :MuiFilledInput
+             #js {:styleOverrides
+                  #js {:root #js {:borderRadius 12
+                                  :backgroundColor "#f5f8fc"}
+                       :input #js {:fontFamily "inherit"}}}}}))

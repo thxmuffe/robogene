@@ -51,8 +51,16 @@
 (rf/reg-event-fx
  :escape-pressed
  (fn [{:keys [db]} _]
-   (let [route (:route db)]
+   (let [route (:route db)
+         open-frame-actions (:open-frame-actions db)
+         open-frame-id (some (fn [[frame-id is-open?]]
+                               (when (true? is-open?) frame-id))
+                             open-frame-actions)]
      (cond
+       (some? open-frame-id)
+       {:db db
+        :dispatch [:set-frame-actions-open open-frame-id false]}
+
        (and (= :frame (:view route)) (true? (:fullscreen? route)))
        {:db db :dispatch [:set-frame-fullscreen false]}
        :else

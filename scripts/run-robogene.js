@@ -78,6 +78,21 @@ async function copyWebappAssets(outDir) {
   await fsp.copyFile(path.join(ROOT, "src", "webapp", "styles.css"), path.join(outDir, "styles.css"));
 }
 
+async function webappAssetsSnapshot() {
+  const files = [
+    path.join(ROOT, "src", "webapp", "index.html"),
+    path.join(ROOT, "src", "webapp", "styles.css"),
+  ];
+  const hash = crypto.createHash("sha256");
+  for (const filePath of files) {
+    const stat = await fsp.stat(filePath);
+    hash.update(filePath);
+    hash.update(String(stat.mtimeMs));
+    hash.update(String(stat.size));
+  }
+  return hash.digest("hex");
+}
+
 function createStaticServer(rootDir, port) {
   const server = http.createServer(async (req, res) => {
     try {
@@ -215,6 +230,7 @@ async function main() {
   let stopping = false;
   let restarting = false;
   let lastSnapshot = "";
+  let lastWebappAssetsSnapshot = "";
 
   const cleanup = () => {
     if (stopping) return;
@@ -239,6 +255,7 @@ async function main() {
   }
 
   await copyWebappAssets(webappDistDir);
+  lastWebappAssetsSnapshot = await webappAssetsSnapshot();
 
   if (mode === "release") {
     console.log("Building webapp release bundle...");
@@ -293,6 +310,12 @@ async function main() {
     lastSnapshot = await apiSnapshot();
     watcherTimer = setInterval(async () => {
       if (stopping || restarting) return;
+      const currentWebappAssets = await webappAssetsSnapshot();
+      if (currentWebappAssets !== lastWebappAssetsSnapshot) {
+        await copyWebappAssets(webappDistDir);
+        lastWebappAssetsSnapshot = currentWebappAssets;
+        console.log("Webapp static assets changed. Synced index.html/styles.css.");
+      }
       const current = await apiSnapshot();
       if (current !== lastSnapshot) await rebuildAndRestartApi();
     }, 1000);

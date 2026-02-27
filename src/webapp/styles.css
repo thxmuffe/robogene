@@ -44,68 +44,6 @@ body {
   font-weight: 700;
 }
 
-.direction-input {
-  width: 100%;
-  min-height: 90px;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  padding: 10px;
-  font: inherit;
-  margin-bottom: 10px;
-  resize: vertical;
-  background: #f5f8fc;
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.direction-input:focus,
-.direction-input:focus-visible {
-  outline: none;
-  border-color: #1f2a44;
-  background: #ffffff;
-}
-
-.btn {
-  border: 0;
-  border-radius: 999px;
-  padding: 12px 18px;
-  font-size: 1rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 180ms ease;
-}
-.btn:hover { transform: translateY(-2px); }
-.btn-primary {
-  background: linear-gradient(90deg, var(--accent), #ffb03a);
-  color: #1d1d1d;
-}
-
-.btn-secondary {
-  background: #20639b;
-  color: #ffffff;
-}
-
-.btn-danger {
-  background: #8b1e3f;
-  color: #ffffff;
-}
-
-.btn-danger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-small {
-  padding: 0;
-  width: 56px;
-  min-width: 56px;
-  height: 44px;
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: center;
-  justify-content: center;
-}
-
 .btn-icon {
   font-weight: 900;
   font-size: 1.32rem;
@@ -191,11 +129,6 @@ h2 { margin: 24px 0 10px; }
 
 .new-chapter-panel .dir-label {
   color: #d9e9ff;
-}
-
-.new-chapter-panel .direction-input {
-  background: rgba(236, 244, 255, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .new-chapter-teaser {
@@ -522,83 +455,107 @@ h2 { margin: 24px 0 10px; }
   animation: nudge-arrow 900ms ease-in-out infinite;
 }
 
-.meta {
-  padding: 10px;
-  font-size: 0.95rem;
-}
-
-.frame-editor {
+.prompt-panel {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 3;
-  padding: 10px;
+  padding: 10px 0 10px 10px;
   max-height: 100%;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 8px;
-  background: linear-gradient(to top, rgba(5, 12, 22, 0.84) 0%, rgba(5, 12, 22, 0.5) 58%, rgba(5, 12, 22, 0) 100%);
-}
-
-.chat-composer {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  align-items: end;
+  align-items: start;
+  background: rgba(8, 18, 31, 0.93);
 }
 
-.subtitle-input.direction-input {
-  min-height: 56px;
-  max-height: none;
-  margin: 0;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 6px;
-  font-size: 1rem;
-  line-height: 1.35;
+.prompt-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.prompt-input textarea {
+  overflow-y: auto !important;
+}
+
+.prompt-controls {
+  width: auto;
+  justify-self: end;
+  align-self: start;
+  margin-right: 0;
+}
+
+.prompt-actions-trigger {
+  width: 42px;
+  height: 42px;
+}
+
+.subtitle-display {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: center;
+  background: transparent;
+  cursor: text;
+}
+
+.subtitle-display-text {
+  --subtitle-font-size: 1.05rem;
+  --subtitle-line-height: 1.35;
+  max-width: min(94%, 74ch);
+  display: inline-block;
+  padding: 4px 10px;
   color: #ffffff;
-  background: rgba(0, 0, 0, 0.02);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  font-weight: 900;
   text-align: center;
-  resize: none;
+  font-size: var(--subtitle-font-size);
+  line-height: var(--subtitle-line-height);
+  text-shadow: none;
+  -webkit-text-stroke: 3px rgba(38, 44, 54, 0.68);
+  paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
+  background: rgba(10, 18, 28, 0.52);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.subtitle-input.direction-input::placeholder {
-  color: rgba(255, 255, 255, 0.9);
+.detail-page .subtitle-display-text {
+  --subtitle-font-size: 1.32rem;
+  --subtitle-line-height: 1.4;
 }
 
-.subtitle-input.direction-input:focus,
-.subtitle-input.direction-input:focus-visible {
-  border: 0;
-  background: rgba(20, 32, 48, 0.44);
+.subtitle-display:focus-visible {
   outline: 2px solid rgba(126, 200, 255, 0.95);
-  outline-offset: 1px;
+  outline-offset: -3px;
 }
 
-.frame-editor .error-line {
+.frame-prompt-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
+  width: 36px;
+  height: 36px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(8, 20, 36, 0.65);
+}
+
+.frame-prompt-close:hover {
+  background: rgba(12, 30, 52, 0.88);
+}
+
+.prompt-panel .error-line {
   color: #ffd3dd;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-.send-btn {
-  border: 0;
-  border-radius: 999px;
-  padding: 10px 14px;
-  min-height: 40px;
-  font-weight: 800;
-  font-size: 0.9rem;
-  color: #101820;
-  background: linear-gradient(90deg, #ff7a18, #ffb03a);
-  cursor: pointer;
-}
-
-.send-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .media-nav-zones {
@@ -622,15 +579,6 @@ h2 { margin: 24px 0 10px; }
 
 .media-nav-prev {
   border-right: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.frame-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  overflow-x: auto;
 }
 
 .error-line {
@@ -707,21 +655,6 @@ h2 { margin: 24px 0 10px; }
   flex-wrap: wrap;
 }
 
-.fullscreen-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 1800;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  border-radius: 999px;
-}
-
 .detail-share {
   display: flex;
   align-items: center;
@@ -744,41 +677,15 @@ h2 { margin: 24px 0 10px; }
 .share-icon-btn {
   width: 42px;
   height: 42px;
-  border-radius: 999px;
-  border: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
-  cursor: pointer;
-  color: #ffffff;
-  transition: transform 160ms ease, filter 160ms ease;
-}
-
-.share-icon-btn:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.05);
 }
 
 .share-icon-btn:focus-visible {
   outline: 3px solid rgba(32, 99, 155, 0.35);
   outline-offset: 2px;
-}
-
-.share-facebook {
-  background: #1877f2;
-}
-
-.share-linkedin {
-  background: #0a66c2;
-}
-
-.share-x {
-  background: #111111;
-}
-
-.share-copy {
-  background: #20639b;
 }
 
 @keyframes rise {

@@ -37,17 +37,17 @@
    [:label.dir-label {:for "new-chapter-description"} "Chapter Theme"]
    [:> TextField
     {:id "new-chapter-description"
-     :className "direction-input"
      :multiline true
      :minRows 3
      :maxRows 10
      :fullWidth true
+     :sx {:mt 0.75}
      :value (or description "")
      :placeholder "Describe the next chapter theme..."
      :on-key-down controls/on-new-chapter-form-keydown
      :on-change #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
    [:> Button
-    {:className "btn btn-primary"
+    {:sx {:alignSelf "start"}
      :variant "contained"
      :color "secondary"
      :on-click #(rf/dispatch [:add-chapter])}
