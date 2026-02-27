@@ -76,7 +76,13 @@
 (defn on-window-keydown [e]
   (when-not (typing-target? (.-target e))
     (case (.-key e)
-      "Escape" (rf/dispatch [:navigate-index])
+      "Escape" (rf/dispatch [:escape-pressed])
+      "f" (do
+            (.preventDefault e)
+            (rf/dispatch [:toggle-frame-fullscreen]))
+      "F" (do
+            (.preventDefault e)
+            (rf/dispatch [:toggle-frame-fullscreen]))
       "ArrowLeft" (do
                     (.preventDefault e)
                     (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
@@ -93,6 +99,11 @@
                 (.preventDefault e)
                 (rf/dispatch [:open-active-frame]))
       nil)))
+
+(defn on-media-double-click [e]
+  (.preventDefault e)
+  (.stopPropagation e)
+  (rf/dispatch [:toggle-frame-fullscreen]))
 
 (defn register-global-listeners! []
   (.addEventListener js/window "focus"
@@ -167,21 +178,29 @@
 (defn on-frame-editor-keydown [frame-id busy? editable?]
   (fn [e]
     (let [enter? (= "Enter" (.-key e))
-          submit? (and (not busy?) enter? (not (.-shiftKey e)))]
+          submit? (and (not busy?) editable? enter? (or (.-metaKey e) (.-ctrlKey e)))]
       (cond
         submit?
         (do
           (.preventDefault e)
           (.stopPropagation e)
-          (rf/dispatch [:set-frame-actions-open frame-id true])
           (rf/dispatch [:generate-frame frame-id]))
-        (and (not editable?) enter?)
+        (and (not editable?) (or enter? (= " " (.-key e))))
         (do
           (.preventDefault e)
           (.stopPropagation e)
           (rf/dispatch [:set-frame-actions-open frame-id true]))
         :else
         (.stopPropagation e)))))
+
+(defn on-frame-send-click [frame-id busy? editable?]
+  (fn [e]
+    (.preventDefault e)
+    (.stopPropagation e)
+    (if editable?
+      (when-not busy?
+        (rf/dispatch [:generate-frame frame-id]))
+      (rf/dispatch [:set-frame-actions-open frame-id true]))))
 
 (defn on-frame-editor-change [frame-id editable?]
   (fn [e]

@@ -33,15 +33,22 @@
       :else first-frame)))
 
 (defn parse-hash-route [hash]
-  (or
-   (when-let [[_ chapter frame] (re-matches #"^#/chapter/([^/]+)/frame/([^/]+)$" (or hash ""))]
-     {:view :frame
-      :chapter chapter
-      :frame-id frame})
-   {:view :index}))
+  (let [raw (or hash "")]
+    (or
+     (when-let [[_ chapter frame query] (re-matches #"^#/chapter/([^/]+)/frame/([^?]+)(?:\?(.*))?$" raw)]
+       (let [fullscreen? (boolean (re-find #"(^|&)fullscreen=1(&|$)" (or query "")))]
+         {:view :frame
+          :chapter chapter
+          :frame-id frame
+          :fullscreen? fullscreen?}))
+     {:view :index})))
 
-(defn frame-hash [chapter frame-id]
-  (str "#/chapter/" chapter "/frame/" frame-id))
+(defn frame-hash
+  ([chapter frame-id]
+   (frame-hash chapter frame-id false))
+  ([chapter frame-id fullscreen?]
+   (str "#/chapter/" chapter "/frame/" frame-id
+        (when fullscreen? "?fullscreen=1"))))
 
 (defn parse-json-safe [text]
   (try

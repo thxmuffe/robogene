@@ -17,9 +17,21 @@
          :on-double-click (controls/on-frame-editor-enable frameId)
          :on-focus controls/on-frame-editor-focus
          :on-key-down (controls/on-frame-editor-keydown frameId busy? editable?)
-         :on-change (controls/on-frame-editor-change frameId editable?)}]
+         :on-change (controls/on-frame-editor-change frameId editable?)}
+        send-disabled? busy?
+        send-title (if editable?
+                     (if busy? "Generating..." "Generate frame (Cmd/Ctrl+Enter)")
+                     "Click to edit prompt")]
     [:div.frame-editor
-     [:textarea.direction-input.subtitle-input textarea-props]
+     [:div.chat-composer
+      [:textarea.direction-input.subtitle-input textarea-props]
+      [:button.send-btn
+       {:type "button"
+        :aria-label send-title
+        :title send-title
+        :disabled send-disabled?
+        :on-click (controls/on-frame-send-click frameId busy? editable?)}
+       "Send"]]
      (when (and (seq (or error "")) (not busy?))
        [:div.error-line (str "Last error: " error)])]))
 
@@ -37,12 +49,14 @@
 (defn frame
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav?]
+  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click]
                        :or {clickable? true active? false actions-open? false media-nav? false}}]
    (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
          busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
          editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
+         media-attrs (cond-> {}
+                       (fn? on-media-double-click) (assoc :on-double-click on-media-double-click))
          attrs (cond-> {:data-frame-id (:frameId frame)
                         :class (str "frame"
                                     (when clickable? " frame-clickable")
@@ -55,7 +69,7 @@
                                    :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))
                                    :on-key-down (controls/on-frame-keydown-open (:chapterId frame) (:frameId frame))))]
      [:article attrs
-      [:div.media-shell
+      [:div.media-shell media-attrs
        (if has-image?
          [:<>
           [frame-image frame*]
