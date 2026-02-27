@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             ["@mui/material/Button" :default Button]
+            ["@mui/material/Stack" :default Stack]
             ["sweetalert2" :as Swal]))
 
 (defn frame-action-button [{:keys [frameId status imageDataUrl]}]
@@ -82,7 +83,9 @@
 
 (defn frame-actions-row [frame editable?]
   (when editable?
-    [:div.frame-actions
+    [:> Stack {:className "frame-actions"
+               :direction "row"
+               :spacing 1}
      [frame-action-button frame]
      [clear-image-button frame]
      [delete-frame-button frame]]))

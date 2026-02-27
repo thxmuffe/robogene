@@ -6,6 +6,8 @@
             ["@mui/material/Button" :default Button]
             ["@mui/material/IconButton" :default IconButton]
             ["@mui/material/Tooltip" :default Tooltip]
+            ["@mui/material/Stack" :default Stack]
+            ["@mui/material/Box" :default Box]
             ["react-icons/fa6" :refer [FaFacebookF FaLinkedinIn FaXTwitter FaLink FaXmark]]))
 
 (defn current-share-url []
@@ -25,9 +27,14 @@
         nil))))
 
 (defn share-actions []
-  [:div.detail-share
-   [:span.share-label "Share"]
-   [:div.share-actions
+  [:> Stack {:className "detail-share"
+             :direction "row"
+             :spacing 1
+             :alignItems "center"}
+   [:> Box {:className "share-label"} "Share"]
+   [:> Stack {:className "share-actions"
+              :direction "row"
+              :spacing 1}
     [:> Tooltip {:title "Share on Facebook"}
      [:> IconButton
       {:className "share-icon-btn share-facebook"
@@ -53,7 +60,7 @@
       [:> FaXTwitter]]]
     [:> Tooltip {:title "Copy link"}
      [:> IconButton
-      {:className "share-icon-btn share-copy"
+     {:className "share-icon-btn share-copy"
        :aria-label "Copy link"
        :on-click #(copy-link!)}
       [:> FaLink]]]]])
@@ -72,10 +79,13 @@
 (defn detail-controls [chapter-id frame-neighbors]
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)]
-    [:div.detail-controls
+    [:> Stack {:className "detail-controls"
+               :direction "row"
+               :spacing 1
+               :flexWrap "wrap"}
      [:> Button
       {:variant "outlined"
-       :size "small"
+      :size "small"
        :on-click #(rf/dispatch [:navigate-index])}
       "Back to Gallery"]
      [:> Button
@@ -94,9 +104,9 @@
       "Next"]
      [:> Button
       {:variant "contained"
-       :size "small"
-       :color "secondary"
-       :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
+      :size "small"
+      :color "secondary"
+      :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
 (defn frame-page [route frame-inputs open-frame-actions]
@@ -108,7 +118,7 @@
         frame (:current frame-neighbors)]
     [:section
      (if frame
-       [:div {:class (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
+       [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
         (when-not fullscreen?
           [detail-controls chapter-id frame-neighbors])
         [frame/frame frame
@@ -126,7 +136,7 @@
             :on-click #(rf/dispatch [:set-frame-fullscreen false])}
            [:> FaXmark]]
           [share-actions])]
-       [:div.detail-missing
+       [:> Box {:className "detail-missing"}
         [:p "Frame not found in this chapter."]
         [:> Button
          {:variant "outlined"

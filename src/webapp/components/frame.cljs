@@ -3,10 +3,18 @@
             [webapp.shared.controls :as controls]
             [webapp.components.frame-actions :as frame-actions]
             ["@mui/material/Button" :default Button]
-            ["@mui/material/TextField" :default TextField]))
+            ["@mui/material/TextField" :default TextField]
+            ["@mui/material/Card" :default Card]
+            ["@mui/material/CardContent" :default CardContent]
+            ["@mui/material/CardMedia" :default CardMedia]
+            ["@mui/material/Box" :default Box]
+            ["@mui/material/Chip" :default Chip]))
 
 (defn frame-image [{:keys [imageDataUrl frameId]}]
-  [:img {:src (or imageDataUrl "") :alt (str "Frame " frameId)}])
+  [:> CardMedia
+   {:component "img"
+    :src (or imageDataUrl "")
+    :alt (str "Frame " frameId)}])
 
 (defn frame-editor [{:keys [frameId status error]} frame-input editable?]
   (let [busy? (or (= status "queued") (= status "processing"))
@@ -24,8 +32,8 @@
         send-title (if editable?
                      (if busy? "Generating..." "Generate frame (Cmd/Ctrl+Enter)")
                      "Click to edit prompt")]
-    [:div.frame-editor
-     [:div.chat-composer
+    [:> Box {:className "frame-editor"}
+     [:> Box {:className "chat-composer"}
       [:> TextField
        (merge {:className "direction-input subtitle-input"
                :multiline true
@@ -55,9 +63,9 @@
                 "queued" "Queued..."
                 "failed" "Generation failed"
                 "Add subtitle and generate")]
-    [:div.placeholder-img
+    [:> Box {:className "placeholder-img"}
      (when (or (= status "queued") (= status "processing"))
-       [:div.spinner])
+      [:div.spinner])
      [:div.placeholder-text label]]))
 
 (defn frame
@@ -82,8 +90,12 @@
                                    :on-focus (controls/on-frame-activate (:frameId frame))
                                    :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))
                                    :on-key-down (controls/on-frame-keydown-open (:chapterId frame) (:frameId frame))))]
-     [:article attrs
-      [:div.media-shell media-attrs
+     [:> Card
+      (merge attrs
+             {:component "article"
+              :variant "outlined"
+              :sx {:borderWidth 2}})
+      [:> Box (merge {:className "media-shell"} media-attrs)
        (if has-image?
          [:<>
           [frame-image frame*]
@@ -105,7 +117,9 @@
             :variant "text"
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
-      [:div.meta
+      [:> CardContent {:className "meta"}
        (when busy?
-         [:span.badge.queue "In Queue"])
+         [:> Chip {:className "badge queue"
+                   :size "small"
+                   :label "In Queue"}])
        [frame-actions/frame-actions-row frame* editable?]]])))
