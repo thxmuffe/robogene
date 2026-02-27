@@ -2,4 +2,4 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$SCRIPT_DIR/azure/deploy.sh" "$@"
+exec "$SCRIPT_DIR/deploy.sh" "$@"
