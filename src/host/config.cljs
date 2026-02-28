@@ -49,7 +49,8 @@
         keys (js->clj (.keys js/Object env))]
     (reduce (fn [acc k]
               (let [v (aget env k)]
-                (if (some? v)
+                (if (and (some? v)
+                         (not (str/blank? (str v))))
                   (assoc acc k (str v))
                   acc)))
             {}

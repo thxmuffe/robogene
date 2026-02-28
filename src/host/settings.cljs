@@ -5,9 +5,6 @@
 (def default-mock-data-url
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")
 
-(def default-openai-image-options
-  {:model "gpt-image-1-mini"})
-
 (defn image-generator []
   (some-> (config/setting "ROBOGENE_IMAGE_GENERATOR" "openai")
           str/lower-case
@@ -25,14 +22,12 @@
 
 (defn image-settings []
   (let [raw (config/setting "OPENAI_IMAGE_OPTIONS_JSON")]
-    (cond
-      (map? raw) (merge default-openai-image-options raw)
-      (str/blank? (or raw "")) default-openai-image-options
-      :else
-      (let [parsed (js->clj (.parse js/JSON raw))]
-        (when-not (map? parsed)
-          (throw (js/Error. "OPENAI_IMAGE_OPTIONS_JSON must parse to an object.")))
-        (merge default-openai-image-options parsed)))))
+    (let [parsed (if (map? raw)
+                   raw
+                   (js->clj (.parse js/JSON (str raw))))]
+      (when-not (map? parsed)
+        (throw (js/Error. "OPENAI_IMAGE_OPTIONS_JSON must parse to an object.")))
+      parsed)))
 
 (defn allowed-origins []
   (config/parse-csv (config/setting "ROBOGENE_ALLOWED_ORIGIN" "")))
