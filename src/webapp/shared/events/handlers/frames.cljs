@@ -8,6 +8,19 @@
       (seq description) (str "\"" description "\"")
       :else (or (:frameId frame) "frame"))))
 
+(defn request-frame-mutation [db status-text effect-key payload]
+  (assoc {:db (assoc db :status status-text)}
+         effect-key
+         payload))
+
+(defn accepted->refresh
+  ([db]
+   {:db db
+    :dispatch [:fetch-state]})
+  ([db status-text]
+   {:db (assoc db :status status-text)
+    :dispatch [:fetch-state]}))
+
 (rf/reg-event-db
  :frame-direction-changed
  (fn [db [_ frame-id value]]
@@ -16,15 +29,16 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id]]
-   {:db (assoc db :status "Queueing frame...")
-    :post-generate-frame {:frame-id frame-id
-                          :direction (get-in db [:frame-inputs frame-id] "")}}))
+   (request-frame-mutation db
+                           "Queueing frame..."
+                           :post-generate-frame
+                           {:frame-id frame-id
+                            :direction (get-in db [:frame-inputs frame-id] "")})))
 
 (rf/reg-event-fx
  :generate-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db db
-    :dispatch [:fetch-state]}))
+   (accepted->refresh db)))
 
 (rf/reg-event-db
  :generate-failed
@@ -34,14 +48,15 @@
 (rf/reg-event-fx
  :add-frame
  (fn [{:keys [db]} [_ chapter-id]]
-   {:db (assoc db :status "Adding frame...")
-    :post-add-frame {:chapter-id chapter-id}}))
+   (request-frame-mutation db
+                           "Adding frame..."
+                           :post-add-frame
+                           {:chapter-id chapter-id})))
 
 (rf/reg-event-fx
  :add-frame-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame added.")
-    :dispatch [:fetch-state]}))
+   (accepted->refresh db "Frame added.")))
 
 (rf/reg-event-db
  :add-frame-failed
@@ -51,15 +66,16 @@
 (rf/reg-event-fx
  :delete-frame
  (fn [{:keys [db]} [_ frame-id]]
-   {:db (assoc db :status "Deleting frame...")
-    :post-delete-frame {:frame-id frame-id}}))
+   (request-frame-mutation db
+                           "Deleting frame..."
+                           :post-delete-frame
+                           {:frame-id frame-id})))
 
 (rf/reg-event-fx
  :delete-frame-accepted
  (fn [{:keys [db]} [_ data]]
    (let [frame (:frame data)]
-     {:db (assoc db :status (str "Deleted " (deleted-frame-label frame) "."))
-      :dispatch [:fetch-state]})))
+     (accepted->refresh db (str "Deleted " (deleted-frame-label frame) ".")))))
 
 (rf/reg-event-db
  :delete-frame-failed
@@ -69,14 +85,15 @@
 (rf/reg-event-fx
  :clear-frame-image
  (fn [{:keys [db]} [_ frame-id]]
-   {:db (assoc db :status "Removing frame image...")
-    :post-clear-frame-image {:frame-id frame-id}}))
+   (request-frame-mutation db
+                           "Removing frame image..."
+                           :post-clear-frame-image
+                           {:frame-id frame-id})))
 
 (rf/reg-event-fx
  :clear-frame-image-accepted
  (fn [{:keys [db]} [_ _data]]
-   {:db (assoc db :status "Frame image removed.")
-    :dispatch [:fetch-state]}))
+   (accepted->refresh db "Frame image removed.")))
 
 (rf/reg-event-db
  :clear-frame-image-failed

@@ -3,17 +3,12 @@
             [reagent.core :as r]
             [webapp.shared.controls :as controls]
             [webapp.components.action-menu :as action-menu]
+            [webapp.components.confirm-dialog :as confirm-dialog]
             ["@mui/material/Box" :default Box]
             ["@mui/material/TextField" :default TextField]
             ["@mui/material/Stack" :default Stack]
             ["@mui/material/IconButton" :default IconButton]
             ["@mui/material/Tooltip" :default Tooltip]
-            ["@mui/material/Dialog" :default Dialog]
-            ["@mui/material/DialogTitle" :default DialogTitle]
-            ["@mui/material/DialogContent" :default DialogContent]
-            ["@mui/material/DialogContentText" :default DialogContentText]
-            ["@mui/material/DialogActions" :default DialogActions]
-            ["@mui/material/Button" :default Button]
             ["@mui/icons-material/SendRounded" :default SendRoundedIcon]))
 
 (defn prompt-panel [{:keys [frameId error]} frame-input]
@@ -64,21 +59,10 @@
           :button-class "prompt-actions-trigger"
           :items menu-items
           :on-select #(reset! confirm* %)}]
-        (when selected-item
-          (let [{:keys [title text confirm-label confirm-color]} (:confirm selected-item)
-                dispatch-event (:dispatch-event selected-item)]
-            [:> Dialog {:open true
-                        :on-close #(reset! confirm* nil)}
-             [:> DialogTitle title]
-             [:> DialogContent
-              [:> DialogContentText text]]
-             [:> DialogActions
-              [:> Button {:variant "text"
-                          :on-click #(reset! confirm* nil)}
-               "Cancel"]
-              [:> Button {:variant "contained"
-                          :color confirm-color
-                          :on-click (fn []
-                                      (rf/dispatch dispatch-event)
-                                      (reset! confirm* nil))}
-               confirm-label]]]))]])))
+        [confirm-dialog/confirm-dialog
+         {:item selected-item
+          :on-cancel #(reset! confirm* nil)
+          :on-confirm (fn []
+                        (when-let [event (:dispatch-event selected-item)]
+                          (rf/dispatch event))
+                        (reset! confirm* nil))}]]])))
