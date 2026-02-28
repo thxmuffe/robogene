@@ -150,6 +150,7 @@
         submit?
         (do
           (interaction/halt! e)
+          (rf/dispatch [:set-frame-actions-open frame-id false])
           (rf/dispatch [:generate-frame frame-id]))
         :else
         (interaction/stop! e)))))
@@ -157,6 +158,7 @@
 (defn on-frame-send-click [frame-id]
   (fn [e]
     (interaction/halt! e)
+    (rf/dispatch [:set-frame-actions-open frame-id false])
     (rf/dispatch [:generate-frame frame-id])))
 
 (defn on-frame-editor-change [frame-id editable?]

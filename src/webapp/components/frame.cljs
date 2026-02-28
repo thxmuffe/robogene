@@ -88,17 +88,19 @@
           [:> Button
            {:className "media-nav-zone media-nav-prev"
             :variant "text"
-            :tab-index -1
+            :tabIndex -1
             :disableRipple true
             :disableFocusRipple true
+            :on-focus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Previous frame"
             :on-click (controls/on-media-nav-click -1)}]
           [:> Button
           {:className "media-nav-zone media-nav-next"
             :variant "text"
-            :tab-index -1
+            :tabIndex -1
             :disableRipple true
             :disableFocusRipple true
+            :on-focus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
       (when busy?
