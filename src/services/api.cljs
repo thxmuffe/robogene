@@ -109,28 +109,27 @@
      :bytes (safe-json-length body)
      :keyCount (if (map? body) (count body) nil)}))
 
+(defn compact-id [raw-id]
+  (let [id (or raw-id "-")]
+    (if (> (count id) 12)
+      (str (subs id 0 8) ".." (subs id (- (count id) 6)))
+      id)))
+
 (defn log-invocation! [{:keys [route-name started-at request response error context]}]
   (let [duration-ms (- (.now js/Date) started-at)
         function-name (or (some-> context (gobj/get "functionName")) route-name)
-        invocation-id (or (some-> context (gobj/get "invocationId")) "-")
+        invocation-id (compact-id (some-> context (gobj/get "invocationId")))
         status (or (:status response) "ERR")
-        res-bytes (or (:bytes response) -1)
-        res-keys (or (:keyCount response) 0)
         error-text (when error (truncate-string (error-message error) max-error-log-chars))
-        line (str "[robogene] invoke " function-name
-                  " | id " invocation-id "\n"
-                  "  - req: method " (:method request)
-                  " | params " (:paramCount request)
-                  " | query " (:queryCount request)
-                  " | content-type? " (:hasBodyType request) "\n"
-                  "  - res: status " status
-                  " | bytes " res-bytes
-                  " | keys " res-keys
-                  " | duration " duration-ms " ms"
-                  (if error-text (str "\n  - err: " error-text) ""))]
-    (if (fn? (some-> context (gobj/get "log")))
-      (.log context line)
-      (.log js/console line))))
+        line (str "[robogene] " function-name
+                  " | id:" invocation-id
+                  " | req:" (:method request)
+                  " | res:" status
+                  " | duration:" duration-ms "ms"
+                  (if error-text (str " | err:" error-text) ""))]
+    (if (fn? (some-> context (gobj/get "warn")))
+      (.warn context line)
+      (js/console.warn line))))
 
 (defn with-invocation-logging [route-name handler]
   (fn [request context]

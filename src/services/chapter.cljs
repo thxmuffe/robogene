@@ -393,7 +393,7 @@
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
                           :emittedAt (.toISOString (js/Date.))})]
-    (js/console.log
+    (js/console.warn
      (str "[robogene] emit stateChanged"
           " reason=" reason
           " revision=" (:revision snapshot)
@@ -409,7 +409,7 @@
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]
-    (js/console.info
+    (js/console.warn
      (str "[robogene] generation started"
           " chapterNumber=" (or chapter-number "-")
           " frameNumber=" (:frameNumber frame)

@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Webapp: Chrome Debug",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/index.html",
+      "webRoot": "${workspaceFolder}/src/webapp",
+      "sourceMaps": true,
+      "internalConsoleOptions": "openOnSessionStart"
+    }
+  ]
+}

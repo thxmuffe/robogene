@@ -51,13 +51,23 @@
         size (or (get opts "size") (get opts :size) "-")
         quality (or (get opts "quality") (get opts :quality) "-")
         refs-count (count (or refs []))]
-    (js/console.info
+    (js/console.warn
      (str "[robogene] openai image request"
           " mode=" mode
           " refs=" refs-count
           " model=" model
           " size=" size
           " quality=" quality))))
+
+(defn reference->meta [{:keys [bytes name]}]
+  {:name (or name "<unnamed>")
+   :bytes (or (some-> bytes .-length) 0)
+   :present? (some? bytes)})
+
+(defn request-debug-context [{:keys [prompt refs options]}]
+  (str " prompt=" (pr-str (or prompt ""))
+       " options=" (pr-str (sanitize-openai-options options))
+       " refs=" (pr-str (mapv reference->meta (or refs [])))))
 
 (defn openai-image-request! [{:keys [key options prompt refs]}]
   (let [options (sanitize-openai-options options)]
@@ -83,9 +93,12 @@
                      :body (.stringify js/JSON
                                        (clj->js (assoc options :prompt prompt)))})))))
 
-(defn openai-response->result [{:keys [ok status body]}]
+(defn openai-response->result [{:keys [ok status body]} request]
   (if-not ok
-    (throw (js/Error. (str "OpenAI error " status ": " (.stringify js/JSON body))))
+    (throw (js/Error. (str "OpenAI error " status ": "
+                           (.stringify js/JSON body)
+                           " | request:"
+                           (request-debug-context request))))
     (openai-image-response->data-url body)))
 
 (defn openai-generate-image! [{:keys [prompt refs options]}]
@@ -96,7 +109,10 @@
                                   :options options
                                   :prompt prompt
                                   :refs refs})
-          (.then openai-response->result)))))
+          (.then (fn [response]
+                   (openai-response->result response {:prompt prompt
+                                                     :options options
+                                                     :refs refs})))))))
 
 (defn mock-generator []
   (fn [_request]
