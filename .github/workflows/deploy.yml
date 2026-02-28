@@ -59,6 +59,7 @@ jobs:
             AzureWebJobsStorage='UseDevelopmentStorage=true' \
             ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
             ROBOGENE_IMAGE_GENERATOR='mock' \
+            ROBOGENE_ALLOWED_ORIGIN='http://localhost:8080' \
             FUNCTIONS_WORKER_RUNTIME='node' \
             node -e "require('./dist/main.js'); console.log('webapi-smoke-ok')"
           )
