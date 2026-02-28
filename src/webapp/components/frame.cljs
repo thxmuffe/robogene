@@ -4,7 +4,6 @@
             [webapp.components.prompt :as prompt]
             ["@mui/material/Button" :default Button]
             ["@mui/material/Card" :default Card]
-            ["@mui/material/CardActionArea" :default CardActionArea]
             ["@mui/material/CardMedia" :default CardMedia]
             ["@mui/material/Box" :default Box]
             ["@mui/material/Chip" :default Chip]
@@ -58,33 +57,22 @@
                                 (when clickable? " frame-clickable")
                                 (when active? " frame-active"))
                 :on-mouse-enter (controls/on-frame-activate (:frameId frame))}
-         nav-attrs {:className "frame-nav-surface"
-                    :on-focus (controls/on-frame-activate (:frameId frame))
-                    :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))
-                    :on-key-down (controls/on-frame-keydown-open (:chapterId frame) (:frameId frame))}]
+         nav-attrs (cond-> {:className "frame-nav-surface"}
+                     clickable? (assoc :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))))]
      [:> Card
       (merge attrs
              {:component "article"
               :variant "outlined"})
      [:> Box (merge {:className "media-shell"} media-attrs)
-       (if clickable?
-         [:> CardActionArea nav-attrs
-          (if has-image?
-            [:<>
-             [frame-image frame*]
-             (when busy?
-               [:div.media-loading-overlay
-                [:div.spinner]
-                [:div.placeholder-text "Generating..."]])]
-            [frame-placeholder frame])]
-         (if has-image?
-           [:<>
-            [frame-image frame*]
-            (when busy?
-              [:div.media-loading-overlay
-               [:div.spinner]
-               [:div.placeholder-text "Generating..."]])]
-           [frame-placeholder frame]))
+       [:> Box nav-attrs
+        (if has-image?
+          [:<>
+           [frame-image frame*]
+           (when busy?
+             [:div.media-loading-overlay
+              [:div.spinner]
+              [:div.placeholder-text "Generating..."]])]
+          [frame-placeholder frame])]
        (if editable?
          [prompt/prompt-panel frame* frame-input]
          [subtitle-display frame* frame-input])
@@ -100,11 +88,17 @@
           [:> Button
            {:className "media-nav-zone media-nav-prev"
             :variant "text"
+            :tab-index -1
+            :disableRipple true
+            :disableFocusRipple true
             :aria-label "Previous frame"
             :on-click (controls/on-media-nav-click -1)}]
           [:> Button
           {:className "media-nav-zone media-nav-next"
             :variant "text"
+            :tab-index -1
+            :disableRipple true
+            :disableFocusRipple true
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
       (when busy?
