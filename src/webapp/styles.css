@@ -517,33 +517,34 @@ h2 { margin: 24px 0 10px; }
   margin-right: 0;
 }
 
-.prompt-generate-btn {
+.prompt-controls .prompt-generate-btn.MuiIconButton-root {
   width: 50px;
   height: 50px;
   border-radius: 999px;
-  color: #091220;
-  background-color: #25d366;
+  color: #091220 !important;
+  background-color: #25d366 !important;
+  border: 1px solid rgba(0, 0, 0, 0.14);
 }
 
-.prompt-generate-btn:hover {
-  background-color: #20bc59;
+.prompt-controls .prompt-generate-btn.MuiIconButton-root:hover {
+  background-color: #20bc59 !important;
 }
 
-.prompt-generate-btn.Mui-disabled {
-  background-color: #97b9a4;
-  color: #365142;
+.prompt-controls .prompt-generate-btn.MuiIconButton-root.Mui-disabled {
+  background-color: #97b9a4 !important;
+  color: #365142 !important;
 }
 
-.prompt-actions-trigger {
+.prompt-controls .prompt-actions-trigger.MuiIconButton-root {
   width: 42px;
   height: 42px;
-  color: #f5fbff;
+  color: #f5fbff !important;
   border: 1px solid rgba(167, 205, 255, 0.55);
-  background-color: rgba(10, 28, 52, 0.68);
+  background-color: rgba(10, 28, 52, 0.86) !important;
 }
 
-.prompt-actions-trigger:hover {
-  background-color: rgba(18, 42, 74, 0.9);
+.prompt-controls .prompt-actions-trigger.MuiIconButton-root:hover {
+  background-color: rgba(18, 42, 74, 0.96) !important;
 }
 
 .subtitle-display {
