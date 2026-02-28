@@ -51,7 +51,7 @@
         size (or (get opts "size") (get opts :size) "-")
         quality (or (get opts "quality") (get opts :quality) "-")
         refs-count (count (or refs []))]
-    (js/console.warn
+    (js/console.info
      (str "[robogene] openai image request"
           " mode=" mode
           " refs=" refs-count

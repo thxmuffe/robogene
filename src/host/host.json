@@ -3,6 +3,16 @@
   "logging": {
     "logLevel": {
       "default": "Warning",
+      "Worker": "Information",
+      "Function": "Warning",
+      "Function.get-state.User": "Information",
+      "Function.post-generate-frame.User": "Information",
+      "Function.post-add-frame.User": "Information",
+      "Function.post-add-chapter.User": "Information",
+      "Function.post-delete-frame.User": "Information",
+      "Function.post-clear-frame-image.User": "Information",
+      "Function.signalr-negotiate.User": "Information",
+      "Function.options-preflight.User": "Information",
       "Microsoft": "Warning",
       "Host": "Warning",
       "Host.Results": "Error",

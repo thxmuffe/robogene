@@ -87,7 +87,7 @@
           (.then (fn [response]
                    (if (.-ok response)
                      (do
-                       (js/console.warn
+                       (js/console.info
                         (str "[robogene] SignalR publish ok"
                              " status=" (.-status response)
                              " reason=" (or (gobj/get data "reason") "")))

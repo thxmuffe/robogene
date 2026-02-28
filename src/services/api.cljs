@@ -127,9 +127,15 @@
                   " | res:" status
                   " | duration:" duration-ms "ms"
                   (if error-text (str " | err:" error-text) ""))]
-    (if (fn? (some-> context (gobj/get "warn")))
-      (.warn context line)
-      (js/console.warn line))))
+    (cond
+      (fn? (some-> context (gobj/get "info")))
+      (.info context line)
+
+      (fn? (some-> context (gobj/get "log")))
+      (.log context line)
+
+      :else
+      (js/console.info line))))
 
 (defn with-invocation-logging [route-name handler]
   (fn [request context]

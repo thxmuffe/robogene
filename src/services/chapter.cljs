@@ -316,16 +316,11 @@
               "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
 
-(defn image-data-url->bytes [data-url]
-  (when (and (string? data-url) (str/starts-with? data-url "data:image/png;base64,"))
-    (js/Buffer.from (subs data-url (count "data:image/png;base64,")) "base64")))
-
 (defn reference-images []
-  (let [prev-frame (last (completed-frames))]
-    (vec
-     (filter some?
-             [{:bytes (:referenceImageBytes @state) :name "character_ref.png"}
-              {:bytes (image-data-url->bytes (:imageDataUrl prev-frame)) :name "previous_frame.png"}]))))
+  (let [character-ref (:referenceImageBytes @state)]
+    (if character-ref
+      [{:bytes character-ref :name "character_ref.png"}]
+      [])))
 
 (defn set-image-generator! [f]
   (image-generator/set-image-generator! f))
@@ -393,7 +388,7 @@
                           :processing (:processing snapshot)
                           :pendingCount (active-queue-count (:frames snapshot))
                           :emittedAt (.toISOString (js/Date.))})]
-    (js/console.warn
+    (js/console.info
      (str "[robogene] emit stateChanged"
           " reason=" reason
           " revision=" (:revision snapshot)
@@ -409,7 +404,7 @@
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]
-    (js/console.warn
+    (js/console.info
      (str "[robogene] generation started"
           " chapterNumber=" (or chapter-number "-")
           " frameNumber=" (:frameNumber frame)
@@ -421,7 +416,7 @@
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]
-    (js/console.warn
+    (js/console.info
      (str "[robogene] generation finished"
           " chapterNumber=" (or chapter-number "-")
           " frameNumber=" (:frameNumber frame)
@@ -440,7 +435,7 @@
 (defn log-generation-result-summary! [frame duration-ms image-data-url]
   (let [opts (:openaiOptions @state)
         bytes (data-url-size-bytes image-data-url)]
-    (js/console.warn
+    (js/console.info
      (str "[robogene] generation result"
           " frameId=" (:frameId frame)
           " frameNumber=" (:frameNumber frame)
