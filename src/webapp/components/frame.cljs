@@ -25,11 +25,7 @@
              :title "Click subtitle to edit prompt"
              :on-click (controls/on-frame-editor-enable frameId)
              :on-double-click (controls/on-frame-editor-enable frameId)
-             :on-key-down (fn [e]
-                            (when (or (= "Enter" (.-key e))
-                              (= " " (.-key e)))
-                              (.preventDefault e)
-                              ((controls/on-frame-editor-enable frameId) e)))}
+             :on-key-down (controls/on-frame-editor-enable-keydown frameId)}
      [:span {:className "subtitle-display-text"}
       (if (seq subtitle)
         subtitle

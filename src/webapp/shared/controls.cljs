@@ -1,7 +1,7 @@
 (ns webapp.shared.controls
-  (:require [clojure.string :as str]
-            [goog.object :as gobj]
-            [re-frame.core :as rf]))
+  (:require [goog.object :as gobj]
+            [re-frame.core :as rf]
+            [webapp.shared.ui.interaction :as interaction]))
 
 (def new-chapter-frame-id "__new_chapter__")
 
@@ -55,13 +55,6 @@
               :down (some-> nodes first frame-id-of)
               nil))))))
 
-(defn typing-target? [el]
-  (let [tag (some-> el .-tagName str/lower-case)]
-    (or (= tag "input")
-        (= tag "textarea")
-        (= tag "select")
-        (true? (.-isContentEditable el)))))
-
 (defn activate-frame! [frame-id]
   (rf/dispatch [:set-active-frame frame-id]))
 
@@ -74,35 +67,34 @@
   (rf/dispatch [:set-new-chapter-panel-open true]))
 
 (defn on-window-keydown [e]
-  (when-not (typing-target? (.-target e))
+  (when-not (interaction/editable-target? (.-target e))
     (case (.-key e)
       "Escape" (rf/dispatch [:escape-pressed])
       "f" (do
-            (.preventDefault e)
+            (interaction/prevent! e)
             (rf/dispatch [:toggle-frame-fullscreen]))
       "F" (do
-            (.preventDefault e)
+            (interaction/prevent! e)
             (rf/dispatch [:toggle-frame-fullscreen]))
       "ArrowLeft" (do
-                    (.preventDefault e)
+                    (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
       "ArrowRight" (do
-                     (.preventDefault e)
+                     (interaction/prevent! e)
                      (rf/dispatch [:keyboard-arrow "ArrowRight"]))
       "ArrowUp" (do
-                  (.preventDefault e)
+                  (interaction/prevent! e)
                   (rf/dispatch [:keyboard-arrow "ArrowUp"]))
       "ArrowDown" (do
-                    (.preventDefault e)
+                    (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowDown"]))
       "Enter" (do
-                (.preventDefault e)
+                (interaction/prevent! e)
                 (rf/dispatch [:open-active-frame]))
       nil)))
 
 (defn on-media-double-click [e]
-  (.preventDefault e)
-  (.stopPropagation e)
+  (interaction/halt! e)
   (rf/dispatch [:toggle-frame-fullscreen]))
 
 (defn register-global-listeners! []
@@ -123,20 +115,20 @@
     (activate-frame! frame-id)))
 
 (defn on-frame-click [chapter-id frame-id]
-  (fn [_]
-    (navigate-frame! chapter-id frame-id)))
+  (fn [e]
+    (when-not (interaction/interactive-child-event? e)
+      (navigate-frame! chapter-id frame-id))))
 
 (defn on-media-nav-click [delta]
   (fn [e]
-    (.preventDefault e)
-    (.stopPropagation e)
+    (interaction/halt! e)
     (rf/dispatch [:navigate-relative-frame delta])))
 
 (defn on-frame-keydown-open [chapter-id frame-id]
   (fn [e]
     (when (or (= "Enter" (.-key e))
               (= " " (.-key e)))
-      (.preventDefault e)
+      (interaction/prevent! e)
       (navigate-frame! chapter-id frame-id))))
 
 (defn on-frame-blur-close-actions [frame-id actions-open?]
@@ -153,7 +145,7 @@
 
 (defn focus-current-target! [e]
   (let [el (.-currentTarget e)]
-    (.stopPropagation e)
+    (interaction/stop! e)
     (js/setTimeout
      (fn []
        (.focus el))
@@ -177,14 +169,21 @@
     (resize-textarea-to-content! (.-currentTarget e))
     (focus-current-target! e)))
 
+(defn on-frame-editor-enable-keydown [frame-id]
+  (fn [e]
+    (when (or (= "Enter" (.-key e))
+              (= " " (.-key e)))
+      (interaction/prevent! e)
+      ((on-frame-editor-enable frame-id) e))))
+
 (defn on-frame-editor-close [frame-id]
   (fn [e]
-    (.stopPropagation e)
+    (interaction/stop! e)
     (rf/dispatch [:set-frame-actions-open frame-id false])))
 
 (defn on-frame-editor-focus [e]
   (resize-textarea-to-content! (.-currentTarget e))
-  (.stopPropagation e))
+  (interaction/stop! e))
 
 (defn on-frame-editor-keydown [frame-id]
   (fn [e]
@@ -195,21 +194,18 @@
       (cond
         escape?
         (do
-          (.preventDefault e)
-          (.stopPropagation e)
+          (interaction/halt! e)
           (rf/dispatch [:set-frame-actions-open frame-id false]))
         submit?
         (do
-          (.preventDefault e)
-          (.stopPropagation e)
+          (interaction/halt! e)
           (rf/dispatch [:generate-frame frame-id]))
         :else
-        (.stopPropagation e)))))
+        (interaction/stop! e)))))
 
 (defn on-frame-send-click [frame-id]
   (fn [e]
-    (.preventDefault e)
-    (.stopPropagation e)
+    (interaction/halt! e)
     (rf/dispatch [:generate-frame frame-id])))
 
 (defn on-frame-editor-change [frame-id editable?]
@@ -222,7 +218,7 @@
 (defn on-new-chapter-form-keydown [e]
   (when (and (= "Enter" (.-key e))
              (not (.-shiftKey e)))
-    (.preventDefault e)
+    (interaction/prevent! e)
     (rf/dispatch [:add-chapter])))
 
 (defn on-new-chapter-teaser-click [_]
@@ -231,7 +227,7 @@
 (defn on-new-chapter-teaser-keydown [e]
   (when (or (= "Enter" (.-key e))
             (= " " (.-key e)))
-    (.preventDefault e)
+    (interaction/prevent! e)
     (open-new-chapter-panel!)))
 
 (defn frame-by-id [frames frame-id]

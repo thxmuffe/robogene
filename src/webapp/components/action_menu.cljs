@@ -1,24 +1,22 @@
 (ns webapp.components.action-menu
   (:require [reagent.core :as r]
+            [webapp.shared.ui.interaction :as interaction]
             ["@mui/material/IconButton" :default IconButton]
             ["@mui/material/Menu" :default Menu]
             ["@mui/material/MenuItem" :default MenuItem]
             ["@mui/material/Tooltip" :default Tooltip]
             ["@mui/icons-material/MoreVert" :default MoreVertIcon]))
 
-(defn stop-event! [e]
-  (.stopPropagation e))
-
 (defn action-menu [{:keys [title aria-label button-class items on-select]}]
   (r/with-let [menu-anchor* (r/atom nil)]
     (let [open-menu! (fn [e]
-                       (stop-event! e)
+                       (interaction/stop! e)
                        (reset! menu-anchor* (.-currentTarget e)))
           close-menu! (fn []
                         (reset! menu-anchor* nil))
           on-item-click (fn [item]
                           (fn [e]
-                            (stop-event! e)
+                            (interaction/stop! e)
                             (close-menu!)
                             (on-select item)))]
       [:<>
