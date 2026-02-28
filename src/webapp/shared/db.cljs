@@ -14,5 +14,7 @@
    :new-chapter-description ""
    :new-chapter-panel-open? false
    :show-chapter-celebration? false
+   :sync-outbox []
+   :sync-inflight nil
    :latest-state nil
    :route {:view :index}})

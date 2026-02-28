@@ -48,6 +48,11 @@
                 :status (.-status res)
                 :text text}))))
 
+(defn dispatch-event! [event payload]
+  (if (vector? event)
+    (rf/dispatch (conj event payload))
+    (rf/dispatch [event payload])))
+
 (defn dispatch-api-response
   [{:keys [ok status text]} success-event fail-event ok? request-label]
   (let [data (model/parse-json-safe text)]
@@ -56,15 +61,15 @@
       (if (ok? ok status) :incoming :error)
       (str "Incoming: " request-label " -> HTTP " status)])
     (if (ok? ok status)
-      (rf/dispatch [success-event data])
-      (rf/dispatch [fail-event (or (:error data)
-                                   (str "HTTP " status))]))))
+      (dispatch-event! success-event data)
+      (dispatch-event! fail-event (or (:error data)
+                                      (str "HTTP " status))))))
 
 (defn dispatch-network-error [fail-event e request-label]
   (rf/dispatch [:wait-lights-log
                 :error
                 (str "Network error: " request-label " -> " (or (.-message e) e))])
-  (rf/dispatch [fail-event (str (.-message e))]))
+  (dispatch-event! fail-event (str (.-message e))))
 
 (defn request-json
   [url request-options success-event fail-event ok?]
@@ -204,46 +209,46 @@
 
 (rf/reg-fx
  :post-generate-frame
- (fn [{:keys [frame-id direction]}]
+ (fn [{:keys [frame-id direction on-success on-failure]}]
    (post-json "/api/generate-frame"
               {:frameId frame-id
                :direction direction}
-              :generate-accepted
-              :generate-failed
+              on-success
+              on-failure
               (fn [ok status] (or ok (= 409 status))))))
 
 (rf/reg-fx
  :post-add-chapter
- (fn [{:keys [description]}]
+ (fn [{:keys [description on-success on-failure]}]
    (post-json "/api/add-chapter"
               {:description description}
-              :add-chapter-accepted
-              :add-chapter-failed
+              on-success
+              on-failure
               (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-add-frame
- (fn [{:keys [chapter-id]}]
+ (fn [{:keys [chapter-id on-success on-failure]}]
    (post-json "/api/add-frame"
               {:chapterId chapter-id}
-              :add-frame-accepted
-              :add-frame-failed
+              on-success
+              on-failure
               (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-delete-frame
- (fn [{:keys [frame-id]}]
+ (fn [{:keys [frame-id on-success on-failure]}]
    (post-json "/api/delete-frame"
               {:frameId frame-id}
-              :delete-frame-accepted
-              :delete-frame-failed
+              on-success
+              on-failure
               (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-clear-frame-image
- (fn [{:keys [frame-id]}]
+ (fn [{:keys [frame-id on-success on-failure]}]
    (post-json "/api/clear-frame-image"
               {:frameId frame-id}
-              :clear-frame-image-accepted
-              :clear-frame-image-failed
+              on-success
+              on-failure
               (fn [ok _] ok))))

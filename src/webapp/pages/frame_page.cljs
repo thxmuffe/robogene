@@ -31,7 +31,6 @@
              :direction "row"
              :spacing 1
              :alignItems "center"}
-   [:> Box {:className "share-label"} "Share"]
    [:> Stack {:className "share-actions"
               :direction "row"
               :spacing 1}
