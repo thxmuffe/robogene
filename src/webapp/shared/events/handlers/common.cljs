@@ -72,13 +72,6 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [{:keys [chapters frames]} (model/derived-state state)
-         chapter-ids (map :chapterId chapters)
-         duplicate-chapter-ids (->> chapter-ids
-                                    (remove nil?)
-                                    frequencies
-                                    (filter (fn [[_ n]] (> n 1)))
-                                    (map first)
-                                    vec)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -94,12 +87,6 @@
                            (seq frames)
                            (:frameId (first frames))
                            :else nil)]
-     (when (or (some nil? chapter-ids)
-               (seq duplicate-chapter-ids))
-       (js/console.warn
-        "[robogene] state-loaded contains invalid chapter IDs"
-        (clj->js {:chapterIds (vec chapter-ids)
-                  :duplicateChapterIds duplicate-chapter-ids})))
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state chapters frames)
@@ -110,15 +97,14 @@
                      :active-frame-id active-frame-id)
               (assoc :frame-inputs
                      (reduce (fn [acc frame]
-                               (let [frame-id (:frameId frame)
+                             (let [frame-id (:frameId frame)
                                      existing-val (get-in db [:frame-inputs frame-id])
                                      description (str/trim (or (:description frame) ""))
-                                     services-val (or (when (and (seq description)
-                                                                (not (model/generic-frame-text? description)))
-                                                       description)
-                                                     "")]
+                                     services-val (when (and (seq description)
+                                                             (not (model/generic-frame-text? description)))
+                                                    description)]
                                  (assoc acc frame-id
-                                        (if (str/blank? (or existing-val ""))
+                                        (if (nil? existing-val)
                                           services-val
                                           existing-val))))
                              {}
@@ -140,7 +126,7 @@
 (rf/reg-event-db
  :state-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Load failed: " msg))))
+   (assoc db :status (str "Service unavailable: " msg))))
 
 (rf/reg-event-fx
  :force-refresh

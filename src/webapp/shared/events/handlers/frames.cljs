@@ -29,7 +29,7 @@
 (rf/reg-event-db
  :generate-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Generation failed: " msg))))
+   (assoc db :status (str "Request failed: " msg))))
 
 (rf/reg-event-fx
  :add-frame
@@ -46,7 +46,7 @@
 (rf/reg-event-db
  :add-frame-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Add frame failed: " msg))))
+   (assoc db :status (str "Request failed: " msg))))
 
 (rf/reg-event-fx
  :delete-frame
@@ -64,7 +64,7 @@
 (rf/reg-event-db
  :delete-frame-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Delete frame failed: " msg))))
+   (assoc db :status (str "Request failed: " msg))))
 
 (rf/reg-event-fx
  :clear-frame-image
@@ -81,4 +81,4 @@
 (rf/reg-event-db
  :clear-frame-image-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Remove image failed: " msg))))
+   (assoc db :status (str "Request failed: " msg))))

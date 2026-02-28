@@ -1,6 +1,5 @@
 (ns webapp.components.traffic-indicator
-  (:require [clojure.string :as str]
-            [reagent.core :as r]))
+  (:require [reagent.core :as r]))
 
 (defn frame-status-stats [frames]
   (reduce
@@ -16,28 +15,12 @@
    {:pending 0 :errors 0}
    (or frames [])))
 
-(defn status-error? [status-text]
-  (let [v (str/lower-case (str (or status-text "")))]
-    (or (str/includes? v "failed")
-        (str/includes? v "error"))))
-
-(defn status-working? [status-text]
-  (let [v (str/lower-case (str (or status-text "")))]
-    (or (str/includes? v "queue")
-        (str/includes? v "processing")
-        (str/includes? v "loading")
-        (str/includes? v "adding")
-        (str/includes? v "deleting")
-        (str/includes? v "removing")
-        (str/includes? v "creating"))))
-
-(defn signal-state [{:keys [pending-api-requests wait-lights-visible? status frames]}]
+(defn signal-state [{:keys [pending-api-requests wait-lights-visible? frames]}]
   (let [{:keys [pending errors]} (frame-status-stats frames)]
     (cond
-      (or (status-error? status) (pos? errors)) :red
+      (pos? errors) :red
       (or (pos? (or pending-api-requests 0))
           (true? wait-lights-visible?)
-          (status-working? status)
           (pos? pending))
       :yellow
       :else :green)))
@@ -59,8 +42,7 @@
           activity-key [pending-api-requests
                         pending
                         errors
-                        (:wait-lights-visible? state)
-                        (:status state)]
+                        (:wait-lights-visible? state)]
           activity-changed? (not= activity-key @prev-activity*)
           start-wait-blink! (fn []
                               (when (nil? @blink-interval-id*)

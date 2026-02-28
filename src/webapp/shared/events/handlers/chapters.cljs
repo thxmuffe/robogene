@@ -40,4 +40,4 @@
 (rf/reg-event-db
  :add-chapter-failed
  (fn [db [_ msg]]
-   (assoc db :status (str "Create chapter failed: " msg))))
+   (assoc db :status (str "Request failed: " msg))))

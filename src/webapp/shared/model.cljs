@@ -51,10 +51,7 @@
         (when fullscreen? "?fullscreen=1"))))
 
 (defn parse-json-safe [text]
-  (try
-    (js->clj (.parse js/JSON text) :keywordize-keys true)
-    (catch :default _
-      {:error "Expected JSON from services, got non-JSON response."})))
+  (js->clj (.parse js/JSON text) :keywordize-keys true))
 
 (defn generic-frame-text? [text]
   (boolean (re-matches #"(?i)^frame\s+\d+$" (str/trim (or text "")))))
@@ -66,12 +63,7 @@
       v)))
 
 (defn frame-description [frame]
-  (let [description (str/trim (or (:description frame) ""))
-        preferred (if (and (seq description) (not (generic-frame-text? description)))
-                    description
-                    "No description yet.")]
-    (let [final-text (clamp-text preferred 180)]
-      (if (str/blank? final-text) "No description yet." final-text))))
+  (clamp-text (:description frame) 180))
 
 (defn enrich-frame [frame]
   (let [description (str/trim (or (:description frame) ""))]

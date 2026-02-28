@@ -191,8 +191,7 @@
   (register-http! name ["OPTIONS"] route route handler))
 
 (defn request-json [request]
-  (-> (.json request)
-      (.catch (fn [_] #js {}))))
+  (.json request))
 
 (defn with-synced-body [request handler]
   (-> (chapter/sync-state-from-storage!)
@@ -404,10 +403,7 @@
 (defn handle-signalr-negotiate [request]
   (if-let [info (realtime/create-client-connection-info)]
     (json-response 200 info request)
-    (json-response 200
-                   {:disabled true
-                    :reason (str "Missing " realtime/connection-setting-name)}
-                   request)))
+    (throw (js/Error. (str "Missing " realtime/connection-setting-name)))))
 
 (defn handle-options-preflight [request]
   #js {:status 204
