@@ -55,9 +55,11 @@ async function isPortInUse(port) {
 }
 
 function runNpm(args, extraEnv = {}) {
-  return spawn("npm", args, {
+  const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+  return spawn(npmCmd, args, {
     stdio: "inherit",
-    shell: true,
+    shell: false,
+    detached: process.platform !== "win32",
     env: { ...process.env, ...extraEnv },
   });
 }
@@ -168,10 +170,30 @@ async function apiSnapshot() {
 function killChild(child) {
   if (!child || child.killed) return;
   if (process.platform === "win32" && child.pid) {
-    spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", shell: true });
+    spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", shell: false });
     return;
   }
-  child.kill("SIGTERM");
+  const pid = child.pid;
+  if (!pid) return;
+  try {
+    // Kill the whole process group so npm children (func/shadow-cljs) do not survive.
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    try {
+      child.kill("SIGTERM");
+    } catch {}
+  }
+  setTimeout(() => {
+    if (child.exitCode == null) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+      }
+    }
+  }, 1500);
 }
 
 async function waitForExit(child) {

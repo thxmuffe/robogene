@@ -2,13 +2,19 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Webapp: Chrome Debug",
-      "type": "pwa-chrome",
+      "name": "Robogene: Full Debug",
+      "type": "pwa-node",
       "request": "launch",
-      "url": "http://localhost:8080/index.html",
-      "webRoot": "${workspaceFolder}/src/webapp",
-      "sourceMaps": true,
-      "internalConsoleOptions": "openOnSessionStart"
+      "program": "${workspaceFolder}/scripts/run-robogene.js",
+      "cwd": "${workspaceFolder}",
+      "outputCapture": "std",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
+      "serverReadyAction": {
+        "pattern": "Webapp: http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s/index.html",
+        "action": "debugWithChrome"
+      }
     }
   ]
 }

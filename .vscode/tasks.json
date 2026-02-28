@@ -6,7 +6,22 @@
       "type": "npm",
       "script": "start",
       "isBackground": true,
-      "problemMatcher": [],
+      "problemMatcher": [
+        {
+          "pattern": [
+            {
+              "regexp": "^(.*)$",
+              "file": 1,
+              "message": 1
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Building webapi debug bundle",
+            "endsPattern": "Webapp: http://localhost:8080/index.html"
+          }
+        }
+      ],
       "group": {
         "kind": "build",
         "isDefault": true
