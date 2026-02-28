@@ -2,6 +2,7 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.shared.controls :as controls]
+            [webapp.shared.ui.interaction :as interaction]
             [webapp.components.action-menu :as action-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
             ["@mui/material/Box" :default Box]
@@ -13,7 +14,30 @@
 
 (defn prompt-panel [{:keys [frameId error]} frame-input]
   (r/with-let [confirm* (r/atom nil)]
-    (let [menu-items [{:id :remove-image
+    (let [submit! (fn []
+                    (rf/dispatch [:set-frame-actions-open frameId false])
+                    (rf/dispatch [:generate-frame frameId]))
+          close-prompt! (fn [e]
+                          (interaction/halt! e)
+                          (rf/dispatch [:set-frame-actions-open frameId false]))
+          on-send-click (fn [e]
+                          (interaction/halt! e)
+                          (submit!))
+          on-editor-key-down (fn [e]
+                               (let [key (.-key e)
+                                     escape? (= "Escape" key)
+                                     enter? (= "Enter" key)
+                                     submit? (and enter? (or (.-metaKey e) (.-ctrlKey e)))]
+                                 (cond
+                                   escape?
+                                   (close-prompt! e)
+                                   submit?
+                                   (do
+                                     (interaction/halt! e)
+                                     (submit!))
+                                   :else
+                                   (interaction/stop! e))))
+          menu-items [{:id :remove-image
                        :label "Remove image"
                        :confirm {:title "Remove image from this frame?"
                                  :text "The frame and its description will stay."
@@ -41,7 +65,7 @@
           :value (or frame-input "")
           :placeholder "Describe this frame..."
           :on-focus controls/on-frame-editor-focus
-          :on-key-down (controls/on-frame-editor-keydown frameId)
+          :on-key-down on-editor-key-down
           :on-change (controls/on-frame-editor-change frameId true)
           :InputProps #js {:disableUnderline true}}]
         (when (seq (or error ""))
@@ -52,7 +76,7 @@
          [:> IconButton
           {:className "prompt-generate-btn"
            :aria-label "Generate"
-           :on-click (controls/on-frame-send-click frameId)}
+           :on-click on-send-click}
           [:> SendRoundedIcon]]]
         [action-menu/action-menu
          {:title "Actions"

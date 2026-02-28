@@ -136,31 +136,6 @@
   (resize-textarea-to-content! (.-currentTarget e))
   (interaction/stop! e))
 
-(defn on-frame-editor-keydown [frame-id]
-  (fn [e]
-    (let [key (.-key e)
-          escape? (= "Escape" key)
-          enter? (= "Enter" key)
-          submit? (and enter? (or (.-metaKey e) (.-ctrlKey e)))]
-      (cond
-        escape?
-        (do
-          (interaction/halt! e)
-          (rf/dispatch [:set-frame-actions-open frame-id false]))
-        submit?
-        (do
-          (interaction/halt! e)
-          (rf/dispatch [:set-frame-actions-open frame-id false])
-          (rf/dispatch [:generate-frame frame-id]))
-        :else
-        (interaction/stop! e)))))
-
-(defn on-frame-send-click [frame-id]
-  (fn [e]
-    (interaction/halt! e)
-    (rf/dispatch [:set-frame-actions-open frame-id false])
-    (rf/dispatch [:generate-frame frame-id])))
-
 (defn on-frame-editor-change [frame-id editable?]
   (fn [e]
     (resize-textarea-to-content! (.-target e))
