@@ -131,6 +131,14 @@ h2 { margin: 24px 0 10px; }
   color: #d9e9ff;
 }
 
+.new-chapter-input {
+  margin-top: 6px;
+}
+
+.new-chapter-submit {
+  margin-top: 8px;
+}
+
 .new-chapter-teaser {
   position: relative;
   width: min(360px, 100%);
@@ -223,6 +231,10 @@ h2 { margin: 24px 0 10px; }
   animation: rise 320ms ease;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   transform-origin: center center;
+}
+
+.frame-card {
+  border-width: 2px;
 }
 
 .frame-clickable {
@@ -481,6 +493,23 @@ h2 { margin: 24px 0 10px; }
   overflow-y: auto !important;
 }
 
+.prompt-input .MuiFilledInput-root {
+  border-radius: 0;
+  background-color: rgba(255, 255, 255, 0.96);
+}
+
+.prompt-input .MuiFilledInput-root:hover,
+.prompt-input .MuiFilledInput-root.Mui-focused {
+  background-color: rgba(255, 255, 255, 1);
+}
+
+.prompt-input .MuiFilledInput-input {
+  color: #102a43;
+  text-align: left;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .prompt-controls {
   width: auto;
   justify-self: end;
@@ -488,9 +517,33 @@ h2 { margin: 24px 0 10px; }
   margin-right: 0;
 }
 
+.prompt-generate-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  color: #091220;
+  background-color: #25d366;
+}
+
+.prompt-generate-btn:hover {
+  background-color: #20bc59;
+}
+
+.prompt-generate-btn.Mui-disabled {
+  background-color: #97b9a4;
+  color: #365142;
+}
+
 .prompt-actions-trigger {
   width: 42px;
   height: 42px;
+  color: #f5fbff;
+  border: 1px solid rgba(167, 205, 255, 0.55);
+  background-color: rgba(10, 28, 52, 0.68);
+}
+
+.prompt-actions-trigger:hover {
+  background-color: rgba(18, 42, 74, 0.9);
 }
 
 .subtitle-display {
@@ -602,6 +655,13 @@ h2 { margin: 24px 0 10px; }
   background: #697a8b;
 }
 
+.badge-queue-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+}
+
 .detail-page {
   display: grid;
   gap: 12px;
@@ -649,6 +709,15 @@ h2 { margin: 24px 0 10px; }
   display: none;
 }
 
+.fullscreen-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1800;
+  width: 44px;
+  height: 44px;
+}
+
 .detail-controls {
   display: flex;
   gap: 8px;
@@ -681,11 +750,51 @@ h2 { margin: 24px 0 10px; }
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+  color: #ffffff;
 }
 
 .share-icon-btn:focus-visible {
   outline: 3px solid rgba(32, 99, 155, 0.35);
   outline-offset: 2px;
+}
+
+.share-facebook {
+  background: #1877f2;
+}
+
+.share-facebook:hover {
+  background: #1668d5;
+}
+
+.share-linkedin {
+  background: #0a66c2;
+}
+
+.share-linkedin:hover {
+  background: #0855a1;
+}
+
+.share-x {
+  background: #111111;
+}
+
+.share-x:hover {
+  background: #000000;
+}
+
+.share-copy {
+  background: #20639b;
+}
+
+.share-copy:hover {
+  background: #1a5180;
+}
+
+.gallery {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
 }
 
 @keyframes rise {

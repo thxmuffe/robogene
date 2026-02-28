@@ -57,9 +57,9 @@
          media-attrs (cond-> {}
                        (fn? on-media-double-click) (assoc :on-double-click on-media-double-click))
          attrs (cond-> {:data-frame-id (:frameId frame)
-                        :class (str "frame"
-                                    (when clickable? " frame-clickable")
-                                    (when active? " frame-active"))
+                        :className (str "frame frame-card"
+                                        (when clickable? " frame-clickable")
+                                        (when active? " frame-active"))
                         :on-mouse-enter (controls/on-frame-activate (:frameId frame))}
                  clickable? (assoc :role "button"
                                    :tab-index 0
@@ -69,8 +69,7 @@
      [:> Card
       (merge attrs
              {:component "article"
-              :variant "outlined"
-              :sx {:borderWidth 2}})
+              :variant "outlined"})
      [:> Box (merge {:className "media-shell"} media-attrs)
        (if has-image?
          [:<>
@@ -103,10 +102,6 @@
             :aria-label "Next frame"
             :on-click (controls/on-media-nav-click 1)}]])]
       (when busy?
-        [:> Chip {:className "badge queue"
+        [:> Chip {:className "badge queue badge-queue-overlay"
                   :size "small"
-                  :label "In Queue"
-                  :sx {:position "absolute"
-                       :top 10
-                       :left 10
-                       :zIndex 4}}])])))
+                  :label "In Queue"}])])))

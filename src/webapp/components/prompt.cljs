@@ -77,17 +77,7 @@
           :on-focus controls/on-frame-editor-focus
           :on-key-down (controls/on-frame-editor-keydown frameId busy? true)
           :on-change (controls/on-frame-editor-change frameId true)
-          :InputProps #js {:disableUnderline true}
-          :sx {"& .MuiFilledInput-root"
-               {:borderRadius 0
-                :backgroundColor "rgba(255,255,255,0.96)"
-                "&:hover" {:backgroundColor "rgba(255,255,255,1)"}
-                "&.Mui-focused" {:backgroundColor "rgba(255,255,255,1)"}}
-               "& .MuiFilledInput-input"
-               {:color "#102a43"
-                :textAlign "left"
-                :fontSize "1rem"
-                :lineHeight 1.35}}}]
+          :InputProps #js {:disableUnderline true}}]
         (when (and (seq (or error "")) (not busy?))
           [:div.error-line (str "Last error: " error)])]
        [:> Stack {:className "prompt-controls"
@@ -95,14 +85,6 @@
         [:> Tooltip {:title (if busy? "Generating..." "Generate (Cmd/Ctrl+Enter)")}
          [:> IconButton
           {:className "prompt-generate-btn"
-           :sx {:width 50
-                :height 50
-                :borderRadius 999
-                :color "#091220"
-                :backgroundColor "#25d366"
-                "&:hover" {:backgroundColor "#20bc59"}
-                "&.Mui-disabled" {:backgroundColor "#97b9a4"
-                                  :color "#365142"}}
            :aria-label "Generate"
            :disabled busy?
            :on-click (controls/on-frame-send-click frameId busy? true)}
@@ -110,12 +92,6 @@
         [:> Tooltip {:title "Actions"}
           [:> IconButton
            {:className "prompt-actions-trigger"
-           :sx {:width 42
-                :height 42
-                :color "#f5fbff"
-                :border "1px solid rgba(167, 205, 255, 0.55)"
-                :backgroundColor "rgba(10, 28, 52, 0.68)"
-                "&:hover" {:backgroundColor "rgba(18, 42, 74, 0.9)"}}
             :aria-label "Actions"
             :on-click open-menu!}
            [:> MoreVertIcon]]]

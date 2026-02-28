@@ -37,34 +37,19 @@
               :spacing 1}
     [:> Tooltip {:title "Share on Facebook"}
      [:> IconButton
-      {:className "share-icon-btn"
-       :sx {:width 42
-            :height 42
-            :color "#fff"
-            :bgcolor "#1877f2"
-            "&:hover" {:bgcolor "#1668d5"}}
+      {:className "share-icon-btn share-facebook"
        :aria-label "Share on Facebook"
        :on-click #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
       [:> FaFacebookF]]]
     [:> Tooltip {:title "Share on LinkedIn"}
      [:> IconButton
-      {:className "share-icon-btn"
-       :sx {:width 42
-            :height 42
-            :color "#fff"
-            :bgcolor "#0a66c2"
-            "&:hover" {:bgcolor "#0855a1"}}
+      {:className "share-icon-btn share-linkedin"
        :aria-label "Share on LinkedIn"
        :on-click #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
       [:> FaLinkedinIn]]]
     [:> Tooltip {:title "Share on X"}
      [:> IconButton
-      {:className "share-icon-btn"
-       :sx {:width 42
-            :height 42
-            :color "#fff"
-            :bgcolor "#111"
-            "&:hover" {:bgcolor "#000"}}
+      {:className "share-icon-btn share-x"
        :aria-label "Share on X"
        :on-click #(let [url (js/encodeURIComponent (current-share-url))
                         text (js/encodeURIComponent "Check out this RoboGene frame")]
@@ -75,12 +60,7 @@
       [:> FaXTwitter]]]
     [:> Tooltip {:title "Copy link"}
      [:> IconButton
-      {:className "share-icon-btn"
-       :sx {:width 42
-            :height 42
-            :color "#fff"
-            :bgcolor "#20639b"
-            "&:hover" {:bgcolor "#1a5180"}}
+      {:className "share-icon-btn share-copy"
        :aria-label "Copy link"
        :on-click #(copy-link!)}
       [:> FaLink]]]]])
@@ -149,12 +129,7 @@
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         (if fullscreen?
           [:> IconButton
-           {:sx {:position "absolute"
-                 :top 16
-                 :right 16
-                 :zIndex 1800
-                 :width 44
-                 :height 44}
+           {:className "fullscreen-close"
             :color "secondary"
             :aria-label "Close fullscreen"
             :title "Close fullscreen"
