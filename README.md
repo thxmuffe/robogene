@@ -82,3 +82,14 @@ Full hosting + CLI deploy guide:
 - Azure dashboard (direct): [Application Insights - robogene-func-prod](https://portal.azure.com/#@hbceducation.onmicrosoft.com/resource/subscriptions/aaa0b596-1388-40cf-a166-cbbf5731a57f/resourceGroups/robogene-rg/providers/microsoft.insights/components/robogene-func-prod/overview)
 - CLI summary: `./scripts/azure/monitor_summary.sh`
 - Optional: `./scripts/azure/monitor_summary.sh robogene-func-prod robogene-rg 6h`
+
+## Contributing
+
+Project priorities for all contributors:
+- Prefer clean, elegant, declarative code over preserving existing behavior.
+- Redesign or remove features when needed to improve structure and readability.
+- Reduce duplication and reuse existing components before creating new ones.
+- Favor dumb functions, single responsibility, and clear separation of concerns.
+
+Agent-specific working rules are documented in:
+- [AGENTS.md](AGENTS.md)
