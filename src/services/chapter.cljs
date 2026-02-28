@@ -8,7 +8,29 @@
             ["fs" :as fs]
             ["path" :as path]))
 
-(def repo-root (.resolve path js/__dirname ".." ".." ".."))
+(defn existing-path? [p]
+  (.existsSync fs p))
+
+(defn story-script-path [root]
+  (.join path root "ai" "robot emperor" "story" "28_Municipal_Firmware_script.md"))
+
+(defn candidate-root? [root]
+  (existing-path? (story-script-path root)))
+
+(defn resolve-repo-root []
+  (let [env-root (some-> js/process .-env .-ROBOGENE_REPO_ROOT)
+        candidates (remove nil?
+                           [env-root
+                            (.cwd js/process)
+                            (.resolve path js/__dirname "..")
+                            (.resolve path js/__dirname ".." ".." "..")])]
+    (or (some (fn [root]
+                (when (candidate-root? root)
+                  root))
+              candidates)
+        (.cwd js/process))))
+
+(def repo-root (resolve-repo-root))
 (def definitions-root (.join path repo-root "ai" "robot emperor"))
 (def references-dir (.join path definitions-root "references"))
 

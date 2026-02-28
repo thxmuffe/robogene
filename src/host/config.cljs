@@ -35,9 +35,9 @@
 (defn read-json-file [p]
   (try
     (when (.existsSync fs p)
-      (-> (.readFileSync fs p "utf8")
-          (.parse js/JSON)
-          (js->clj :keywordize-keys true)))
+      (let [json-text (.readFileSync fs p "utf8")
+            parsed (.parse js/JSON json-text)]
+        (js->clj parsed :keywordize-keys true)))
     (catch :default _
       nil)))
 
@@ -49,7 +49,8 @@
         keys (js->clj (.keys js/Object env))]
     (reduce (fn [acc k]
               (let [v (aget env k)]
-                (if (some? v)
+                (if (and (some? v)
+                         (not (str/blank? (str v))))
                   (assoc acc k (str v))
                   acc)))
             {}

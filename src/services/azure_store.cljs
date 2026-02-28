@@ -11,6 +11,10 @@
 (when-not (seq connection-string)
   (throw (js/Error. "Missing AzureWebJobsStorage or ROBOGENE_STORAGE_CONNECTION_STRING.")))
 
+(def smoke-dev-storage?
+  (and (= (str/trim connection-string) "UseDevelopmentStorage=true")
+       (settings/allow-dev-storage-for-smoke?)))
+
 (when (and (= (str/trim connection-string) "UseDevelopmentStorage=true")
            (not (settings/allow-dev-storage-for-smoke?)))
   (throw (js/Error.
@@ -33,6 +37,7 @@
 (def image-container (.getContainerClient blob-service container-name))
 
 (defonce ensured? (atom false))
+(defonce smoke-state* (atom nil))
 
 (defn parse-json [value fallback]
   (if (seq value)
@@ -205,50 +210,61 @@
                                    :frames (clj->js frames)}))))))))
 
 (defn load-or-init-state [initial-state]
-  (-> (ensure!)
-      (.then (fn [_] (get-active-meta)))
-      (.then
-       (fn [meta]
-         (if-not meta
-           (-> (set-active-meta! #js {:chapterId (read-chapter-id initial-state)
-                                      :revision (or (gobj/get initial-state "revision") 1)
-                                      :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
-               (.then (fn [_]
-                        (save-chapters! (read-chapter-id initial-state)
-                                        (or (gobj/get initial-state "chapters") #js []))))
-               (.then (fn [_]
-                        (save-frames! (read-chapter-id initial-state)
-                                      (or (gobj/get initial-state "frames") #js []))))
-               (.then (fn [frames]
-                        (gobj/set initial-state "frames" (clj->js frames))
-                        initial-state)))
-           (let [chapter-root-id (read-chapter-id meta)
-                 revision (js/Number (or (gobj/get meta "revision") 1))
-                 failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])]
-             (-> (load-rows chapter-root-id)
-                 (.then
-                  (fn [rows]
-                    (doto (js-obj)
-                      (gobj/set "chapterId" chapter-root-id)
-                      (gobj/set "revision" revision)
-                      (gobj/set "failedJobs" failed-jobs)
-                      (gobj/set "chapters" (gobj/get rows "chapters"))
-                      (gobj/set "frames" (gobj/get rows "frames"))
-                      (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
-                      (gobj/set "visual" (gobj/get initial-state "visual"))))))))))))
+  (if smoke-dev-storage?
+    (let [current @smoke-state*]
+      (if current
+        (js/Promise.resolve current)
+        (do
+          (reset! smoke-state* initial-state)
+          (js/Promise.resolve initial-state))))
+    (-> (ensure!)
+        (.then (fn [_] (get-active-meta)))
+        (.then
+         (fn [meta]
+           (if-not meta
+             (-> (set-active-meta! #js {:chapterId (read-chapter-id initial-state)
+                                        :revision (or (gobj/get initial-state "revision") 1)
+                                        :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
+                 (.then (fn [_]
+                          (save-chapters! (read-chapter-id initial-state)
+                                          (or (gobj/get initial-state "chapters") #js []))))
+                 (.then (fn [_]
+                          (save-frames! (read-chapter-id initial-state)
+                                        (or (gobj/get initial-state "frames") #js []))))
+                 (.then (fn [frames]
+                          (gobj/set initial-state "frames" (clj->js frames))
+                          initial-state)))
+             (let [chapter-root-id (read-chapter-id meta)
+                   revision (js/Number (or (gobj/get meta "revision") 1))
+                   failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])]
+               (-> (load-rows chapter-root-id)
+                   (.then
+                    (fn [rows]
+                      (doto (js-obj)
+                        (gobj/set "chapterId" chapter-root-id)
+                        (gobj/set "revision" revision)
+                        (gobj/set "failedJobs" failed-jobs)
+                        (gobj/set "chapters" (gobj/get rows "chapters"))
+                        (gobj/set "frames" (gobj/get rows "frames"))
+                        (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
+                        (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
 
 (defn save-state [state]
-  (let [chapter-root-id (read-chapter-id state)]
-    (-> (ensure!)
-        (.then (fn [_]
-                 (save-frames! chapter-root-id (or (gobj/get state "frames") #js []))))
-        (.then
-         (fn [frames]
-           (-> (save-chapters! chapter-root-id (or (gobj/get state "chapters") #js []))
-               (.then (fn [_]
-                        (set-active-meta! #js {:chapterId chapter-root-id
-                                               :revision (or (gobj/get state "revision") 1)
-                                               :failedJobs (or (gobj/get state "failedJobs") #js [])})))
-               (.then (fn [_]
-                        (gobj/set state "frames" (clj->js frames))
-                        state))))))))
+  (if smoke-dev-storage?
+    (do
+      (reset! smoke-state* state)
+      (js/Promise.resolve state))
+    (let [chapter-root-id (read-chapter-id state)]
+      (-> (ensure!)
+          (.then (fn [_]
+                   (save-frames! chapter-root-id (or (gobj/get state "frames") #js []))))
+          (.then
+           (fn [frames]
+             (-> (save-chapters! chapter-root-id (or (gobj/get state "chapters") #js []))
+                 (.then (fn [_]
+                          (set-active-meta! #js {:chapterId chapter-root-id
+                                                 :revision (or (gobj/get state "revision") 1)
+                                                 :failedJobs (or (gobj/get state "failedJobs") #js [])})))
+                 (.then (fn [_]
+                          (gobj/set state "frames" (clj->js frames))
+                          state)))))))))
