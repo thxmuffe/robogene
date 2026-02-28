@@ -105,7 +105,7 @@ if [[ "$BUILD_AND_DEPLOY" -eq 1 ]]; then
   cd "$REPO_ROOT"
   npm install >/dev/null
   npm run build:webapi >/dev/null
-  "$REPO_ROOT/.github/azure_deploy/package_webapi_dist.sh" >/dev/null
+  npm run package:webapi >/dev/null
   DEPLOY_ZIP="$REPO_ROOT/dist/release/webapi/webapi_dist.zip"
 fi
 

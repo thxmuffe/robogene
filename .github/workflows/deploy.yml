@@ -42,7 +42,7 @@ jobs:
 
       - name: Prepare Azure package
         run: |
-          ./.github/azure_deploy/package_webapi_dist.sh
+          npm run package:webapi
 
       - name: Smoke check packaged webapi
         run: |
@@ -51,7 +51,7 @@ jobs:
           mkdir -p /tmp/robogene-webapi-smoke
           unzip -q dist/release/webapi/webapi_dist.zip -d /tmp/robogene-webapi-smoke
           test -f /tmp/robogene-webapi-smoke/host.json
-          test -f /tmp/robogene-webapi-smoke/webapi_host.js
+          test -f /tmp/robogene-webapi-smoke/dist/main.js
           test -f /tmp/robogene-webapi-smoke/dist/webapi_compiled.js
           test -f "/tmp/robogene-webapi-smoke/ai/robot emperor/references/robot_emperor_ep22_p01.png"
           (
@@ -60,7 +60,7 @@ jobs:
             ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
             ROBOGENE_IMAGE_GENERATOR='mock' \
             FUNCTIONS_WORKER_RUNTIME='node' \
-            node -e "require('./webapi_host.js'); console.log('webapi-smoke-ok')"
+            node -e "require('./dist/main.js'); console.log('webapi-smoke-ok')"
           )
 
       - name: Upload Web API deploy artifact

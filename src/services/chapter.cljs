@@ -8,47 +8,22 @@
             ["fs" :as fs]
             ["path" :as path]))
 
-(def hosting-root (.resolve path js/__dirname ".."))
 (def repo-root (.resolve path js/__dirname ".." ".." ".."))
-(defn definitions-root-path []
-  (let [root-ai-path (.join path repo-root "ai" "robot emperor")
-        legacy-path (.join path repo-root "defintions")]
-    (cond
-      (.existsSync fs root-ai-path) root-ai-path
-      (.existsSync fs legacy-path) legacy-path
-      :else root-ai-path)))
-(def definitions-root (definitions-root-path))
-(def chapter-dir (.join path definitions-root "chapter"))
+(def definitions-root (.join path repo-root "ai" "robot emperor"))
 (def references-dir (.join path definitions-root "references"))
 
-(defn resolved-chapter-dir []
-  (if (.existsSync fs chapter-dir)
-    chapter-dir
-    (.join path definitions-root "story")))
-
-(def resolved-chapter-root (resolved-chapter-dir))
+(def resolved-chapter-root (.join path definitions-root "story"))
 
 (def default-chapter-script (.join path resolved-chapter-root "28_Municipal_Firmware_script.md"))
 (def default-prompts (.join path resolved-chapter-root "28_Municipal_Firmware_image_prompts.md"))
 (def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
 (def page1-reference-image (.join path resolved-chapter-root "28_page_01_openai_refined.png"))
 
-(defn read-file-or
-  ([file-path fallback]
-   (read-file-or file-path fallback nil))
-  ([file-path fallback encoding]
-   (try
-     (if (some? encoding)
-       (.readFileSync fs file-path encoding)
-       (.readFileSync fs file-path))
-     (catch :default _
-       fallback))))
-
 (defn read-text [file-path]
-  (read-file-or file-path "" "utf8"))
+  (.readFileSync fs file-path "utf8"))
 
 (defn read-bytes [file-path]
-  (read-file-or file-path nil))
+  (.readFileSync fs file-path))
 
 (image-generator/require-startup-env!)
 
@@ -243,17 +218,21 @@
 
 (defn apply-persisted-state! [raw]
   (let [current @state
-        persisted (js->clj raw :keywordize-keys true)
-        persisted-chapters (vec (or (:chapters persisted) []))
-        persisted-frames (vec (or (:frames persisted) []))]
+        persisted (js->clj raw :keywordize-keys true)]
+    (when (or (nil? (:chapterId persisted))
+              (nil? (:revision persisted))
+              (nil? (:failedJobs persisted))
+              (nil? (:chapters persisted))
+              (nil? (:frames persisted)))
+      (throw (js/Error. "Persisted state missing required fields.")))
     (swap! state
            (fn [s]
              (-> s
                  (assoc :chapterId (:chapterId persisted))
-                 (assoc :revision (or (:revision persisted) 1))
-                 (assoc :failedJobs (or (:failedJobs persisted) []))
-                 (assoc :chapters persisted-chapters)
-                 (assoc :frames persisted-frames)
+                 (assoc :revision (:revision persisted))
+                 (assoc :failedJobs (vec (:failedJobs persisted)))
+                 (assoc :chapters (vec (:chapters persisted)))
+                 (assoc :frames (vec (:frames persisted)))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
                  (assoc :referenceImageBytes (:referenceImageBytes current))
@@ -295,9 +274,7 @@
     (catch :default err
       (js/Promise.reject err))))
 
-(-> (sync-state-from-storage!)
-    (.catch (fn [err]
-              (js/console.warn "[robogene] startup storage sync skipped" err))))
+(sync-state-from-storage!)
 
 (defn chapter-order-map [chapters]
   (into {} (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)]) chapters)))

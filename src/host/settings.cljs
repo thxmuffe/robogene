@@ -26,11 +26,10 @@
       (map? raw) raw
       (str/blank? (or raw "")) {}
       :else
-      (let [parsed (try
-                     (js->clj (.parse js/JSON raw))
-                     (catch :default _
-                       nil))]
-        (if (map? parsed) parsed {})))))
+      (let [parsed (js->clj (.parse js/JSON raw))]
+        (when-not (map? parsed)
+          (throw (js/Error. "OPENAI_IMAGE_OPTIONS_JSON must parse to an object.")))
+        parsed))))
 
 (defn allowed-origins []
   (config/parse-csv (config/setting "ROBOGENE_ALLOWED_ORIGIN" "")))
