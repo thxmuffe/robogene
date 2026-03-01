@@ -1,9 +1,9 @@
-(ns webapp.components.frames
+(ns webapp.components.chapter
   (:require [re-frame.core :as rf]
             [webapp.components.frame :as frame]
             ["@mui/material/Box" :default Box]))
 
-(defn chapter-frames [chapter-id frame-inputs open-frame-actions active-frame-id]
+(defn chapter [chapter-id frame-inputs open-frame-actions active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-chapter chapter-id])]
     [:> Box {:className "gallery"}
      (map-indexed (fn [idx frame-row]

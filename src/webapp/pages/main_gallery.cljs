@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.interaction :as interaction]
-            [webapp.components.frames :as frames]
+            [webapp.components.chapter :as chapter-component]
             ["@mui/material/Button" :default Button]
             ["@mui/material/TextField" :default TextField]
             ["@mui/material/IconButton" :default IconButton]
@@ -43,7 +43,7 @@
       :size "small"
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
-   [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
+   [chapter-component/chapter (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
 
 (defn new-chapter-form [description]
   [:section.new-chapter-panel
