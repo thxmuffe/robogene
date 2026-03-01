@@ -2,19 +2,41 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Robogene: Full Debug",
+      "name": "Robogene: Services (F5)",
       "type": "pwa-node",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/run-robogene.js",
       "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
       "outputCapture": "std",
       "console": "internalConsole",
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
-        "pattern": "Webapp: http://localhost:([0-9]+)",
-        "uriFormat": "http://localhost:%s/index.html",
-        "action": "debugWithChrome"
-      }
+        "pattern": "shadow-cljs - HTTP server available at (http://localhost:[0-9]+)",
+        "uriFormat": "%s/index.html",
+        "action": "openExternally"
+      },
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/src/webapp/**",
+        "!${workspaceFolder}/src/webapp/js/cljs-runtime/node_modules/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "name": "Robogene: Browser Debug (optional)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/index.html",
+      "webRoot": "${workspaceFolder}/src/webapp",
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/src/webapp/**",
+        "!${workspaceFolder}/src/webapp/js/cljs-runtime/node_modules/**",
+        "!**/node_modules/**"
+      ]
     }
   ]
 }
