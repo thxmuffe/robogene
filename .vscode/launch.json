@@ -16,14 +16,28 @@
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
         "pattern": "shadow-cljs - HTTP server available at (http://localhost:[0-9]+)",
-        "uriFormat": "%s/index.html",
-        "action": "openExternally"
+        "action": "startDebugging",
+        "name": "Robogene: Open Chrome (reuse window)"
       },
       "resolveSourceMapLocations": [
         "${workspaceFolder}/src/webapp/**",
         "!${workspaceFolder}/src/webapp/js/cljs-runtime/node_modules/**",
         "!**/node_modules/**"
       ]
+    },
+    {
+      "name": "Robogene: Open Chrome (reuse window)",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "open",
+      "runtimeArgs": [
+        "-a",
+        "Google Chrome",
+        "http://localhost:8080/index.html"
+      ],
+      "console": "internalConsole",
+      "internalConsoleOptions": "neverOpen"
     },
     {
       "name": "Robogene: Browser Debug (optional)",
