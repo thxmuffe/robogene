@@ -1,5 +1,6 @@
 (ns webapp.app-shell
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.shared.theme :as theme]
             [webapp.pages.main-gallery :as gallery-page]
             [webapp.pages.frame-page :as frame-page]
@@ -10,14 +11,17 @@
             ["@mui/material/Stack" :default Stack]
             ["@mui/material/Box" :default Box]))
 
-(defn frame-page-title [route chapters]
-  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) chapters)
-        chapter-name (or (:description chapter)
+(defn saga-name [_]
+  "Robot Emperor")
+
+(defn frame-page-title [route saga]
+  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
+        chapter-name (or (some-> chapter :description str/trim not-empty)
                          "Chapter")]
-    (str "Frame Page · " chapter-name " · RoboGene")))
+    (str "Frame Page · " chapter-name " · " (saga-name saga))))
 
 (defn main-view []
-  (let [chapters @(rf/subscribe [:chapters])
+  (let [saga @(rf/subscribe [:saga])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
@@ -29,21 +33,22 @@
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
-        route @(rf/subscribe [:route])]
+        route @(rf/subscribe [:route])
+        saga-name* (saga-name saga)]
     (set! (.-title js/document)
           (if (= :frame (:view route))
-            (frame-page-title route chapters)
-            "RoboGene"))
+            (frame-page-title route saga)
+            saga-name*))
     [:> ThemeProvider {:theme theme/app-theme}
      [:> CssBaseline]
      [:> Container {:maxWidth "lg"}
       [:main.app
        [:> Stack {:spacing 2}
         [:> Box {:component "header" :className "hero"}
-         [:h1 "RoboGene"]]
+         [:h1 saga-name*]]
         (if (= :frame (:view route))
-          [frame-page/frame-page route frame-inputs open-frame-actions]
-          [gallery-page/main-gallery-page chapters
+          [frame-page/frame-page route frame-inputs open-frame-actions saga-name*]
+          [gallery-page/main-gallery-page saga
            frame-inputs
            open-frame-actions
            active-frame-id

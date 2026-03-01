@@ -8,7 +8,7 @@
             [webapp.shared.events.effects]
             [webapp.shared.events.transport]
             [webapp.shared.events.handlers.frame-page]
-            [webapp.shared.events.handlers.chapters]
+            [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.frames]
             [webapp.shared.model :as model]))
 
@@ -73,7 +73,7 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [previous-frames (:gallery-items db)
-         {:keys [chapters frames]} (model/derived-state state)
+         {:keys [saga frames]} (model/derived-state state)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -95,9 +95,9 @@
                                frames)]
      {:db (-> db
               (assoc :latest-state state
-                     :status (model/status-line state chapters frames)
+                     :status (model/status-line state saga frames)
                      :last-rendered-revision (:revision state)
-                     :chapters chapters
+                     :saga saga
                      :gallery-items frames
                      :image-ui-by-frame-id image-ui-by-frame-id
                      :open-frame-actions open-frame-actions

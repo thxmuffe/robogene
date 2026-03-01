@@ -21,7 +21,7 @@
           "UseDevelopmentStorage=true requires Azurite on 127.0.0.1:10000. Configure a real Azure Storage connection string. For CI packaging smoke checks only, set ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE=1.")))
 
 (def table-meta "robogeneState")
-(def table-chapters "robogeneChapter")
+(def table-saga "robogeneChapter")
 (def table-frames "robogeneFrame")
 (def container-name "robogene-images")
 
@@ -31,7 +31,7 @@
             :tryTimeoutInMs 5000}})
 
 (def meta-client (.fromConnectionString TableClient connection-string table-meta client-options))
-(def chapters-client (.fromConnectionString TableClient connection-string table-chapters client-options))
+(def saga-client (.fromConnectionString TableClient connection-string table-saga client-options))
 (def frames-client (.fromConnectionString TableClient connection-string table-frames client-options))
 (def blob-service (.fromConnectionString BlobServiceClient connection-string client-options))
 (def image-container (.getContainerClient blob-service container-name))
@@ -49,7 +49,7 @@
     fallback))
 
 (defn normalize-image-path [chapter-root-id chapter-id frame-id]
-  (str "chapters/" chapter-root-id "/chapters/" chapter-id "/frames/" frame-id ".png"))
+  (str "saga/" chapter-root-id "/saga/" chapter-id "/frames/" frame-id ".png"))
 
 (defn reduce-promise [items step init]
   (reduce (fn [p item]
@@ -77,7 +77,7 @@
     (js/Promise.resolve true)
     (-> (js/Promise.all
          #js [(.catch (.createTable meta-client) (fn [_] nil))
-              (.catch (.createTable chapters-client) (fn [_] nil))
+              (.catch (.createTable saga-client) (fn [_] nil))
               (.catch (.createTable frames-client) (fn [_] nil))])
         (.then (fn [_] (.createIfNotExists image-container)))
         (.then (fn [_]
@@ -174,14 +174,14 @@
                       :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
                  "Replace"))
 
-(defn save-chapters! [chapter-root-id chapters]
-  (-> (list-entities chapters-client chapter-root-id)
+(defn save-saga! [chapter-root-id saga]
+  (-> (list-entities saga-client chapter-root-id)
       (.then (fn [existing]
-               (let [chapters (vec chapters)
-                     keep (set (map #(gobj/get % "chapterId") chapters))]
-                 (-> (reduce-promise chapters
+               (let [saga (vec saga)
+                     keep (set (map #(gobj/get % "chapterId") saga))]
+                 (-> (reduce-promise saga
                                      (fn [_ chapter]
-                                       (.upsertEntity chapters-client
+                                       (.upsertEntity saga-client
                                                       #js {:partitionKey chapter-root-id
                                                            :rowKey (gobj/get chapter "chapterId")
                                                            :payloadJson (.stringify js/JSON chapter)}
@@ -192,7 +192,7 @@
                                               (fn [_ row]
                                                 (if (contains? keep (gobj/get row "rowKey"))
                                                   (js/Promise.resolve nil)
-                                                 (.catch (.deleteEntity chapters-client chapter-root-id (gobj/get row "rowKey"))
+                                                 (.catch (.deleteEntity saga-client chapter-root-id (gobj/get row "rowKey"))
                                                           (fn [_] nil))))
                                               nil)))))))))
 
@@ -229,7 +229,7 @@
                                   (.then (fn [_] normalized)))))))))))
 
 (defn load-rows [chapter-root-id]
-  (-> (js/Promise.all #js [(list-entities chapters-client chapter-root-id)
+  (-> (js/Promise.all #js [(list-entities saga-client chapter-root-id)
                            (list-entities frames-client chapter-root-id)])
       (.then (fn [pairs]
                (let [chapter-rows (aget pairs 0)
@@ -247,7 +247,7 @@
                                              (js/Promise.resolve (conj acc (normalize-frame-image-field frame)))))))
                                      [])
                      (.then (fn [frames]
-                              #js {:chapters (->> chapter-rows
+                              #js {:saga (->> chapter-rows
                                                   (map #(parse-json (gobj/get % "payloadJson") nil))
                                                   (filter some?)
                                                   clj->js)
@@ -270,8 +270,8 @@
                                         :revision (or (gobj/get initial-state "revision") 1)
                                         :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
                  (.then (fn [_]
-                          (save-chapters! (read-chapter-id initial-state)
-                                          (or (gobj/get initial-state "chapters") #js []))))
+                          (save-saga! (read-chapter-id initial-state)
+                                          (or (gobj/get initial-state "saga") #js []))))
                  (.then (fn [_]
                           (save-frames! (read-chapter-id initial-state)
                                         (or (gobj/get initial-state "frames") #js []))))
@@ -288,7 +288,7 @@
                         (gobj/set "chapterId" chapter-root-id)
                         (gobj/set "revision" revision)
                         (gobj/set "failedJobs" failed-jobs)
-                        (gobj/set "chapters" (gobj/get rows "chapters"))
+                        (gobj/set "saga" (gobj/get rows "saga"))
                         (gobj/set "frames" (gobj/get rows "frames"))
                         (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
                         (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
@@ -304,7 +304,7 @@
                    (save-frames! chapter-root-id (or (gobj/get state "frames") #js []))))
           (.then
            (fn [frames]
-             (-> (save-chapters! chapter-root-id (or (gobj/get state "chapters") #js []))
+             (-> (save-saga! chapter-root-id (or (gobj/get state "saga") #js []))
                  (.then (fn [_]
                           (set-active-meta! #js {:chapterId chapter-root-id
                                                  :revision (or (gobj/get state "revision") 1)

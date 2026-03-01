@@ -274,7 +274,7 @@
                                  :revision (:revision snapshot)
                                  :processing (:processing snapshot)
                                  :pendingCount pending-count
-                                 :chapters (:chapters snapshot)
+                                 :saga (:saga snapshot)
                                  :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))

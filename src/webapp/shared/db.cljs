@@ -1,7 +1,7 @@
 (ns webapp.shared.db)
 
 (def default-db
-  {:status "Loading chapters..."
+  {:status "Loading saga..."
    :pending-api-requests 0
    :wait-lights-visible? true
    :wait-lights-events []
@@ -10,7 +10,7 @@
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil
-   :chapters []
+   :saga []
    :gallery-items []
    :new-chapter-description ""
    :new-chapter-panel-open? false

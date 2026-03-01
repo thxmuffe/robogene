@@ -83,7 +83,7 @@
     (atom {:chapterId nil
            :descriptions []
            :visual {:globalStyle "" :pagePrompts {}}
-           :chapters []
+           :saga []
            :frames []
            :failedJobs []
            :processing false
@@ -117,11 +117,11 @@
    :status "draft"
    :createdAt (.toISOString (js/Date.))})
 
-(defn next-chapter-number [chapters]
-  (inc (reduce max 0 (map :chapterNumber chapters))))
+(defn next-chapter-number [saga]
+  (inc (reduce max 0 (map :chapterNumber saga))))
 
-(defn chapter-by-id [chapters chapter-id]
-  (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) chapters))
+(defn chapter-by-id [saga chapter-id]
+  (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) saga))
 
 (defn frames-for-chapter [frames chapter-id]
   (->> frames
@@ -133,9 +133,9 @@
   (inc (reduce max 0 (map :frameNumber (frames-for-chapter frames chapter-id)))))
 
 (defn add-chapter! [description]
-  (let [chapter (make-chapter (next-chapter-number (:chapters @state))
+  (let [chapter (make-chapter (next-chapter-number (:saga @state))
                               (if (str/blank? (or description ""))
-                                (str "Chapter " (next-chapter-number (:chapters @state)))
+                                (str "Chapter " (next-chapter-number (:saga @state)))
                                 description))
         chapter-id (:chapterId chapter)
         first-frame (assoc (make-draft-frame chapter-id 1)
@@ -143,14 +143,14 @@
     (swap! state
            (fn [s]
              (-> s
-                 (update :chapters conj chapter)
+                 (update :saga conj chapter)
                  (update :frames conj first-frame)
                  (update :revision inc))))
     {:chapter chapter
      :frame first-frame}))
 
 (defn add-frame! [chapter-id]
-  (let [chapter (chapter-by-id (:chapters @state) chapter-id)]
+  (let [chapter (chapter-by-id (:saga @state) chapter-id)]
     (when-not chapter
       (throw (js/Error. "Chapter not found.")))
     (let [frame-number (next-frame-number (:frames @state) chapter-id)
@@ -228,7 +228,7 @@
             {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
-             :chapters [chapter1]
+             :saga [chapter1]
              :frames frames
              :failedJobs []
              :processing false
@@ -244,7 +244,7 @@
     (when (or (nil? (:chapterId persisted))
               (nil? (:revision persisted))
               (nil? (:failedJobs persisted))
-              (nil? (:chapters persisted))
+              (nil? (:saga persisted))
               (nil? (:frames persisted)))
       (throw (js/Error. "Persisted state missing required fields.")))
     (swap! state
@@ -253,7 +253,7 @@
                  (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
-                 (assoc :chapters (vec (:chapters persisted)))
+                 (assoc :saga (vec (:saga persisted)))
                  (assoc :frames (vec (:frames persisted)))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
@@ -264,7 +264,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :chapters :frames
+                             [:chapterId :revision :failedJobs :saga :frames
                               :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
@@ -274,7 +274,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :chapters :frames])))
+                             [:chapterId :revision :failedJobs :saga :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
@@ -298,11 +298,11 @@
 
 (sync-state-from-storage!)
 
-(defn chapter-order-map [chapters]
-  (into {} (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)]) chapters)))
+(defn chapter-order-map [saga]
+  (into {} (map (fn [chapter] [(:chapterId chapter) (:chapterNumber chapter)]) saga)))
 
-(defn sort-frames-for-chapter [chapters frames]
-  (let [order-by-chapter (chapter-order-map chapters)]
+(defn sort-frames-for-chapter [saga frames]
+  (let [order-by-chapter (chapter-order-map saga)]
     (->> frames
          (sort-by (fn [f]
                     [(get order-by-chapter (:chapterId f) 99999)
@@ -310,7 +310,7 @@
          vec)))
 
 (defn completed-frames []
-  (->> (sort-frames-for-chapter (:chapters @state) (:frames @state))
+  (->> (sort-frames-for-chapter (:saga @state) (:frames @state))
        (filter (fn [f] (not (str/blank? (or (:imageUrl f) "")))))
        vec))
 
@@ -321,7 +321,7 @@
       (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:description s) ".")) tail)))))
 
 (defn build-prompt-for-frame [frame]
-  (let [chapter (chapter-by-id (:chapters @state) (:chapterId frame))
+  (let [chapter (chapter-by-id (:saga @state) (:chapterId frame))
         chapter-label (when chapter
                         (str "Chapter " (:chapterNumber chapter)
                              " theme: " (:description chapter)))]
@@ -422,7 +422,7 @@
                         (or (some-> err .-message) err))))))))
 
 (defn log-generation-start! [frame queue-size]
-  (let [chapter-number (some->> (:chapters @state)
+  (let [chapter-number (some->> (:saga @state)
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]
@@ -434,7 +434,7 @@
           " queueSize=" queue-size))))
 
 (defn log-generation-success! [frame duration-ms]
-  (let [chapter-number (some->> (:chapters @state)
+  (let [chapter-number (some->> (:saga @state)
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]
@@ -466,7 +466,7 @@
           " options=" (pr-str opts)))))
 
 (defn log-generation-failed! [frame duration-ms err]
-  (let [chapter-number (some->> (:chapters @state)
+  (let [chapter-number (some->> (:saga @state)
                                 (some (fn [chapter]
                                         (when (= (:chapterId chapter) (:chapterId frame))
                                           (:chapterNumber chapter)))))]

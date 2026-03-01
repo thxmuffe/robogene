@@ -97,13 +97,13 @@
    [:div.rainbow-band.band-4]
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
-(defn main-gallery-page [chapters frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
+(defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   [:> Stack {:component "section" :spacing 2}
-   [:h2 "Chapters"]
+   [:h2 "Saga"]
    (map-indexed (fn [idx chapter]
                   ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
                   [chapter-section chapter frame-inputs open-frame-actions active-frame-id])
-                chapters)
+                saga)
    (when show-chapter-celebration?
      [chapter-celebration])
    (if new-chapter-panel-open?

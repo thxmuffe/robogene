@@ -25,7 +25,7 @@
         (.prompt js/window "Copy link:" url)
         nil))))
 
-(defn share-actions []
+(defn share-actions [saga-name]
   [:> Stack {:className "detail-share"
              :direction "row"
              :spacing 1
@@ -50,7 +50,7 @@
       {:className "share-icon-btn share-x"
        :aria-label "Share on X"
        :on-click #(let [url (js/encodeURIComponent (current-share-url))
-                        text (js/encodeURIComponent "Check out this RoboGene frame")]
+                        text (js/encodeURIComponent (str "Check out this " saga-name " frame"))]
                     (.open js/window
                            (str "https://twitter.com/intent/tweet?url=" url "&text=" text)
                            "_blank"
@@ -107,7 +107,7 @@
       :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn frame-page [route frame-inputs open-frame-actions]
+(defn frame-page [route frame-inputs open-frame-actions saga-name]
   (let [chapter-id (:chapter route)
         ordered @(rf/subscribe [:frames-for-chapter chapter-id])
         frame-id (:frame-id route)
@@ -132,7 +132,7 @@
             :title "Close fullscreen"
             :on-click #(rf/dispatch [:set-frame-fullscreen false])}
            [:> FaXmark]]
-          [share-actions])]
+          [share-actions saga-name])]
        [:> Box {:className "detail-missing"}
         [:p "Frame not found in this chapter."]
         [:> Button

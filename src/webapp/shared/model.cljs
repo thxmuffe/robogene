@@ -75,8 +75,8 @@
       (assoc normalized :description description)
       normalized)))
 
-(defn derived-chapters [state]
-  (->> (or (:chapters state) [])
+(defn derived-saga [state]
+  (->> (or (:saga state) [])
        (sort-by (fn [chapter]
                   [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
                    (or (:createdAt chapter) "")
@@ -89,18 +89,18 @@
        ordered-frames))
 
 (defn derived-state [state]
-  (let [chapters (derived-chapters state)
+  (let [saga (derived-saga state)
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
                                     (let [enriched (enrich-frame f)]
                                       (assoc enriched :frameDescription (frame-description enriched)))))
                              vec)]
-    {:chapters chapters
+    {:saga saga
      :frames enriched-frames}))
 
-(defn status-line [state chapters frames]
+(defn status-line [state saga frames]
   (let [pending (or (:pendingCount state) 0)]
-    (str "Chapters: " (count chapters)
+    (str "Saga: " (count saga)
          " | Frames: " (count frames)
          (if (pos? pending)
            (str " | Queue: " pending)

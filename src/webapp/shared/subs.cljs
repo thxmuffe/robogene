@@ -4,7 +4,7 @@
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
-(rf/reg-sub :chapters (fn [db _] (:chapters db)))
+(rf/reg-sub :saga (fn [db _] (:saga db)))
 (rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
 (rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
