@@ -7,6 +7,10 @@
 (rf/reg-sub :chapters (fn [db _] (:chapters db)))
 (rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
+(rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
+(rf/reg-sub :frame-image-ui
+            (fn [db [_ frame-id]]
+              (get-in db [:image-ui-by-frame-id frame-id] :idle)))
 (rf/reg-sub :active-frame-id (fn [db _] (:active-frame-id db)))
 (rf/reg-sub :new-chapter-description (fn [db _] (:new-chapter-description db)))
 (rf/reg-sub :new-chapter-panel-open? (fn [db _] (:new-chapter-panel-open? db)))

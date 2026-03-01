@@ -194,7 +194,7 @@
     (swap! state
            (fn [s]
              (-> s
-                 (assoc-in [:frames idx :imageDataUrl] nil)
+                 (assoc-in [:frames idx :imageUrl] nil)
                  (assoc-in [:frames idx :status] "draft")
                  (assoc-in [:frames idx :error] nil)
                  (assoc-in [:frames idx :completedAt] nil)
@@ -215,7 +215,7 @@
                 :chapterId chapter-id
                 :frameNumber 1
                 :description (best-frame-description descriptions visual 1)
-                :imageDataUrl (when page1-bytes (png-data-url page1-bytes))
+                :imageUrl (when page1-bytes (png-data-url page1-bytes))
                 :status (if page1-bytes "ready" "draft")
                 :reference true
                 :createdAt (.toISOString (js/Date.))}
@@ -311,7 +311,7 @@
 
 (defn completed-frames []
   (->> (sort-frames-for-chapter (:chapters @state) (:frames @state))
-       (filter (fn [f] (not (str/blank? (or (:imageDataUrl f) "")))))
+       (filter (fn [f] (not (str/blank? (or (:imageUrl f) "")))))
        vec))
 
 (defn continuity-window [limit]
@@ -374,7 +374,7 @@
       (swap! state
              (fn [s]
                (-> s
-                   (assoc-in [:frames idx :imageDataUrl] image-data-url)
+                   (assoc-in [:frames idx :imageUrl] image-data-url)
                    (assoc-in [:frames idx :status] "ready")
                    (assoc-in [:frames idx :error] nil)
                    (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))

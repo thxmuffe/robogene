@@ -4,6 +4,7 @@
             [webapp.shared.db :as db]
             [webapp.shared.events.browser]
             [webapp.shared.controls :as controls]
+            [webapp.shared.events.image-ui :as image-ui]
             [webapp.shared.events.effects]
             [webapp.shared.events.transport]
             [webapp.shared.events.handlers.frame-page]
@@ -71,7 +72,8 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [{:keys [chapters frames]} (model/derived-state state)
+   (let [previous-frames (:gallery-items db)
+         {:keys [chapters frames]} (model/derived-state state)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -86,13 +88,18 @@
                            existing-active-id
                            (seq frames)
                            (:frameId (first frames))
-                           :else nil)]
+                           :else nil)
+         image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
+                               (:image-ui-by-frame-id db)
+                               previous-frames
+                               frames)]
      {:db (-> db
               (assoc :latest-state state
                      :status (model/status-line state chapters frames)
                      :last-rendered-revision (:revision state)
                      :chapters chapters
                      :gallery-items frames
+                     :image-ui-by-frame-id image-ui-by-frame-id
                      :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)
               (assoc :frame-inputs

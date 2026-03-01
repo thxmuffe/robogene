@@ -7,8 +7,19 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node scripts/run-robogene.js",
-    "start:release": "node scripts/run-robogene.js --release",
+    "stop:dev": "kill-port 7071 8080 9630 9631 || true",
+    "prestart": "npm run stop:dev && dotenv -e robogen.debug.env -- npm run build:webapi:debug",
+    "start": "dotenv -e robogen.debug.env -- npm run dev:up",
+    "start:debug": "npm run start",
+    "prestart:release": "npm run stop:dev && dotenv -e robogen.debug.env -- npm run release:build",
+    "start:release": "dotenv -e robogen.debug.env -- npm run release:up",
+    "release:build": "npm run build:webapi && npm run build && mkdir -p dist/release/webapp && cp src/webapp/index.html src/webapp/styles.css dist/release/webapp/",
+    "release:web": "http-server dist/release/webapp -p ${WEBAPP_PORT:-8080} -c-1",
+    "release:api": "func start --script-root src/host --port ${WEBAPI_PORT:-7071} --cors \"$ROBOGENE_ALLOWED_ORIGIN\"",
+    "release:up": "concurrently --names web,api --prefix-colors cyan,green --kill-others --kill-signal SIGTERM \"npm run release:web\" \"npm run release:api\"",
+    "dev:web": "shadow-cljs watch webapp-debug",
+    "dev:api:host": "func start --script-root src/host --port ${WEBAPI_PORT:-7071} --cors \"$ROBOGENE_ALLOWED_ORIGIN\"",
+    "dev:up": "concurrently --names web,api --prefix-colors cyan,green --kill-others --kill-signal SIGTERM \"npm run dev:web\" \"npm run dev:api:host\"",
     "watch": "shadow-cljs watch webapp-debug",
     "webapi:watch": "shadow-cljs watch webapi-debug host-debug",
     "watch:all": "shadow-cljs watch webapp-debug webapi-debug host-debug",
@@ -42,6 +53,10 @@
     "react-icons": "^5.5.0"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^8.0.0",
+    "http-server": "^14.1.1",
+    "kill-port": "^2.0.1",
     "playwright": "^1.54.2",
     "shadow-cljs": "^3.3.6"
   }

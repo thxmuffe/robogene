@@ -1,5 +1,5 @@
 (ns webapp.shared.controls
-  (:require [goog.object :as gobj]
+  (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]))
@@ -19,34 +19,28 @@
 
 (defn on-window-keydown [e]
   (when-not (interaction/editable-target? (.-target e))
-    (case (.-key e)
-      "Escape" (rf/dispatch [:escape-pressed])
+    (let [key (or (some-> (.-key e) str/lower-case) "")]
+      (case key
+      "escape" (rf/dispatch [:escape-pressed])
       "f" (do
             (interaction/prevent! e)
             (rf/dispatch [:toggle-frame-fullscreen]))
-      "F" (do
-            (interaction/prevent! e)
-            (rf/dispatch [:toggle-frame-fullscreen]))
-      "ArrowLeft" (do
+      "arrowleft" (do
                     (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
-      "ArrowRight" (do
+      "arrowright" (do
                      (interaction/prevent! e)
                      (rf/dispatch [:keyboard-arrow "ArrowRight"]))
-      "ArrowUp" (do
+      "arrowup" (do
                   (interaction/prevent! e)
                   (rf/dispatch [:keyboard-arrow "ArrowUp"]))
-      "ArrowDown" (do
+      "arrowdown" (do
                     (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowDown"]))
-      "Enter" (do
+      "enter" (do
                 (interaction/prevent! e)
                 (rf/dispatch [:open-active-frame]))
-      nil)))
-
-(defn on-media-double-click [e]
-  (interaction/halt! e)
-  (rf/dispatch [:toggle-frame-fullscreen]))
+      nil))))
 
 (defn register-global-listeners! []
   (.addEventListener js/window "focus"
@@ -64,99 +58,6 @@
 (defn on-frame-activate [frame-id]
   (fn [_]
     (activate-frame! frame-id)))
-
-(defn on-frame-click [chapter-id frame-id]
-  (fn [e]
-    (when-not (interaction/interactive-child-event? e)
-      (navigate-frame! chapter-id frame-id))))
-
-(defn on-media-nav-click [delta]
-  (fn [e]
-    (interaction/halt! e)
-    (rf/dispatch [:navigate-relative-frame delta])))
-
-(defn on-frame-keydown-open [chapter-id frame-id]
-  (fn [e]
-    (when (or (= "Enter" (.-key e))
-              (= " " (.-key e)))
-      (interaction/prevent! e)
-      (navigate-frame! chapter-id frame-id))))
-
-(defn on-frame-blur-close-actions [frame-id actions-open?]
-  (fn [e]
-    (when (true? actions-open?)
-      (let [container (.-currentTarget e)]
-        (js/setTimeout
-         (fn []
-           (let [active-el (.-activeElement js/document)]
-             (when (and (some? active-el)
-                        (not (.contains container active-el)))
-               (rf/dispatch [:set-frame-actions-open frame-id false]))))
-         60)))))
-
-(defn focus-current-target! [e]
-  (let [el (.-currentTarget e)]
-    (interaction/stop! e)
-    (js/setTimeout
-     (fn []
-       (.focus el))
-     0)))
-
-(defn resolve-textarea [el]
-  (cond
-    (= "TEXTAREA" (some-> el .-tagName)) el
-    (fn? (some-> el .-querySelector)) (.querySelector el "textarea")
-    :else nil))
-
-(defn resize-textarea-to-content! [el]
-  (when-let [ta (resolve-textarea el)]
-    (when-let [style (some-> ta .-style)]
-      (gobj/set style "height" "auto")
-      (gobj/set style "height" (str (.-scrollHeight ta) "px")))))
-
-(defn on-frame-editor-enable [frame-id]
-  (fn [e]
-    (rf/dispatch [:set-frame-actions-open frame-id true])
-    (resize-textarea-to-content! (.-currentTarget e))
-    (focus-current-target! e)))
-
-(defn on-frame-editor-enable-keydown [frame-id]
-  (fn [e]
-    (when (or (= "Enter" (.-key e))
-              (= " " (.-key e)))
-      (interaction/prevent! e)
-      ((on-frame-editor-enable frame-id) e))))
-
-(defn on-frame-editor-close [frame-id]
-  (fn [e]
-    (interaction/stop! e)
-    (rf/dispatch [:set-frame-actions-open frame-id false])))
-
-(defn on-frame-editor-focus [e]
-  (resize-textarea-to-content! (.-currentTarget e))
-  (interaction/stop! e))
-
-(defn on-frame-editor-change [frame-id editable?]
-  (fn [e]
-    (resize-textarea-to-content! (.-target e))
-    (when editable?
-      (let [next-value (.. e -target -value)]
-        (rf/dispatch [:frame-direction-changed frame-id next-value])))))
-
-(defn on-new-chapter-form-keydown [e]
-  (when (and (= "Enter" (.-key e))
-             (not (.-shiftKey e)))
-    (interaction/prevent! e)
-    (rf/dispatch [:add-chapter])))
-
-(defn on-new-chapter-teaser-click [_]
-  (open-new-chapter-panel!))
-
-(defn on-new-chapter-teaser-keydown [e]
-  (when (or (= "Enter" (.-key e))
-            (= " " (.-key e)))
-    (interaction/prevent! e)
-    (open-new-chapter-panel!)))
 
 (defn frame-by-id [frames frame-id]
   (some (fn [frame] (when (= (:frameId frame) frame-id) frame)) frames))

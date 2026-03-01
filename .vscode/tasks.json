@@ -8,17 +8,19 @@
       "isBackground": true,
       "problemMatcher": [
         {
+          "owner": "robogene-start",
           "pattern": [
             {
-              "regexp": "^(.*)$",
-              "file": 1,
-              "message": 1
+              "regexp": "a^",
+              "kind": "file",
+              "file": 0,
+              "message": 0
             }
           ],
           "background": {
             "activeOnStart": true,
-            "beginsPattern": "Building webapi debug bundle",
-            "endsPattern": "Webapp: http://localhost:8080/index.html"
+            "beginsPattern": ".+",
+            "endsPattern": "watching build :webapp-debug"
           }
         }
       ],

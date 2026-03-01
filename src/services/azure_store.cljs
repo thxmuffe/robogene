@@ -38,6 +38,7 @@
 
 (defonce ensured? (atom false))
 (defonce smoke-state* (atom nil))
+(defonce image-url-cache* (atom {}))
 
 (defn parse-json [value fallback]
   (if (seq value)
@@ -83,21 +84,64 @@
                  (reset! ensured? true)
                  true)))))
 
+(defn now-ms []
+  (.now js/Date))
+
+(defn cache-valid? [{:keys [expires-at]}]
+  (and (number? expires-at)
+       (> expires-at (+ (now-ms) (* 5 60 1000)))))
+
+(defn cache-get-url [image-path]
+  (when-let [entry (get @image-url-cache* image-path)]
+    (when (cache-valid? entry)
+      (:url entry))))
+
+(defn cache-put-url! [image-path url expires-at]
+  (swap! image-url-cache* assoc image-path {:url url :expires-at expires-at})
+  url)
+
+(defn generate-sas-url [blob]
+  (let [generate-sas (gobj/get blob "generateSasUrl")]
+    (if-not (fn? generate-sas)
+      (js/Promise.resolve nil)
+      (let [starts-on (js/Date. (- (now-ms) (* 5 60 1000)))
+            expires-at (+ (now-ms) (* 6 60 60 1000))
+            expires-on (js/Date. expires-at)]
+        (-> (.call generate-sas blob
+                   #js {:permissions "r"
+                        :startsOn starts-on
+                        :expiresOn expires-on})
+            (.then (fn [url]
+                     {:url url :expires-at expires-at}))
+            (.catch (fn [_] nil)))))))
+
+(defn set-cached-image-url! [image-path]
+  (let [blob (.getBlockBlobClient image-container image-path)]
+    (-> (generate-sas-url blob)
+        (.then (fn [sas]
+                 (if-let [url (:url sas)]
+                   (cache-put-url! image-path url (:expires-at sas))
+                   (cache-put-url! image-path (.-url blob) js/Number.MAX_SAFE_INTEGER)))))))
+
 (defn to-readable-image-url [image-path]
   (if-not (seq image-path)
     (js/Promise.resolve "")
-    (let [blob (.getBlockBlobClient image-container image-path)
-          generate-sas (gobj/get blob "generateSasUrl")]
-      (if-not (fn? generate-sas)
-        (js/Promise.resolve (.-url blob))
-        (-> (.call generate-sas blob
-                  #js {:permissions "r"
-                       :startsOn (js/Date. (- (.now js/Date) (* 5 60 1000)))
-                       :expiresOn (js/Date. (+ (.now js/Date) (* 365 24 60 60 1000 1000)))})
-            (.catch (fn [_] (.-url blob))))))))
+    (if-let [cached-url (cache-get-url image-path)]
+      (js/Promise.resolve cached-url)
+      (set-cached-image-url! image-path))))
+
+(defn normalize-frame-image-field [frame]
+  (let [normalized (.assign js/Object #js {} frame)
+        image-url (or (gobj/get normalized "imageUrl")
+                      (gobj/get normalized "imageDataUrl"))]
+    (gobj/remove normalized "imageDataUrl")
+    (when (some? image-url)
+      (gobj/set normalized "imageUrl" image-url))
+    normalized))
 
 (defn upload-data-url-if-needed [chapter-root-id frame]
-  (let [data (or (gobj/get frame "imageDataUrl") "")]
+  (let [frame (normalize-frame-image-field frame)
+        data (or (gobj/get frame "imageUrl") "")]
     (if-not (str/starts-with? data "data:image/png;base64,")
       (js/Promise.resolve frame)
       (let [chapter-id (gobj/get frame "chapterId")
@@ -106,13 +150,13 @@
             blob (.getBlockBlobClient image-container image-path)
             content (js/Buffer.from (subs data (count "data:image/png;base64,")) "base64")]
         (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType "image/png"}})
-            (.then (fn [_] (to-readable-image-url image-path)))
+            (.then (fn [_] (set-cached-image-url! image-path)))
             (.then (fn [image-url]
                      (.assign js/Object
                               #js {}
                               frame
                               #js {:imagePath image-path
-                                   :imageDataUrl image-url}))))))))
+                                   :imageUrl image-url}))))))))
 
 (defn get-active-meta []
   (-> (.getEntity meta-client "meta" "active")
@@ -198,9 +242,9 @@
                                            (if-let [image-path (gobj/get frame "imagePath")]
                                              (-> (to-readable-image-url image-path)
                                                  (.then (fn [url]
-                                                          (gobj/set frame "imageDataUrl" url)
-                                                          (conj acc frame))))
-                                             (js/Promise.resolve (conj acc frame))))))
+                                                          (gobj/set frame "imageUrl" url)
+                                                          (conj acc (normalize-frame-image-field frame)))))
+                                             (js/Promise.resolve (conj acc (normalize-frame-image-field frame)))))))
                                      [])
                      (.then (fn [frames]
                               #js {:chapters (->> chapter-rows

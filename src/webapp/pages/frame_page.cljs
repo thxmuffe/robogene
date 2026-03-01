@@ -1,7 +1,6 @@
 (ns webapp.pages.frame-page
   (:require [re-frame.core :as rf]
             [webapp.shared.model :as model]
-            [webapp.shared.controls :as controls]
             [webapp.components.frame :as frame]
             ["@mui/material/Button" :default Button]
             ["@mui/material/IconButton" :default IconButton]
@@ -120,11 +119,10 @@
        [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
         (when-not fullscreen?
           [detail-controls chapter-id frame-neighbors])
-        [frame/frame frame
-         (get frame-inputs (:frameId frame) "")
+         [frame/frame frame
+          (get frame-inputs (:frameId frame) "")
          {:clickable? false
           :media-nav? true
-          :on-media-double-click controls/on-media-double-click
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         (if fullscreen?
           [:> IconButton

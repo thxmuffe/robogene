@@ -33,7 +33,7 @@ test('ui e2e: gallery add frame and generate image', { skip: !shouldRun }, async
   const apiPort = await getFreePort(Number(process.env.ROBOGENE_E2E_UI_API_PORT || 7186));
   let logs = '';
 
-  const app = spawn('node', ['scripts/run-robogene.js', '--release'], {
+  const app = spawn('npm', ['run', 'start:release'], {
     cwd: process.cwd(),
     env: {
       ...process.env,

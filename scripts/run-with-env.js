@@ -60,11 +60,28 @@ function main() {
     ...parseEnvFile(overlayEnvPath),
   };
 
-  const child = spawn(command[0], command.slice(1), {
+  const executable =
+    process.platform === "win32" && command[0] === "npm" ? "npm.cmd" : command[0];
+
+  const child = spawn(executable, command.slice(1), {
     stdio: "inherit",
-    shell: true,
+    shell: false,
+    detached: false,
     env,
   });
+
+  const forwardSignal = (signal) => {
+    if (child.exitCode == null && !child.killed) {
+      try {
+        child.kill(signal);
+      } catch {}
+    }
+  };
+
+  process.on("SIGINT", () => forwardSignal("SIGINT"));
+  process.on("SIGTERM", () => forwardSignal("SIGTERM"));
+  process.on("SIGHUP", () => forwardSignal("SIGHUP"));
+  process.on("exit", () => forwardSignal("SIGTERM"));
 
   child.on("exit", (code) => process.exit(code || 0));
   child.on("error", (err) => {
