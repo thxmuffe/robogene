@@ -40,11 +40,13 @@
     (interaction/halt! e)
     (rf/dispatch [:navigate-relative-frame delta])))
 
-(defn frame-image [{:keys [imageDataUrl frameId]}]
+(defn frame-image [{:keys [imageUrl frameId]}]
   [:> CardMedia
    {:component "img"
-    :src (or imageDataUrl "")
-    :alt (str "Frame " frameId)}])
+    :src (or imageUrl "")
+    :alt (str "Frame " frameId)
+    :on-load #(rf/dispatch [:frame-image-loaded frameId imageUrl])
+    :on-error #(rf/dispatch [:frame-image-error frameId imageUrl])}])
 
 (defn subtitle-display [{:keys [frameId description]} frame-input]
   (let [subtitle (str/trim (or frame-input description ""))]
@@ -74,10 +76,12 @@
 (defn frame
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click]
+  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click image-ui]
                        :or {clickable? true active? false actions-open? false media-nav? false}}]
-   (let [has-image? (not (str/blank? (or (:imageDataUrl frame) "")))
+   (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
          busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+         image-loading? (= :loading (:state image-ui))
+         image-error? (= :error (:state image-ui))
          editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
          media-attrs (cond-> {}
@@ -98,10 +102,13 @@
         (if has-image?
           [:<>
            [frame-image frame*]
-           (when busy?
+           (when (or busy? image-loading?)
              [:div.media-loading-overlay
               [:div.spinner]
-              [:div.placeholder-text "Generating..."]])]
+              [:div.placeholder-text (if busy? "Generating..." "Loading image...")]])
+           (when (and image-error? (not busy?))
+             [:div.media-loading-overlay
+              [:div.placeholder-text "Image failed to load"]])]
           [frame-placeholder frame])]
        (if editable?
          [prompt/prompt-panel frame* frame-input]

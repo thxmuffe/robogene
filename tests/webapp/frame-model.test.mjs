@@ -34,7 +34,7 @@ function hydrateFrameInputs(existing, frames) {
 test('frame state normalizes without requiring frame numbers', () => {
   const state = {
     frames: [
-      { frameId: 'a', status: 'ready', imageDataUrl: 'data:image/png;base64,aaa' },
+      { frameId: 'a', status: 'ready', imageUrl: 'data:image/png;base64,aaa' },
       { frameId: 'b', status: 'draft' },
       { frameId: 'c', status: 'queued' },
     ],

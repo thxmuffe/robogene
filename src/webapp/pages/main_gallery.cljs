@@ -28,7 +28,7 @@
     (interaction/prevent! e)
     (controls/open-new-chapter-panel!)))
 
-(defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id]
+(defn chapter-section [chapter frame-inputs open-frame-actions image-ui-by-frame-id active-frame-id]
   [:> Box {:component "section" :className "chapter-block"}
    [:div.chapter-separator]
    [:> Stack {:className "chapter-header"
@@ -43,7 +43,7 @@
       :size "small"
       :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
-   [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
+   [frames/chapter-frames (:chapterId chapter) frame-inputs open-frame-actions image-ui-by-frame-id active-frame-id]])
 
 (defn new-chapter-form [description]
   [:section.new-chapter-panel
@@ -97,12 +97,12 @@
    [:div.rainbow-band.band-4]
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
-(defn main-gallery-page [chapters frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
+(defn main-gallery-page [chapters frame-inputs open-frame-actions image-ui-by-frame-id active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   [:> Stack {:component "section" :spacing 2}
    [:h2 "Chapters"]
-   (map-indexed (fn [idx chapter]
-                  ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
-                  [chapter-section chapter frame-inputs open-frame-actions active-frame-id])
+                  (map-indexed (fn [idx chapter]
+                                 ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
+                  [chapter-section chapter frame-inputs open-frame-actions image-ui-by-frame-id active-frame-id])
                 chapters)
    (when show-chapter-celebration?
      [chapter-celebration])

@@ -96,8 +96,18 @@
                        :expiresOn (js/Date. (+ (.now js/Date) (* 365 24 60 60 1000 1000)))})
             (.catch (fn [_] (.-url blob))))))))
 
+(defn normalize-frame-image-field [frame]
+  (let [normalized (.assign js/Object #js {} frame)
+        image-url (or (gobj/get normalized "imageUrl")
+                      (gobj/get normalized "imageDataUrl"))]
+    (gobj/remove normalized "imageDataUrl")
+    (when (some? image-url)
+      (gobj/set normalized "imageUrl" image-url))
+    normalized))
+
 (defn upload-data-url-if-needed [chapter-root-id frame]
-  (let [data (or (gobj/get frame "imageDataUrl") "")]
+  (let [frame (normalize-frame-image-field frame)
+        data (or (gobj/get frame "imageUrl") "")]
     (if-not (str/starts-with? data "data:image/png;base64,")
       (js/Promise.resolve frame)
       (let [chapter-id (gobj/get frame "chapterId")
@@ -109,10 +119,10 @@
             (.then (fn [_] (to-readable-image-url image-path)))
             (.then (fn [image-url]
                      (.assign js/Object
-                              #js {}
+                             #js {}
                               frame
                               #js {:imagePath image-path
-                                   :imageDataUrl image-url}))))))))
+                                   :imageUrl image-url}))))))))
 
 (defn get-active-meta []
   (-> (.getEntity meta-client "meta" "active")
@@ -198,9 +208,9 @@
                                            (if-let [image-path (gobj/get frame "imagePath")]
                                              (-> (to-readable-image-url image-path)
                                                  (.then (fn [url]
-                                                          (gobj/set frame "imageDataUrl" url)
-                                                          (conj acc frame))))
-                                             (js/Promise.resolve (conj acc frame))))))
+                                                          (gobj/set frame "imageUrl" url)
+                                                          (conj acc (normalize-frame-image-field frame)))))
+                                             (js/Promise.resolve (conj acc (normalize-frame-image-field frame)))))))
                                      [])
                      (.then (fn [frames]
                               #js {:chapters (->> chapter-rows

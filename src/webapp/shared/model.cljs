@@ -66,10 +66,14 @@
   (clamp-text (:description frame) 180))
 
 (defn enrich-frame [frame]
-  (let [description (str/trim (or (:description frame) ""))]
+  (let [description (str/trim (or (:description frame) ""))
+        image-url (or (:imageUrl frame) (:imageDataUrl frame))
+        normalized (-> frame
+                       (dissoc :imageDataUrl)
+                       (assoc :imageUrl image-url))]
     (if (or (str/blank? description) (generic-frame-text? description))
-      (assoc frame :description description)
-      frame)))
+      (assoc normalized :description description)
+      normalized)))
 
 (defn derived-chapters [state]
   (->> (or (:chapters state) [])

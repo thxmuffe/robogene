@@ -12,8 +12,8 @@ test('services state exposes frames with valid types', async () => {
       })()
     : {
         frames: [
-          { frameId: 'f-1', frameNumber: 1, status: 'ready', imageDataUrl: 'data:image/png;base64,AAA' },
-          { frameId: 'f-2', frameNumber: 2, status: 'draft', imageDataUrl: '' },
+          { frameId: 'f-1', frameNumber: 1, status: 'ready', imageUrl: 'data:image/png;base64,AAA' },
+          { frameId: 'f-2', frameNumber: 2, status: 'draft', imageUrl: '' },
         ],
       };
 
@@ -23,4 +23,5 @@ test('services state exposes frames with valid types', async () => {
   assert.ok(frames.length >= 1, 'should expose at least one frame');
   assert.ok(frames.every((f) => typeof f.frameNumber === 'number'), 'frameNumber must be number');
   assert.ok(frames.every((f) => typeof f.status === 'string'), 'status must be string');
+  assert.ok(frames.every((f) => typeof (f.imageUrl || '') === 'string'), 'imageUrl must be string');
 });

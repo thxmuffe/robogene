@@ -1,7 +1,8 @@
 (ns webapp.shared.events.handlers.frames
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [webapp.shared.events.sync :as sync]))
+            [webapp.shared.events.sync :as sync]
+            [webapp.shared.events.image-ui :as image-ui]))
 
 (defn deleted-frame-label [frame]
   (let [description (str/trim (or (:description frame) ""))]
@@ -29,7 +30,7 @@
   (let [frame {:frameId frame-id
                :chapterId chapter-id
                :description ""
-               :imageDataUrl nil
+               :imageUrl nil
                :status "draft"
                :error nil
                :createdAt (.toISOString (js/Date.))
@@ -37,7 +38,8 @@
     (-> db
         (update :gallery-items (fn [frames] (conj (vec (or frames [])) frame)))
         (update-in [:latest-state :frames]
-                   (fn [frames] (conj (vec (or frames [])) frame))))))
+                   (fn [frames] (conj (vec (or frames [])) frame)))
+        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
 (defn remove-frame [db frame-id]
   (let [remaining-frames (->> (or (:gallery-items db) [])
@@ -52,6 +54,7 @@
                :active-frame-id next-active-id)
         (update :frame-inputs dissoc frame-id)
         (update :open-frame-actions dissoc frame-id)
+        (update :image-ui-by-frame-id image-ui/remove-frame frame-id)
         (update-in [:latest-state :frames]
                    (fn [frames]
                      (->> (or frames [])
@@ -61,12 +64,13 @@
 (defn clear-frame-image [db frame-id]
   (let [clear-image (fn [frame]
                       (if (= (:frameId frame) frame-id)
-                        (assoc frame :imageDataUrl nil)
+                        (assoc frame :imageUrl nil)
                         frame))]
     (-> db
         (update :gallery-items (fn [frames] (mapv clear-image (or frames []))))
         (update-in [:latest-state :frames]
-                   (fn [frames] (mapv clear-image (or frames [])))))))
+                   (fn [frames] (mapv clear-image (or frames []))))
+        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
 (defn command->fx [command]
   (let [kind (:kind command)
@@ -215,6 +219,27 @@
               {:dispatch-n [[:sync-outbox/process]
                             [:fetch-state]]})
        {:db db}))))
+
+(defn current-image-url [db frame-id]
+  (or (some (fn [frame]
+              (when (= (:frameId frame) frame-id)
+                (:imageUrl frame)))
+            (or (:gallery-items db) []))
+      ""))
+
+(rf/reg-event-db
+ :frame-image-loaded
+ (fn [db [_ frame-id image-url]]
+   (if (= image-url (current-image-url db frame-id))
+     (update db :image-ui-by-frame-id image-ui/mark-image-loaded frame-id)
+     db)))
+
+(rf/reg-event-db
+ :frame-image-error
+ (fn [db [_ frame-id image-url]]
+   (if (= image-url (current-image-url db frame-id))
+     (update db :image-ui-by-frame-id image-ui/mark-image-error frame-id)
+     db)))
 
 (rf/reg-event-fx
  :sync-outbox/failed
