@@ -1,5 +1,6 @@
 (ns webapp.shared.controls
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]))
 
@@ -18,34 +19,28 @@
 
 (defn on-window-keydown [e]
   (when-not (interaction/editable-target? (.-target e))
-    (case (.-key e)
-      "Escape" (rf/dispatch [:escape-pressed])
+    (let [key (or (some-> (.-key e) str/lower-case) "")]
+      (case key
+      "escape" (rf/dispatch [:escape-pressed])
       "f" (do
             (interaction/prevent! e)
             (rf/dispatch [:toggle-frame-fullscreen]))
-      "F" (do
-            (interaction/prevent! e)
-            (rf/dispatch [:toggle-frame-fullscreen]))
-      "ArrowLeft" (do
+      "arrowleft" (do
                     (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowLeft"]))
-      "ArrowRight" (do
+      "arrowright" (do
                      (interaction/prevent! e)
                      (rf/dispatch [:keyboard-arrow "ArrowRight"]))
-      "ArrowUp" (do
+      "arrowup" (do
                   (interaction/prevent! e)
                   (rf/dispatch [:keyboard-arrow "ArrowUp"]))
-      "ArrowDown" (do
+      "arrowdown" (do
                     (interaction/prevent! e)
                     (rf/dispatch [:keyboard-arrow "ArrowDown"]))
-      "Enter" (do
+      "enter" (do
                 (interaction/prevent! e)
                 (rf/dispatch [:open-active-frame]))
-      nil)))
-
-(defn on-media-double-click [e]
-  (interaction/halt! e)
-  (rf/dispatch [:toggle-frame-fullscreen]))
+      nil))))
 
 (defn register-global-listeners! []
   (.addEventListener js/window "focus"

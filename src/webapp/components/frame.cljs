@@ -76,7 +76,7 @@
 (defn frame
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click]
+  ([frame frame-input {:keys [clickable? active? actions-open? media-nav?]
                        :or {clickable? true active? false actions-open? false media-nav? false}}]
    (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
          busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
@@ -85,8 +85,6 @@
          image-error? (= :error image-ui)
          editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
-         media-attrs (cond-> {}
-                       (fn? on-media-double-click) (assoc :on-double-click on-media-double-click))
          attrs {:data-frame-id (:frameId frame)
                 :className (str "frame frame-card"
                                 (when clickable? " frame-clickable")
@@ -98,7 +96,7 @@
       (merge attrs
              {:component "article"
               :variant "outlined"})
-     [:> Box (merge {:className "media-shell"} media-attrs)
+     [:> Box {:className "media-shell"}
        [:> Box nav-attrs
         (if has-image?
           [:<>
