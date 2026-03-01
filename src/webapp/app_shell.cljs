@@ -22,7 +22,6 @@
         status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
         open-frame-actions @(rf/subscribe [:open-frame-actions])
-        image-ui-by-frame-id @(rf/subscribe [:image-ui-by-frame-id])
         active-frame-id @(rf/subscribe [:active-frame-id])
         new-chapter-description @(rf/subscribe [:new-chapter-description])
         new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
@@ -43,11 +42,10 @@
         [:> Box {:component "header" :className "hero"}
          [:h1 "RoboGene"]]
         (if (= :frame (:view route))
-          [frame-page/frame-page route frame-inputs open-frame-actions image-ui-by-frame-id]
+          [frame-page/frame-page route frame-inputs open-frame-actions]
           [gallery-page/main-gallery-page chapters
            frame-inputs
            open-frame-actions
-           image-ui-by-frame-id
            active-frame-id
            new-chapter-description
            new-chapter-panel-open?

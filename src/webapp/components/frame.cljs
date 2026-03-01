@@ -76,12 +76,13 @@
 (defn frame
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click image-ui]
+  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? on-media-double-click]
                        :or {clickable? true active? false actions-open? false media-nav? false}}]
    (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
          busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
-         image-loading? (= :loading (:state image-ui))
-         image-error? (= :error (:state image-ui))
+         image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
+         image-loading? (= :loading image-ui)
+         image-error? (= :error image-ui)
          editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
          media-attrs (cond-> {}

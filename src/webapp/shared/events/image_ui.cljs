@@ -5,9 +5,9 @@
   (or (:imageUrl frame) ""))
 
 (defn image-ui-state-for-url [url]
-  {:state (if (str/blank? (or url ""))
-            :idle
-            :loading)})
+  (if (str/blank? (or url ""))
+    :idle
+    :loading))
 
 (defn sync-image-ui-by-frame-id [prev-ui old-frames new-frames]
   (let [old-url-by-id (into {}
@@ -22,19 +22,19 @@
                        existing (get prev-ui frame-id)]
                    [frame-id
                     (cond
-                      (str/blank? new-url) {:state :idle}
+                      (str/blank? new-url) :idle
                       (= new-url old-url) (or existing (image-ui-state-for-url new-url))
                       :else (image-ui-state-for-url new-url))])))
           (or new-frames []))))
 
 (defn mark-image-loaded [ui-map frame-id]
-  (assoc ui-map frame-id {:state :loaded}))
+  (assoc ui-map frame-id :loaded))
 
 (defn mark-image-error [ui-map frame-id]
-  (assoc ui-map frame-id {:state :error}))
+  (assoc ui-map frame-id :error))
 
 (defn mark-image-idle [ui-map frame-id]
-  (assoc ui-map frame-id {:state :idle}))
+  (assoc ui-map frame-id :idle))
 
 (defn remove-frame [ui-map frame-id]
   (dissoc ui-map frame-id))

@@ -108,7 +108,7 @@
       :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn frame-page [route frame-inputs open-frame-actions image-ui-by-frame-id]
+(defn frame-page [route frame-inputs open-frame-actions]
   (let [chapter-id (:chapter route)
         ordered @(rf/subscribe [:frames-for-chapter chapter-id])
         frame-id (:frame-id route)
@@ -125,7 +125,6 @@
          {:clickable? false
           :media-nav? true
           :on-media-double-click controls/on-media-double-click
-          :image-ui (get image-ui-by-frame-id (:frameId frame) {:state :idle})
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         (if fullscreen?
           [:> IconButton
