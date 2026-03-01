@@ -1,6 +1,8 @@
 (ns webapp.components.frame
   (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
+            [webapp.shared.ui.interaction :as interaction]
             [webapp.components.prompt :as prompt]
             ["@mui/material/Button" :default Button]
             ["@mui/material/Card" :default Card]
@@ -9,6 +11,34 @@
             ["@mui/material/Chip" :default Chip]
             ["@mui/material/IconButton" :default IconButton]
             ["@mui/icons-material/Close" :default CloseIcon]))
+
+(defn on-editor-enable [frame-id]
+  (fn [e]
+    (interaction/stop! e)
+    (rf/dispatch [:set-frame-actions-open frame-id true])
+    nil))
+
+(defn on-editor-enable-keydown [frame-id]
+  (fn [e]
+    (when (or (= "Enter" (.-key e))
+              (= " " (.-key e)))
+      (interaction/prevent! e)
+      ((on-editor-enable frame-id) e))))
+
+(defn on-editor-close [frame-id]
+  (fn [e]
+    (interaction/stop! e)
+    (rf/dispatch [:set-frame-actions-open frame-id false])))
+
+(defn on-frame-click [chapter-id frame-id]
+  (fn [e]
+    (when-not (interaction/interactive-child-event? e)
+      (controls/navigate-frame! chapter-id frame-id))))
+
+(defn on-media-nav-click [delta]
+  (fn [e]
+    (interaction/halt! e)
+    (rf/dispatch [:navigate-relative-frame delta])))
 
 (defn frame-image [{:keys [imageDataUrl frameId]}]
   [:> CardMedia
@@ -22,9 +52,9 @@
              :role "button"
              :tab-index 0
              :title "Click subtitle to edit prompt"
-             :on-click (controls/on-frame-editor-enable frameId)
-             :on-double-click (controls/on-frame-editor-enable frameId)
-             :on-key-down (controls/on-frame-editor-enable-keydown frameId)}
+             :on-click (on-editor-enable frameId)
+             :on-double-click (on-editor-enable frameId)
+             :on-key-down (on-editor-enable-keydown frameId)}
      [:span {:className "subtitle-display-text"}
       (if (seq subtitle)
         subtitle
@@ -58,7 +88,7 @@
                                 (when active? " frame-active"))
                 :on-mouse-enter (controls/on-frame-activate (:frameId frame))}
          nav-attrs (cond-> {:className "frame-nav-surface"}
-                     clickable? (assoc :on-click (controls/on-frame-click (:chapterId frame) (:frameId frame))))]
+                     clickable? (assoc :on-click (on-frame-click (:chapterId frame) (:frameId frame))))]
      [:> Card
       (merge attrs
              {:component "article"
@@ -78,10 +108,10 @@
          [subtitle-display frame* frame-input])
        (when editable?
          [:> IconButton
-          {:className "frame-prompt-close"
+         {:className "frame-prompt-close"
            :aria-label "Close prompt"
            :title "Close prompt"
-           :on-click (controls/on-frame-editor-close (:frameId frame))}
+           :on-click (on-editor-close (:frameId frame))}
           [:> CloseIcon]])
        (when media-nav?
          [:div.media-nav-zones
@@ -93,7 +123,7 @@
             :disableFocusRipple true
             :on-focus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Previous frame"
-            :on-click (controls/on-media-nav-click -1)}]
+            :on-click (on-media-nav-click -1)}]
           [:> Button
           {:className "media-nav-zone media-nav-next"
             :variant "text"
@@ -102,7 +132,7 @@
             :disableFocusRipple true
             :on-focus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Next frame"
-            :on-click (controls/on-media-nav-click 1)}]])]
+            :on-click (on-media-nav-click 1)}]])]
       (when busy?
         [:> Chip {:className "badge queue badge-queue-overlay"
                   :size "small"

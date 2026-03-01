@@ -474,8 +474,9 @@ h2 { margin: 24px 0 10px; }
   bottom: 0;
   z-index: 3;
   padding: 10px 0 10px 10px;
+  height: 35%;
   max-height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -486,16 +487,27 @@ h2 { margin: 24px 0 10px; }
 .prompt-main {
   display: grid;
   gap: 8px;
+  height: 100%;
   min-width: 0;
 }
 
-.prompt-input textarea {
-  overflow-y: auto !important;
+.prompt-input {
+  height: 100%;
 }
 
 .prompt-input .MuiFilledInput-root {
+  height: 100%;
   border-radius: 0;
   background-color: rgba(255, 255, 255, 0.96);
+  align-items: stretch;
+}
+
+.prompt-input textarea {
+  height: 100% !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  resize: vertical;
 }
 
 .prompt-input .MuiFilledInput-root:hover,

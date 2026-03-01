@@ -1,7 +1,6 @@
 (ns webapp.components.prompt
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
-            [webapp.shared.controls :as controls]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.action-menu :as action-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
@@ -11,6 +10,13 @@
             ["@mui/material/IconButton" :default IconButton]
             ["@mui/material/Tooltip" :default Tooltip]
             ["@mui/icons-material/SendRounded" :default SendRoundedIcon]))
+
+(defn on-editor-focus [e]
+  (interaction/stop! e))
+
+(defn on-editor-change [frame-id]
+  (fn [e]
+    (rf/dispatch [:frame-direction-changed frame-id (.. e -target -value)])))
 
 (defn prompt-panel [{:keys [frameId error]} frame-input]
   (r/with-let [confirm* (r/atom nil)]
@@ -58,15 +64,13 @@
          {:className "prompt-input"
           :multiline true
           :autoFocus true
-          :minRows 2
-          :maxRows 14
           :fullWidth true
           :variant "filled"
           :value (or frame-input "")
           :placeholder "Describe this frame..."
-          :on-focus controls/on-frame-editor-focus
+          :on-focus on-editor-focus
           :on-key-down on-editor-key-down
-          :on-change (controls/on-frame-editor-change frameId true)
+          :on-change (on-editor-change frameId)
           :InputProps #js {:disableUnderline true}}]
         (when (seq (or error ""))
           [:div.error-line (str "Last error: " error)])]
