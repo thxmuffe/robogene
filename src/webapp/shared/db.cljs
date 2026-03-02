@@ -7,6 +7,8 @@
    :wait-lights-events []
    :frame-inputs {}
    :open-frame-actions {}
+   :chapter-name-inputs {}
+   :editing-chapter-id nil
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil

@@ -72,6 +72,46 @@
                    (fn [frames] (mapv clear-image (or frames []))))
         (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
+(defn rename-chapter [db chapter-id description]
+  (let [rename-chapter* (fn [chapter]
+                          (if (= (:chapterId chapter) chapter-id)
+                            (assoc chapter :description description)
+                            chapter))]
+    (-> db
+        (update :saga (fn [rows] (mapv rename-chapter* (or rows []))))
+        (update-in [:latest-state :saga]
+                   (fn [rows] (mapv rename-chapter* (or rows [])))))))
+
+(defn remove-chapter [db chapter-id]
+  (let [remaining-saga (->> (or (:saga db) [])
+                            (remove (fn [chapter] (= (:chapterId chapter) chapter-id)))
+                            vec)
+        removed-frame-ids (->> (or (:gallery-items db) [])
+                               (filter (fn [frame] (= (:chapterId frame) chapter-id)))
+                               (map :frameId)
+                               set)
+        remaining-frames (->> (or (:gallery-items db) [])
+                              (remove (fn [frame] (= (:chapterId frame) chapter-id)))
+                              vec)
+        current-active-id (:active-frame-id db)
+        next-active-id (if (contains? removed-frame-ids current-active-id)
+                         (some-> remaining-frames first :frameId)
+                         current-active-id)
+        dissoc-ids (fn [m]
+                     (apply dissoc (or m {}) removed-frame-ids))]
+    (-> db
+        (assoc :saga remaining-saga
+               :gallery-items remaining-frames
+               :active-frame-id next-active-id)
+        (update :chapter-name-inputs dissoc chapter-id)
+        (cond-> (= (:editing-chapter-id db) chapter-id)
+          (assoc :editing-chapter-id nil))
+        (update :frame-inputs dissoc-ids)
+        (update :open-frame-actions dissoc-ids)
+        (update :image-ui-by-frame-id dissoc-ids)
+        (update-in [:latest-state :saga] (fn [rows] (vec remaining-saga)))
+        (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
+
 (defn command->fx [command]
   (let [kind (:kind command)
         payload (:payload command)
@@ -91,6 +131,12 @@
 
       :add-chapter
       {:post-add-chapter (merge payload callbacks)}
+
+      :rename-chapter
+      {:post-update-chapter (merge payload callbacks)}
+
+      :delete-chapter
+      {:post-delete-chapter (merge payload callbacks)}
 
       nil)))
 
@@ -186,6 +232,29 @@
                   :payload {:description description}
                   :success-status "Chapter created."}]
      (sync/queue-command db "Creating chapter..." command))))
+
+(rf/reg-event-fx
+ :rename-chapter
+ (fn [{:keys [db]} [_ chapter-id description]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :rename-chapter
+                  :payload {:chapter-id chapter-id
+                            :description description}
+                  :success-status "Chapter name updated."}]
+     (sync/queue-command (rename-chapter db chapter-id description)
+                         "Updating chapter name..."
+                         command))))
+
+(rf/reg-event-fx
+ :delete-chapter
+ (fn [{:keys [db]} [_ chapter-id]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :delete-chapter
+                  :payload {:chapter-id chapter-id}
+                  :success-status "Chapter deleted."}]
+     (sync/queue-command (remove-chapter db chapter-id)
+                         "Deleting chapter..."
+                         command))))
 
 (rf/reg-event-fx
  :sync-outbox/process

@@ -162,6 +162,43 @@
                    (update :revision inc))))
       frame)))
 
+(defn update-chapter-description! [chapter-id description]
+  (let [description (some-> (or description "") str str/trim)
+        idx (first (keep-indexed (fn [i chapter]
+                                   (when (= (:chapterId chapter) chapter-id)
+                                     i))
+                                 (:saga @state)))]
+    (when-not (number? idx)
+      (throw (js/Error. "Chapter not found.")))
+    (when (str/blank? description)
+      (throw (js/Error. "Missing chapter description.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc-in [:saga idx :description] description)
+                 (update :revision inc))))
+    (get-in @state [:saga idx])))
+
+(defn delete-chapter! [chapter-id]
+  (let [snapshot @state
+        saga (:saga snapshot)
+        chapter (chapter-by-id saga chapter-id)]
+    (when-not chapter
+      (throw (js/Error. "Chapter not found.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :saga (fn [rows]
+                                 (->> (or rows [])
+                                      (remove (fn [row] (= (:chapterId row) chapter-id)))
+                                      vec)))
+                 (update :frames (fn [rows]
+                                   (->> (or rows [])
+                                        (remove (fn [frame] (= (:chapterId frame) chapter-id)))
+                                        vec)))
+                 (update :revision inc))))
+    chapter))
+
 (declare find-frame-index)
 
 (defn delete-frame! [frame-id]

@@ -2,7 +2,7 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.shared.ui.interaction :as interaction]
-            [webapp.components.action-menu :as action-menu]
+            [webapp.components.frame-menu :as frame-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
             ["@mui/material/Box" :default Box]
             ["@mui/material/TextField" :default TextField]
@@ -82,7 +82,7 @@
            :aria-label "Generate"
            :on-click on-send-click}
           [:> SendRoundedIcon]]]
-        [action-menu/action-menu
+        [frame-menu/frame-menu
          {:title "Actions"
           :button-class "prompt-actions-trigger"
           :items menu-items

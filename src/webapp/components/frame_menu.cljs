@@ -1,4 +1,4 @@
-(ns webapp.components.action-menu
+(ns webapp.components.frame-menu
   (:require [reagent.core :as r]
             [webapp.shared.ui.interaction :as interaction]
             ["@mui/material/IconButton" :default IconButton]
@@ -7,7 +7,7 @@
             ["@mui/material/Tooltip" :default Tooltip]
             ["@mui/icons-material/MoreVert" :default MoreVertIcon]))
 
-(defn action-menu [{:keys [title aria-label button-class items on-select]}]
+(defn frame-menu [{:keys [title aria-label button-class items on-select]}]
   (r/with-let [menu-anchor* (r/atom nil)]
     (let [open-menu! (fn [e]
                        (interaction/stop! e)
@@ -22,7 +22,7 @@
       [:<>
        [:> Tooltip {:title (or title "Actions")}
         [:> IconButton
-         {:className (or button-class "prompt-actions-trigger")
+         {:className (or button-class "frame-menu-trigger")
           :aria-label (or aria-label "Actions")
           :on-click open-menu!}
          [:> MoreVertIcon]]]

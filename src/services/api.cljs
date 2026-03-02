@@ -375,6 +375,34 @@
                                                    snapshot)
                                     request))}))))
 
+(defn handle-update-chapter [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (cond
+         (str/blank? chapter-id)
+         (json-response 400 {:error "Missing chapterId."} request)
+
+         (str/blank? description)
+         (json-response 400 {:error "Missing chapter description."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(chapter/update-chapter-description! chapter-id description)
+           :reason "chapter-updated"
+           :default-error "Update chapter failed."
+           :status-by-message {"Chapter not found." 404
+                               "Missing chapter description." 400}
+           :on-success (fn [chapter snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :chapter chapter}
+                                                       snapshot)
+                                        request))}))))))
+
 (def handle-delete-frame
   (make-required-mutation-handler
    {:field-key "frameId"
@@ -405,6 +433,20 @@
                                     :frame frame}
                                    snapshot))}))
 
+(def handle-delete-chapter
+  (make-required-mutation-handler
+   {:field-key "chapterId"
+    :missing-msg "Missing chapterId."
+    :mutate! chapter/delete-chapter!
+    :default-error "Delete chapter failed."
+    :status-by-message (messages->status-map #{"Chapter not found."} 404)
+    :emit-reason "chapter-deleted"
+    :success-status 200
+    :success-body (fn [chapter snapshot]
+                    (with-revision {:deleted true
+                                    :chapter chapter}
+                                   snapshot))}))
+
 (defn handle-signalr-negotiate [request]
   (if-let [info (realtime/create-client-connection-info)]
     (json-response 200 info request)
@@ -425,7 +467,9 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
+   {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
+   {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}

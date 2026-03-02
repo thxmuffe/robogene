@@ -252,3 +252,22 @@
               on-success
               on-failure
               (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-chapter
+ (fn [{:keys [chapter-id description on-success on-failure]}]
+   (post-json "/api/update-chapter"
+              {:chapterId chapter-id
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-chapter
+ (fn [{:keys [chapter-id on-success on-failure]}]
+   (post-json "/api/delete-chapter"
+              {:chapterId chapter-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))

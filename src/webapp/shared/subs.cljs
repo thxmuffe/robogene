@@ -7,6 +7,8 @@
 (rf/reg-sub :saga (fn [db _] (:saga db)))
 (rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
+(rf/reg-sub :chapter-name-inputs (fn [db _] (:chapter-name-inputs db)))
+(rf/reg-sub :editing-chapter-id (fn [db _] (:editing-chapter-id db)))
 (rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
 (rf/reg-sub :frame-image-ui
             (fn [db [_ frame-id]]
