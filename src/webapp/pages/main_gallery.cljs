@@ -1,6 +1,8 @@
 (ns webapp.pages.main-gallery
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
+            [webapp.shared.model :as model]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.chapter :as chapter-component]
             [webapp.components.chapter-actions :as chapter-actions]
@@ -29,6 +31,44 @@
     (when (= "Enter" (.-key e))
       (interaction/prevent! e)
       (rf/dispatch [:save-chapter-name chapter-id]))))
+
+(defn gallery-frame-seq [saga gallery-items]
+  (->> (or saga [])
+       (mapcat (fn [chapter]
+                 (model/frames-for-chapter gallery-items (:chapterId chapter))))
+       vec))
+
+(defn navigate-gallery-active! [saga gallery-items active-frame-id delta]
+  (when active-frame-id
+    (let [ordered (gallery-frame-seq saga gallery-items)
+          target (model/relative-frame-by-id ordered active-frame-id delta)]
+      (when-let [target-id (:frameId target)]
+        (rf/dispatch [:set-active-frame target-id])))))
+
+(defn on-gallery-key-down [saga gallery-items active-frame-id]
+  (fn [e]
+    (let [key (or (.-key e) "")
+          lower-key (str/lower-case key)]
+      (when-not (or (interaction/modal-open?)
+                    (interaction/menu-open?)
+                    (interaction/editable-target? (.-target e)))
+        (cond
+          (= "f" lower-key)
+          (do
+            (interaction/halt! e)
+            (rf/dispatch [:toggle-fullscreen-shortcut]))
+
+          (#{"ArrowLeft" "ArrowUp"} key)
+          (do
+            (interaction/halt! e)
+            (navigate-gallery-active! saga gallery-items active-frame-id -1))
+
+          (#{"ArrowRight" "ArrowDown"} key)
+          (do
+            (interaction/halt! e)
+            (navigate-gallery-active! saga gallery-items active-frame-id 1))
+
+          :else nil)))))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs]
   [:> Box {:component "section" :className "chapter-block"}
@@ -127,8 +167,11 @@
 
 (defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
-        chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
-    [:> Stack {:component "section" :gap "md"}
+        chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])
+        gallery-items @(rf/subscribe [:gallery-items])]
+    [:> Stack {:component "section"
+               :gap "md"
+               :onKeyDown (on-gallery-key-down saga gallery-items active-frame-id)}
      [:h2 "Saga"]
      (map-indexed (fn [idx chapter]
                     ^{:key (or (:chapterId chapter) (str "chapter-" idx))}

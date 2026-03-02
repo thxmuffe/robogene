@@ -44,6 +44,9 @@
 (defn modal-open? []
   (some? (.querySelector js/document "[role='dialog'][aria-modal='true']")))
 
+(defn menu-open? []
+  (some? (.querySelector js/document "[role='menu'], .mantine-Menu-dropdown")))
+
 (defn stop! [e]
   (.stopPropagation e))
 

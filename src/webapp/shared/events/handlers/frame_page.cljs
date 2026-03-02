@@ -49,6 +49,22 @@
        {:db db}))))
 
 (rf/reg-event-fx
+ :toggle-fullscreen-shortcut
+ (fn [{:keys [db]} _]
+   (let [active-id (:active-frame-id db)
+         active-frame (some (fn [frame]
+                              (when (= (:frameId frame) active-id)
+                                frame))
+                            (or (:gallery-items db) []))
+         fullscreen? (true? (get-in db [:route :fullscreen?]))]
+     (if active-frame
+       {:db db
+        :set-hash (model/frame-hash (:chapterId active-frame)
+                                    (:frameId active-frame)
+                                    (not fullscreen?))}
+       {:db db}))))
+
+(rf/reg-event-fx
  :escape-pressed
  (fn [{:keys [db]} _]
    (let [route (:route db)

@@ -4,7 +4,7 @@
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.prompt :as prompt]
-            ["@mantine/core" :refer [ActionIcon Badge Box Button Card Image]]
+            ["@mantine/core" :refer [ActionIcon Badge Box Card Image]]
             ["react-icons/fa6" :refer [FaXmark]]))
 
 (defn on-editor-enable [frame-id]
@@ -118,18 +118,18 @@
            :radius "xl"
            :onClick (on-editor-close (:frameId frame))}
           [:> FaXmark]])
-       (when media-nav?
+       (when (and media-nav? (not editable?))
          [:div.media-nav-zones
-          [:> Button
-           {:className "media-nav-zone media-nav-prev"
-            :variant "subtle"
+          [:button
+           {:type "button"
+            :className "media-nav-zone media-nav-prev"
             :tabIndex -1
             :onFocus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Previous frame"
             :onClick (on-media-nav-click -1)}]
-          [:> Button
-           {:className "media-nav-zone media-nav-next"
-            :variant "subtle"
+          [:button
+           {:type "button"
+            :className "media-nav-zone media-nav-next"
             :tabIndex -1
             :onFocus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Next frame"
