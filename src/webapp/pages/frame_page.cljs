@@ -1,12 +1,7 @@
 (ns webapp.pages.frame-page
   (:require [re-frame.core :as rf]
-            [webapp.shared.model :as model]
             [webapp.components.frame :as frame]
-            ["@mui/material/Button" :default Button]
-            ["@mui/material/IconButton" :default IconButton]
-            ["@mui/material/Tooltip" :default Tooltip]
-            ["@mui/material/Stack" :default Stack]
-            ["@mui/material/Box" :default Box]
+            ["@mantine/core" :refer [ActionIcon Box Button Group Tooltip]]
             ["react-icons/fa6" :refer [FaFacebookF FaLinkedinIn FaXTwitter FaLink FaXmark]]))
 
 (defn current-share-url []
@@ -26,41 +21,47 @@
         nil))))
 
 (defn share-actions [saga-name]
-  [:> Stack {:className "detail-share"
-             :direction "row"
-             :spacing 1
-             :alignItems "center"}
-   [:> Stack {:className "share-actions"
-              :direction "row"
-              :spacing 1}
-    [:> Tooltip {:title "Share on Facebook"}
-     [:> IconButton
+  [:> Group {:className "detail-share"
+             :gap "xs"
+             :align "center"}
+   [:> Group {:className "share-actions"
+              :gap "xs"}
+    [:> Tooltip {:label "Share on Facebook"}
+     [:> ActionIcon
       {:className "share-icon-btn share-facebook"
        :aria-label "Share on Facebook"
-       :on-click #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
+       :variant "subtle"
+       :radius "xl"
+       :onClick #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
       [:> FaFacebookF]]]
-    [:> Tooltip {:title "Share on LinkedIn"}
-     [:> IconButton
+    [:> Tooltip {:label "Share on LinkedIn"}
+     [:> ActionIcon
       {:className "share-icon-btn share-linkedin"
        :aria-label "Share on LinkedIn"
-       :on-click #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
+       :variant "subtle"
+       :radius "xl"
+       :onClick #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
       [:> FaLinkedinIn]]]
-    [:> Tooltip {:title "Share on X"}
-     [:> IconButton
+    [:> Tooltip {:label "Share on X"}
+     [:> ActionIcon
       {:className "share-icon-btn share-x"
        :aria-label "Share on X"
-       :on-click #(let [url (js/encodeURIComponent (current-share-url))
+       :variant "subtle"
+       :radius "xl"
+       :onClick #(let [url (js/encodeURIComponent (current-share-url))
                         text (js/encodeURIComponent (str "Check out this " saga-name " frame"))]
                     (.open js/window
                            (str "https://twitter.com/intent/tweet?url=" url "&text=" text)
                            "_blank"
                            "noopener,noreferrer"))}
       [:> FaXTwitter]]]
-    [:> Tooltip {:title "Copy link"}
-     [:> IconButton
+    [:> Tooltip {:label "Copy link"}
+     [:> ActionIcon
       {:className "share-icon-btn share-copy"
        :aria-label "Copy link"
-       :on-click #(copy-link!)}
+       :variant "subtle"
+       :radius "xl"
+       :onClick #(copy-link!)}
       [:> FaLink]]]]])
 
 (defn prev-next-by-id [frames frame-id]
@@ -77,34 +78,33 @@
 (defn detail-controls [chapter-id frame-neighbors]
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)]
-    [:> Stack {:className "detail-controls"
-               :direction "row"
-               :spacing 1
-               :flexWrap "wrap"}
+    [:> Group {:className "detail-controls"
+               :gap "xs"
+               :wrap "wrap"}
      [:> Button
-      {:variant "outlined"
-      :size "small"
-       :on-click #(rf/dispatch [:navigate-index])}
+      {:variant "default"
+       :size "sm"
+       :onClick #(rf/dispatch [:navigate-index])}
       "Back to Gallery"]
      [:> Button
-      {:variant "outlined"
-       :size "small"
+      {:variant "default"
+       :size "sm"
        :disabled (nil? prev-frame)
-       :on-click #(when prev-frame
-                    (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame)]))}
+       :onClick #(when prev-frame
+                   (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame)]))}
       "Previous"]
      [:> Button
-      {:variant "outlined"
-       :size "small"
+      {:variant "default"
+       :size "sm"
        :disabled (nil? next-frame)
-       :on-click #(when next-frame
-                    (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame)]))}
+       :onClick #(when next-frame
+                   (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame)]))}
       "Next"]
      [:> Button
-      {:variant "contained"
-      :size "small"
-      :color "secondary"
-      :on-click #(rf/dispatch [:toggle-frame-fullscreen])}
+      {:variant "filled"
+       :size "sm"
+       :color "orange"
+       :onClick #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
 (defn frame-page [route frame-inputs open-frame-actions saga-name]
@@ -119,24 +119,26 @@
        [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
         (when-not fullscreen?
           [detail-controls chapter-id frame-neighbors])
-         [frame/frame frame
-          (get frame-inputs (:frameId frame) "")
+        [frame/frame frame
+         (get frame-inputs (:frameId frame) "")
          {:clickable? false
           :media-nav? true
           :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
         (if fullscreen?
-          [:> IconButton
+          [:> ActionIcon
            {:className "fullscreen-close"
-            :color "secondary"
+            :color "orange"
             :aria-label "Close fullscreen"
             :title "Close fullscreen"
-            :on-click #(rf/dispatch [:set-frame-fullscreen false])}
+            :variant "filled"
+            :radius "xl"
+            :onClick #(rf/dispatch [:set-frame-fullscreen false])}
            [:> FaXmark]]
           [share-actions saga-name])]
        [:> Box {:className "detail-missing"}
         [:p "Frame not found in this chapter."]
         [:> Button
-         {:variant "outlined"
-          :size "small"
-          :on-click #(rf/dispatch [:navigate-index])}
+         {:variant "default"
+          :size "sm"
+          :onClick #(rf/dispatch [:navigate-index])}
          "Back to Gallery"]])]))

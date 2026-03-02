@@ -38,7 +38,7 @@
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:maxWidth "lg"}
       [:main.app
-       [:> Stack {:spacing 2}
+       [:> Stack {:gap "md"}
         [:> Box {:component "header" :className "hero"}
          [:h1 saga-name*]]
         (if (= :frame (:view route))

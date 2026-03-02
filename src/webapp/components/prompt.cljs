@@ -4,12 +4,8 @@
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.frame-menu :as frame-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
-            ["@mui/material/Box" :default Box]
-            ["@mui/material/TextField" :default TextField]
-            ["@mui/material/Stack" :default Stack]
-            ["@mui/material/IconButton" :default IconButton]
-            ["@mui/material/Tooltip" :default Tooltip]
-            ["@mui/icons-material/SendRounded" :default SendRoundedIcon]))
+            ["@mantine/core" :refer [ActionIcon Box Stack Textarea Tooltip]]
+            ["react-icons/fa6" :refer [FaPaperPlane]]))
 
 (defn on-editor-focus [e]
   (interaction/stop! e))
@@ -60,28 +56,29 @@
           selected-item @confirm*]
       [:> Box {:className "prompt-panel"}
        [:> Box {:className "prompt-main"}
-        [:> TextField
+        [:> Textarea
          {:className "prompt-input"
-          :multiline true
+          :autosize true
+          :minRows 3
+          :maxRows 12
           :autoFocus true
-          :fullWidth true
-          :variant "filled"
           :value (or frame-input "")
           :placeholder "Describe this frame..."
-          :on-focus on-editor-focus
-          :on-key-down on-editor-key-down
-          :on-change (on-editor-change frameId)
-          :InputProps #js {:disableUnderline true}}]
+          :onFocus on-editor-focus
+          :onKeyDown on-editor-key-down
+          :onChange (on-editor-change frameId)}]
         (when (seq (or error ""))
           [:div.error-line (str "Last error: " error)])]
        [:> Stack {:className "prompt-controls"
-                  :spacing 1}
-        [:> Tooltip {:title "Generate (Cmd/Ctrl+Enter)"}
-         [:> IconButton
+                  :gap "xs"}
+        [:> Tooltip {:label "Generate (Cmd/Ctrl+Enter)"}
+         [:> ActionIcon
           {:className "prompt-generate-btn"
            :aria-label "Generate"
-           :on-click on-send-click}
-          [:> SendRoundedIcon]]]
+           :variant "filled"
+           :radius "xl"
+           :onClick on-send-click}
+          [:> FaPaperPlane]]]
         [frame-menu/frame-menu
          {:title "Actions"
           :button-class "prompt-actions-trigger"

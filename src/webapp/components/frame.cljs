@@ -4,13 +4,8 @@
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.prompt :as prompt]
-            ["@mui/material/Button" :default Button]
-            ["@mui/material/Card" :default Card]
-            ["@mui/material/CardMedia" :default CardMedia]
-            ["@mui/material/Box" :default Box]
-            ["@mui/material/Chip" :default Chip]
-            ["@mui/material/IconButton" :default IconButton]
-            ["@mui/icons-material/Close" :default CloseIcon]))
+            ["@mantine/core" :refer [ActionIcon Badge Box Button Card Image]]
+            ["react-icons/fa6" :refer [FaXmark]]))
 
 (defn on-editor-enable [frame-id]
   (fn [e]
@@ -41,22 +36,21 @@
     (rf/dispatch [:navigate-relative-frame delta])))
 
 (defn frame-image [{:keys [imageUrl frameId]}]
-  [:> CardMedia
-   {:component "img"
-    :src (or imageUrl "")
+  [:> Image
+   {:src (or imageUrl "")
     :alt (str "Frame " frameId)
-    :on-load #(rf/dispatch [:frame-image-loaded frameId imageUrl])
-    :on-error #(rf/dispatch [:frame-image-error frameId imageUrl])}])
+    :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
+    :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}])
 
 (defn subtitle-display [{:keys [frameId description]} frame-input]
   (let [subtitle (str/trim (or frame-input description ""))]
     [:> Box {:className "subtitle-display"
              :role "button"
-             :tab-index 0
+             :tabIndex 0
              :title "Click subtitle to edit prompt"
-             :on-click (on-editor-enable frameId)
-             :on-double-click (on-editor-enable frameId)
-             :on-key-down (on-editor-enable-keydown frameId)}
+             :onClick (on-editor-enable frameId)
+             :onDoubleClick (on-editor-enable frameId)
+             :onKeyDown (on-editor-enable-keydown frameId)}
      [:span {:className "subtitle-display-text"}
       (if (seq subtitle)
         subtitle
@@ -86,17 +80,19 @@
          editable? (true? actions-open?)
          frame* (assoc frame :actionsOpen actions-open?)
          attrs {:data-frame-id (:frameId frame)
-                :className (str "frame frame-card"
+                :className (str "frame frame-panel"
                                 (when clickable? " frame-clickable")
                                 (when active? " frame-active"))
-                :on-mouse-enter (controls/on-frame-activate (:frameId frame))}
+                :onMouseEnter (controls/on-frame-activate (:frameId frame))}
          nav-attrs (cond-> {:className "frame-nav-surface"}
-                     clickable? (assoc :on-click (on-frame-click (:chapterId frame) (:frameId frame))))]
+                     clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame))))]
      [:> Card
       (merge attrs
              {:component "article"
-              :variant "outlined"})
-     [:> Box {:className "media-shell"}
+              :withBorder true
+              :padding 0
+              :radius "md"})
+      [:> Box {:className "media-shell"}
        [:> Box nav-attrs
         (if has-image?
           [:<>
@@ -113,33 +109,32 @@
          [prompt/prompt-panel frame* frame-input]
          [subtitle-display frame* frame-input])
        (when editable?
-         [:> IconButton
-         {:className "frame-prompt-close"
+         [:> ActionIcon
+          {:className "frame-prompt-close"
            :aria-label "Close prompt"
            :title "Close prompt"
-           :on-click (on-editor-close (:frameId frame))}
-          [:> CloseIcon]])
+           :variant "filled"
+           :color "gray"
+           :radius "xl"
+           :onClick (on-editor-close (:frameId frame))}
+          [:> FaXmark]])
        (when media-nav?
          [:div.media-nav-zones
           [:> Button
            {:className "media-nav-zone media-nav-prev"
-            :variant "text"
+            :variant "subtle"
             :tabIndex -1
-            :disableRipple true
-            :disableFocusRipple true
-            :on-focus (fn [e] (.blur (.-currentTarget e)))
+            :onFocus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Previous frame"
-            :on-click (on-media-nav-click -1)}]
+            :onClick (on-media-nav-click -1)}]
           [:> Button
-          {:className "media-nav-zone media-nav-next"
-            :variant "text"
+           {:className "media-nav-zone media-nav-next"
+            :variant "subtle"
             :tabIndex -1
-            :disableRipple true
-            :disableFocusRipple true
-            :on-focus (fn [e] (.blur (.-currentTarget e)))
+            :onFocus (fn [e] (.blur (.-currentTarget e)))
             :aria-label "Next frame"
-            :on-click (on-media-nav-click 1)}]])]
+            :onClick (on-media-nav-click 1)}]])]
       (when busy?
-        [:> Chip {:className "badge queue badge-queue-overlay"
-                  :size "small"
-                  :label "In Queue"}])])))
+        [:> Badge {:className "badge queue badge-queue-overlay"
+                   :size "sm"}
+         "In Queue"])])))

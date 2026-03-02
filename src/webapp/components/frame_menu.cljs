@@ -1,36 +1,37 @@
 (ns webapp.components.frame-menu
   (:require [reagent.core :as r]
             [webapp.shared.ui.interaction :as interaction]
-            ["@mui/material/IconButton" :default IconButton]
-            ["@mui/material/Menu" :default Menu]
-            ["@mui/material/MenuItem" :default MenuItem]
-            ["@mui/material/Tooltip" :default Tooltip]
-            ["@mui/icons-material/MoreVert" :default MoreVertIcon]))
+            ["@mantine/core" :refer [ActionIcon Menu MenuDropdown MenuItem MenuTarget Tooltip]]
+            ["react-icons/fa6" :refer [FaEllipsisVertical]]))
 
 (defn frame-menu [{:keys [title aria-label button-class items on-select]}]
-  (r/with-let [menu-anchor* (r/atom nil)]
+  (r/with-let [menu-open?* (r/atom false)]
     (let [open-menu! (fn [e]
                        (interaction/stop! e)
-                       (reset! menu-anchor* (.-currentTarget e)))
+                       (reset! menu-open?* true))
           close-menu! (fn []
-                        (reset! menu-anchor* nil))
+                        (reset! menu-open?* false))
           on-item-click (fn [item]
                           (fn [e]
                             (interaction/stop! e)
                             (close-menu!)
                             (on-select item)))]
-      [:<>
-       [:> Tooltip {:title (or title "Actions")}
-        [:> IconButton
-         {:className (or button-class "frame-menu-trigger")
-          :aria-label (or aria-label "Actions")
-          :on-click open-menu!}
-         [:> MoreVertIcon]]]
-       [:> Menu {:anchorEl @menu-anchor*
-                 :open (boolean @menu-anchor*)
-                 :on-close close-menu!}
+      [:> Menu {:opened @menu-open?*
+                :onChange #(reset! menu-open?* %)
+                :withinPortal true}
+       [:> MenuTarget
+        [:span
+         [:> Tooltip {:label (or title "Actions")}
+          [:> ActionIcon
+           {:className (or button-class "frame-menu-trigger")
+            :aria-label (or aria-label "Actions")
+            :variant "subtle"
+            :radius "xl"
+            :onClick open-menu!}
+           [:> FaEllipsisVertical]]]]]
+       [:> MenuDropdown
         (for [{:keys [id label] :as item} items]
           ^{:key (str "menu-item-" id)}
           [:> MenuItem
-           {:on-click (on-item-click item)}
+           {:onClick (on-item-click item)}
            label])]])))

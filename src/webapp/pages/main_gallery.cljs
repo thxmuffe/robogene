@@ -4,13 +4,8 @@
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.chapter :as chapter-component]
             [webapp.components.chapter-actions :as chapter-actions]
-            ["@mui/material/Button" :default Button]
-            ["@mui/material/TextField" :default TextField]
-            ["@mui/material/IconButton" :default IconButton]
-            ["@mui/material/Stack" :default Stack]
-            ["@mui/material/Box" :default Box]
-            ["@mui/icons-material/Close" :default CloseIcon]
-            ["@mui/icons-material/Check" :default CheckIcon]))
+            ["@mantine/core" :refer [ActionIcon Box Button Group Stack TextInput Textarea]]
+            ["react-icons/fa6" :refer [FaCheck FaXmark]]))
 
 (defn submit-new-chapter! []
   (rf/dispatch [:add-chapter]))
@@ -38,69 +33,71 @@
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs]
   [:> Box {:component "section" :className "chapter-block"}
    [:div.chapter-separator]
-   [:> Stack {:className "chapter-header"
-              :direction "row"
-              :spacing 1.5
-              :alignItems "center"
-              :flexWrap "wrap"}
+   [:> Group {:className "chapter-header"
+              :gap "sm"
+              :align "center"
+              :wrap "wrap"}
     (if (= editing-chapter-id (:chapterId chapter))
       [:<>
-       [:> TextField
-        {:size "small"
+       [:> TextInput
+        {:size "sm"
          :value (get chapter-name-inputs (:chapterId chapter) "")
-         :on-key-down (on-chapter-name-keydown (:chapterId chapter))
-         :on-change #(rf/dispatch [:chapter-name-input-changed (:chapterId chapter) (.. % -target -value)])}]
-       [:> IconButton
+         :onKeyDown (on-chapter-name-keydown (:chapterId chapter))
+         :onChange #(rf/dispatch [:chapter-name-input-changed (:chapterId chapter) (.. % -target -value)])}]
+       [:> ActionIcon
         {:aria-label "Save chapter name"
          :title "Save chapter name"
-         :on-click #(rf/dispatch [:save-chapter-name (:chapterId chapter)])}
-        [:> CheckIcon]]
-       [:> IconButton
+         :variant "filled"
+         :radius "xl"
+         :onClick #(rf/dispatch [:save-chapter-name (:chapterId chapter)])}
+        [:> FaCheck]]
+       [:> ActionIcon
         {:aria-label "Cancel chapter name editing"
          :title "Cancel chapter name editing"
-         :on-click #(rf/dispatch [:cancel-chapter-name-edit])}
-        [:> CloseIcon]]]
+         :variant "subtle"
+         :radius "xl"
+         :onClick #(rf/dispatch [:cancel-chapter-name-edit])}
+        [:> FaXmark]]]
       [:> Button
-       {:variant "outlined"
-        :size "small"}
+       {:variant "default"
+        :size "sm"}
        (:description chapter)])
     [chapter-actions/chapter-actions
      {:chapter-id (:chapterId chapter)
       :chapter-name (:description chapter)}]
     [:> Button
-     {:variant "contained"
-      :color "primary"
-      :size "small"
-      :on-click #(rf/dispatch [:add-frame (:chapterId chapter)])}
+     {:variant "filled"
+      :size "sm"
+      :onClick #(rf/dispatch [:add-frame (:chapterId chapter)])}
      "Add New Frame"]]
    [chapter-component/chapter (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
 
 (defn new-chapter-form [description]
   [:> Box {:component "form"
            :className "new-chapter-panel"
-           :on-submit on-new-chapter-submit}
+           :onSubmit on-new-chapter-submit}
    [:h3 "Add New Chapter"]
-   [:> IconButton
+   [:> ActionIcon
     {:className "new-chapter-close"
      :aria-label "Close"
-     :on-click #(rf/dispatch [:set-new-chapter-panel-open false])}
-    [:> CloseIcon]]
+     :variant "transparent"
+     :onClick #(rf/dispatch [:set-new-chapter-panel-open false])}
+    [:> FaXmark]]
    [:label.dir-label {:for "new-chapter-description"} "Chapter Theme"]
-   [:> TextField
-   {:id "new-chapter-description"
-     :multiline true
+   [:> Textarea
+    {:id "new-chapter-description"
+     :autosize true
      :minRows 3
      :maxRows 10
-     :fullWidth true
      :className "new-chapter-input"
      :value (or description "")
      :placeholder "Describe the next chapter theme..."
-     :on-change #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
+     :onChange #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
    [:> Button
     {:className "new-chapter-submit"
      :type "submit"
-     :variant "contained"
-     :color "secondary"}
+     :variant "filled"
+     :color "orange"}
     "Add New Chapter"]])
 
 (defn new-chapter-teaser [active-frame-id]
@@ -131,14 +128,14 @@
 (defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
         chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
-  [:> Stack {:component "section" :spacing 2}
-   [:h2 "Saga"]
-   (map-indexed (fn [idx chapter]
-                  ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
-                  [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
-                saga)
-   (when show-chapter-celebration?
-     [chapter-celebration])
-   (if new-chapter-panel-open?
-     [new-chapter-form new-chapter-description]
-     [new-chapter-teaser active-frame-id])]))
+    [:> Stack {:component "section" :gap "md"}
+     [:h2 "Saga"]
+     (map-indexed (fn [idx chapter]
+                    ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
+                    [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
+                  saga)
+     (when show-chapter-celebration?
+       [chapter-celebration])
+     (if new-chapter-panel-open?
+       [new-chapter-form new-chapter-description]
+       [new-chapter-teaser active-frame-id])]))

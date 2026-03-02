@@ -1,7 +1,7 @@
 (ns webapp.components.chapter
   (:require [re-frame.core :as rf]
             [webapp.components.frame :as frame]
-            ["@mui/material/Box" :default Box]))
+            ["@mantine/core" :refer [Box]]))
 
 (defn chapter [chapter-id frame-inputs open-frame-actions active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-chapter chapter-id])]

@@ -233,7 +233,7 @@ h2 { margin: 24px 0 10px; }
   transform-origin: center center;
 }
 
-.frame-card {
+.frame-panel {
   border-width: 2px;
 }
 
@@ -495,31 +495,25 @@ h2 { margin: 24px 0 10px; }
   height: 100%;
 }
 
-.prompt-input .MuiFilledInput-root {
-  height: 100%;
-  border-radius: 0;
-  background-color: rgba(255, 255, 255, 0.96);
-  align-items: stretch;
-}
-
 .prompt-input textarea {
   height: 100% !important;
   min-height: 100% !important;
   max-height: none !important;
   overflow-y: auto !important;
   resize: vertical;
-}
-
-.prompt-input .MuiFilledInput-root:hover,
-.prompt-input .MuiFilledInput-root.Mui-focused {
-  background-color: rgba(255, 255, 255, 1);
-}
-
-.prompt-input .MuiFilledInput-input {
+  border-radius: 0;
+  border: 0;
+  background-color: rgba(255, 255, 255, 0.96);
   color: #102a43;
   text-align: left;
   font-size: 1rem;
   line-height: 1.35;
+  padding: 10px 12px;
+}
+
+.prompt-input textarea:hover,
+.prompt-input textarea:focus {
+  background-color: rgba(255, 255, 255, 1);
 }
 
 .prompt-controls {
@@ -529,46 +523,46 @@ h2 { margin: 24px 0 10px; }
   margin-right: 0;
 }
 
-.prompt-controls .prompt-generate-btn.MuiIconButton-root {
+.prompt-controls .prompt-generate-btn {
   width: 50px;
   height: 50px;
   border-radius: 999px;
-  color: #091220 !important;
-  background-color: #25d366 !important;
+  color: #091220;
+  background-color: #25d366;
   border: 1px solid rgba(0, 0, 0, 0.14);
 }
 
-.prompt-controls .prompt-generate-btn.MuiIconButton-root:hover {
-  background-color: #20bc59 !important;
+.prompt-controls .prompt-generate-btn:hover {
+  background-color: #20bc59;
 }
 
-.prompt-controls .prompt-generate-btn.MuiIconButton-root.Mui-disabled {
-  background-color: #97b9a4 !important;
-  color: #365142 !important;
+.prompt-controls .prompt-generate-btn:disabled {
+  background-color: #97b9a4;
+  color: #365142;
 }
 
-.prompt-controls .prompt-actions-trigger.MuiIconButton-root {
+.prompt-controls .prompt-actions-trigger {
   width: 42px;
   height: 42px;
-  color: #f5fbff !important;
+  color: #f5fbff;
   border: 1px solid rgba(167, 205, 255, 0.55);
-  background-color: rgba(10, 28, 52, 0.86) !important;
+  background-color: rgba(10, 28, 52, 0.86);
 }
 
-.prompt-controls .prompt-actions-trigger.MuiIconButton-root:hover {
-  background-color: rgba(18, 42, 74, 0.96) !important;
+.prompt-controls .prompt-actions-trigger:hover {
+  background-color: rgba(18, 42, 74, 0.96);
 }
 
-.chapter-header .chapter-menu-trigger.MuiIconButton-root {
+.chapter-header .chapter-menu-trigger {
   width: 38px;
   height: 38px;
-  color: #16324f !important;
+  color: #16324f;
   border: 1px solid rgba(22, 50, 79, 0.35);
-  background-color: rgba(255, 255, 255, 0.75) !important;
+  background-color: rgba(255, 255, 255, 0.75);
 }
 
-.chapter-header .chapter-menu-trigger.MuiIconButton-root:hover {
-  background-color: rgba(255, 255, 255, 0.92) !important;
+.chapter-header .chapter-menu-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.92);
 }
 
 .subtitle-display {

@@ -1,11 +1,14 @@
 (ns webapp.components.confirm-dialog
   (:require [reagent.core :as r]
             [webapp.components.popup-dialog :as popup-dialog]
-            ["@mui/material/DialogTitle" :default DialogTitle]
-            ["@mui/material/DialogContent" :default DialogContent]
-            ["@mui/material/DialogContentText" :default DialogContentText]
-            ["@mui/material/DialogActions" :default DialogActions]
-            ["@mui/material/Button" :default Button]))
+            ["@mantine/core" :refer [Button Group]]))
+
+(defn confirm-button-color [confirm-color]
+  (case confirm-color
+    "error" "red"
+    "secondary" "orange"
+    "primary" "blue"
+    "blue"))
 
 (defn confirm-dialog [{:keys [item on-cancel on-confirm]}]
   (r/with-let [submitting* (r/atom false)
@@ -18,18 +21,17 @@
           (reset! submitting* false))
         [popup-dialog/popup-dialog {:open true
                                     :on-close on-cancel}
-         [:> DialogTitle title]
-         [:> DialogContent
-          [:> DialogContentText text]]
-         [:> DialogActions
-          [:> Button {:variant "text"
-                      :on-click (fn [_] (on-cancel))}
+         [:h3.confirm-dialog-title title]
+         [:p.confirm-dialog-text text]
+         [:> Group {:justify "flex-end" :mt "md"}
+          [:> Button {:variant "subtle"
+                      :onClick (fn [_] (on-cancel))}
            "Cancel"]
-          [:> Button {:variant "contained"
-                      :color confirm-color
+          [:> Button {:variant "filled"
+                      :color (confirm-button-color confirm-color)
                       :disabled @submitting*
-                      :on-click (fn [_]
-                                  (when-not @submitting*
-                                    (reset! submitting* true)
-                                    (on-confirm)))}
+                      :onClick (fn [_]
+                                 (when-not @submitting*
+                                   (reset! submitting* true)
+                                   (on-confirm)))}
            confirm-label]]]))))
