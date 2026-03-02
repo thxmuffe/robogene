@@ -5,11 +5,7 @@
             [webapp.pages.main-gallery :as gallery-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
-            ["@mui/material/styles" :refer [ThemeProvider]]
-            ["@mui/material/CssBaseline" :default CssBaseline]
-            ["@mui/material/Container" :default Container]
-            ["@mui/material/Stack" :default Stack]
-            ["@mui/material/Box" :default Box]))
+            ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
 
 (defn saga-name [_]
   "Robot Emperor")
@@ -39,8 +35,7 @@
           (if (= :frame (:view route))
             (frame-page-title route saga)
             saga-name*))
-    [:> ThemeProvider {:theme theme/app-theme}
-     [:> CssBaseline]
+    [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:maxWidth "lg"}
       [:main.app
        [:> Stack {:spacing 2}
