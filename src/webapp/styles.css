@@ -473,25 +473,62 @@ h2 { margin: 24px 0 10px; }
   right: 0;
   bottom: 0;
   z-index: 3;
-  padding: 10px 0 10px 10px;
-  height: 35%;
-  max-height: 100%;
-  overflow: hidden;
+  padding: 0 0 10px 10px;
+  min-height: 50px;
+  max-height: calc(100% - 56px);
+  overflow: visible;
   display: grid;
+  grid-template-rows: 14px minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "handle handle"
+    "editor controls";
   gap: 8px;
   align-items: start;
   background: rgba(8, 18, 31, 0.93);
 }
 
+.prompt-resize-handle {
+  grid-area: handle;
+  height: 14px;
+  position: relative;
+  pointer-events: none;
+}
+
+.prompt-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(208, 225, 255, 0.62);
+}
+
 .prompt-main {
-  display: grid;
-  gap: 8px;
+  grid-area: editor;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   height: 100%;
   min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: visible;
 }
 
 .prompt-input {
+  flex: 1 1 auto;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.prompt-input > div,
+.prompt-input [data-mantine-input-wrapper] {
+  width: 100%;
+  min-width: 0;
   height: 100%;
 }
 
@@ -500,7 +537,7 @@ h2 { margin: 24px 0 10px; }
   min-height: 100% !important;
   max-height: none !important;
   overflow-y: auto !important;
-  resize: vertical;
+  resize: none;
   border-radius: 0;
   border: 0;
   background-color: rgba(255, 255, 255, 0.96);
@@ -517,10 +554,17 @@ h2 { margin: 24px 0 10px; }
 }
 
 .prompt-controls {
-  width: auto;
-  justify-self: end;
+  grid-area: controls;
+  width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
   align-self: start;
-  margin-right: 0;
+  margin-right: 4px;
+  gap: 8px;
+  overflow: visible;
 }
 
 .prompt-controls .prompt-generate-btn {

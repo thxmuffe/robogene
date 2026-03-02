@@ -31,14 +31,11 @@
                                      enter? (= "Enter" key)
                                      submit? (and enter? (or (.-metaKey e) (.-ctrlKey e)))]
                                  (cond
-                                   escape?
-                                   (close-prompt! e)
-                                   submit?
-                                   (do
-                                     (interaction/halt! e)
-                                     (submit!))
-                                   :else
-                                   (interaction/stop! e))))
+                                   escape? (close-prompt! e)
+                                   submit? (do
+                                             (interaction/halt! e)
+                                             (submit!))
+                                   :else (interaction/stop! e))))
           menu-items [{:id :remove-image
                        :label "Remove image"
                        :confirm {:title "Remove image from this frame?"
@@ -55,12 +52,14 @@
                        :dispatch-event [:delete-frame frameId]}]
           selected-item @confirm*]
       [:> Box {:className "prompt-panel"}
+       [:div.prompt-resize-handle
+        {:role "separator"
+         :aria-orientation "horizontal"
+         :aria-label "Prompt splitter"}]
        [:> Box {:className "prompt-main"}
         [:> Textarea
          {:className "prompt-input"
-          :autosize true
-          :minRows 3
-          :maxRows 12
+          :rows 3
           :styles #js {:root #js {:width "100%" :height "100%"}
                        :wrapper #js {:height "100%"}
                        :input #js {:height "100%" :minHeight "100%" :maxHeight "none"}}
