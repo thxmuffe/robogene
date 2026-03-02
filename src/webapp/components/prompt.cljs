@@ -61,6 +61,9 @@
           :autosize true
           :minRows 3
           :maxRows 12
+          :styles #js {:root #js {:width "100%" :height "100%"}
+                       :wrapper #js {:height "100%"}
+                       :input #js {:height "100%" :minHeight "100%" :maxHeight "none"}}
           :autoFocus true
           :value (or frame-input "")
           :placeholder "Describe this frame..."

@@ -36,7 +36,7 @@
             (frame-page-title route saga)
             saga-name*))
     [:> MantineProvider {:theme theme/app-theme}
-     [:> Container {:maxWidth "lg"}
+     [:> Container {:size "lg"}
       [:main.app
        [:> Stack {:gap "md"}
         [:> Box {:component "header" :className "hero"}
