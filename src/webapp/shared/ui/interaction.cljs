@@ -41,6 +41,9 @@
     (and (some? interactive-el)
          (not= interactive-el current))))
 
+(defn modal-open? []
+  (some? (.querySelector js/document "[role='dialog'][aria-modal='true']")))
+
 (defn stop! [e]
   (.stopPropagation e))
 
