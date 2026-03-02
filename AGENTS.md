@@ -10,3 +10,4 @@
 8. Minimize code size and complexity; justify any net increase before editing.
 9. Max two implementation attempts per issue; if unresolved, stop and propose a minimal reproducible example.
 10. After each implementation step: list changed files and rationale, then stop for confirmation.
+11. Do not run exploratory benchmarks/experiments for curiosity questions unless explicitly requested by the user.
