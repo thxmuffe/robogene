@@ -1,9 +1,10 @@
 (ns webapp.pages.main-gallery
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
+            [reagent.core :as r]
             [webapp.shared.controls :as controls]
-            [webapp.shared.model :as model]
             [webapp.shared.ui.interaction :as interaction]
+            [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.components.chapter :as chapter-component]
             [webapp.components.chapter-actions :as chapter-actions]
             ["@mantine/core" :refer [ActionIcon Box Button Group Stack TextInput Textarea]]
@@ -32,43 +33,34 @@
       (interaction/prevent! e)
       (rf/dispatch [:save-chapter-name chapter-id]))))
 
-(defn gallery-frame-seq [saga gallery-items]
-  (->> (or saga [])
-       (mapcat (fn [chapter]
-                 (model/frames-for-chapter gallery-items (:chapterId chapter))))
-       vec))
+(defn next-frame-id-for-key [current-id key]
+  (case key
+    "ArrowLeft" (frame-nav/adjacent-frame-id current-id -1)
+    "ArrowRight" (frame-nav/adjacent-frame-id current-id 1)
+    "ArrowUp" (frame-nav/nearest-vertical-frame-id current-id :up)
+    "ArrowDown" (frame-nav/nearest-vertical-frame-id current-id :down)
+    nil))
 
-(defn navigate-gallery-active! [saga gallery-items active-frame-id delta]
-  (when active-frame-id
-    (let [ordered (gallery-frame-seq saga gallery-items)
-          target (model/relative-frame-by-id ordered active-frame-id delta)]
-      (when-let [target-id (:frameId target)]
-        (rf/dispatch [:set-active-frame target-id])))))
+(defn on-gallery-key-down [active-frame-id e]
+  (let [key (or (.-key e) "")
+        lower-key (str/lower-case key)]
+    (when-not (or (interaction/modal-open?)
+                  (interaction/menu-open?)
+                  (interaction/editable-target? (.-target e)))
+      (cond
+        (= "f" lower-key)
+        (do
+          (interaction/halt! e)
+          (rf/dispatch [:toggle-fullscreen-shortcut]))
 
-(defn on-gallery-key-down [saga gallery-items active-frame-id]
-  (fn [e]
-    (let [key (or (.-key e) "")
-          lower-key (str/lower-case key)]
-      (when-not (or (interaction/modal-open?)
-                    (interaction/menu-open?)
-                    (interaction/editable-target? (.-target e)))
-        (cond
-          (= "f" lower-key)
-          (do
+        (#{"ArrowLeft" "ArrowRight" "ArrowUp" "ArrowDown"} key)
+        (when active-frame-id
+          (when-let [next-id (next-frame-id-for-key active-frame-id key)]
             (interaction/halt! e)
-            (rf/dispatch [:toggle-fullscreen-shortcut]))
+            (rf/dispatch [:set-active-frame next-id])
+            (frame-nav/focus-subtitle! next-id)))
 
-          (#{"ArrowLeft" "ArrowUp"} key)
-          (do
-            (interaction/halt! e)
-            (navigate-gallery-active! saga gallery-items active-frame-id -1))
-
-          (#{"ArrowRight" "ArrowDown"} key)
-          (do
-            (interaction/halt! e)
-            (navigate-gallery-active! saga gallery-items active-frame-id 1))
-
-          :else nil)))))
+        :else nil))))
 
 (defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs]
   [:> Box {:component "section" :className "chapter-block"}
@@ -166,19 +158,24 @@
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
 (defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
-  (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
-        chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])
-        gallery-items @(rf/subscribe [:gallery-items])]
-    [:> Stack {:component "section"
-               :gap "md"
-               :onKeyDown (on-gallery-key-down saga gallery-items active-frame-id)}
-     [:h2 "Saga"]
-     (map-indexed (fn [idx chapter]
-                    ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
-                    [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
-                  saga)
-     (when show-chapter-celebration?
-       [chapter-celebration])
-     (if new-chapter-panel-open?
-       [new-chapter-form new-chapter-description]
-       [new-chapter-teaser active-frame-id])]))
+  (r/with-let [context* (r/atom {:active-frame-id nil})
+               key-handler (fn [e]
+                             (on-gallery-key-down (:active-frame-id @context*) e))]
+    (.addEventListener js/window "keydown" key-handler)
+    (reset! context* {:active-frame-id active-frame-id})
+    (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
+          chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
+      [:> Stack {:component "section"
+                 :gap "md"}
+       [:h2 "Saga"]
+       (map-indexed (fn [idx chapter]
+                      ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
+                      [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
+                    saga)
+       (when show-chapter-celebration?
+         [chapter-celebration])
+       (if new-chapter-panel-open?
+         [new-chapter-form new-chapter-description]
+         [new-chapter-teaser active-frame-id])])
+    (finally
+      (.removeEventListener js/window "keydown" key-handler))))

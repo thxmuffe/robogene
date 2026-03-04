@@ -122,8 +122,7 @@
  (fn [{:keys [db]} [_ frame-id]]
    (if (= frame-id (:active-frame-id db))
      {:db db}
-     {:db (assoc db :active-frame-id frame-id)
-      :scroll-frame-into-view frame-id})))
+     {:db (assoc db :active-frame-id frame-id)})))
 
 (rf/reg-event-db
  :set-frame-actions-open

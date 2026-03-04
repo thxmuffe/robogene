@@ -45,9 +45,11 @@
 (defn subtitle-display [{:keys [frameId description]} frame-input]
   (let [subtitle (str/trim (or frame-input description ""))]
     [:> Box {:className "subtitle-display"
+             :data-frame-id frameId
              :role "button"
              :tabIndex 0
              :title "Click subtitle to edit prompt"
+             :onFocus #(rf/dispatch [:set-active-frame frameId])
              :onClick (on-editor-enable frameId)
              :onDoubleClick (on-editor-enable frameId)
              :onKeyDown (on-editor-enable-keydown frameId)}

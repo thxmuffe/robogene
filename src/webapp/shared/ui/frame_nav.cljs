@@ -48,3 +48,17 @@
               :up (some-> nodes last frame-id-of)
               :down (some-> nodes first frame-id-of)
               nil))))))
+
+(defn subtitle-nodes []
+  (array-seq (.querySelectorAll js/document ".subtitle-display[data-frame-id]")))
+
+(defn subtitle-node-by-frame-id [frame-id]
+  (some (fn [el]
+          (when (= frame-id (.getAttribute el "data-frame-id"))
+            el))
+        (subtitle-nodes)))
+
+(defn focus-subtitle! [frame-id]
+  (when-let [el (subtitle-node-by-frame-id frame-id)]
+    (.focus el)
+    true))
