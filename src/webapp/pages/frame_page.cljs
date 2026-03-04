@@ -3,6 +3,7 @@
             [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.frame :as frame]
+            [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [ActionIcon Box Button Group Tooltip]]
             ["react-icons/fa6" :refer [FaFacebookF FaLinkedinIn FaXTwitter FaLink FaXmark]]))
@@ -110,19 +111,37 @@
        :onClick #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id]} e]
+(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id prompt-open?]} e]
   (let [key (or (.-key e) "")
         lower-key (str/lower-case key)]
     (when-not (or (interaction/modal-open?)
                   (interaction/menu-open?)
                   (interaction/editable-target? (.-target e)))
       (cond
+        (= "Enter" key)
+        (when active-frame-id
+          (interaction/halt! e)
+          (rf/dispatch [:set-frame-actions-open active-frame-id true]))
+
         (= "Escape" key)
         (do
           (interaction/halt! e)
-          (when active-frame-id
-            (rf/dispatch [:set-active-frame active-frame-id]))
-          (rf/dispatch [:navigate-index]))
+          (cond
+            prompt-open?
+            (do
+              (rf/dispatch [:set-frame-actions-open active-frame-id false])
+              (.requestAnimationFrame js/window
+                                      (fn []
+                                        (frame-nav/focus-subtitle! active-frame-id))))
+
+            fullscreen?
+            (rf/dispatch [:set-frame-fullscreen false])
+
+            :else
+            (do
+              (when active-frame-id
+                (rf/dispatch [:set-active-frame active-frame-id]))
+              (rf/dispatch [:navigate-index]))))
 
         (= "f" lower-key)
         (do
@@ -143,6 +162,7 @@
 
 (defn frame-page [route frame-inputs open-frame-actions saga-name]
   (r/with-let [key-context* (r/atom nil)
+               focused-subtitle-key* (r/atom nil)
                key-handler (fn [e]
                              (handle-frame-page-key-down! @key-context* e))]
     (.addEventListener js/window "keydown" key-handler)
@@ -150,10 +170,20 @@
           ordered @(rf/subscribe [:frames-for-chapter chapter-id])
           frame-id (:frame-id route)
           fullscreen? (true? (:fullscreen? route))
+          prompt-open? (true? (get open-frame-actions frame-id))
           frame-neighbors (prev-next-by-id ordered frame-id)
           active-frame (:active frame-neighbors)]
       (reset! key-context* {:fullscreen? fullscreen?
-                            :active-frame-id frame-id})
+                            :active-frame-id frame-id
+                            :prompt-open? prompt-open?})
+      (let [focus-key [frame-id fullscreen? prompt-open?]]
+        (when (and active-frame
+                   (not prompt-open?)
+                   (not= focus-key @focused-subtitle-key*))
+          (reset! focused-subtitle-key* focus-key)
+          (.requestAnimationFrame js/window
+                                  (fn []
+                                    (frame-nav/focus-subtitle! frame-id)))))
       [:section
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
