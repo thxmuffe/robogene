@@ -70,13 +70,13 @@
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
          prev nil]
-    (if-let [current (first remaining)]
-      (if (= (:frameId current) frame-id)
+    (if-let [active-frame (first remaining)]
+      (if (= (:frameId active-frame) frame-id)
         {:prev prev
          :next (second remaining)
-         :current current}
-        (recur (rest remaining) current))
-      {:prev nil :next nil :current nil})))
+         :active active-frame}
+        (recur (rest remaining) active-frame))
+      {:prev nil :next nil :active nil})))
 
 (defn detail-controls [chapter-id frame-neighbors]
   (let [prev-frame (:prev frame-neighbors)
@@ -110,7 +110,7 @@
        :onClick #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn handle-frame-page-key-down! [fullscreen? e]
+(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id]} e]
   (let [key (or (.-key e) "")
         lower-key (str/lower-case key)]
     (when-not (or (interaction/modal-open?)
@@ -120,9 +120,9 @@
         (= "Escape" key)
         (do
           (interaction/halt! e)
-          (if fullscreen?
-            (rf/dispatch [:set-frame-fullscreen false])
-            (rf/dispatch [:navigate-index])))
+          (when active-frame-id
+            (rf/dispatch [:set-active-frame active-frame-id]))
+          (rf/dispatch [:navigate-index]))
 
         (= "f" lower-key)
         (do
@@ -142,25 +142,28 @@
         :else nil))))
 
 (defn frame-page [route frame-inputs open-frame-actions saga-name]
-  (r/with-let [key-handler (fn [e]
-                             (handle-frame-page-key-down! (true? (:fullscreen? route)) e))]
+  (r/with-let [key-context* (r/atom nil)
+               key-handler (fn [e]
+                             (handle-frame-page-key-down! @key-context* e))]
     (.addEventListener js/window "keydown" key-handler)
     (let [chapter-id (:chapter route)
           ordered @(rf/subscribe [:frames-for-chapter chapter-id])
           frame-id (:frame-id route)
           fullscreen? (true? (:fullscreen? route))
           frame-neighbors (prev-next-by-id ordered frame-id)
-          frame (:current frame-neighbors)]
+          active-frame (:active frame-neighbors)]
+      (reset! key-context* {:fullscreen? fullscreen?
+                            :active-frame-id frame-id})
       [:section
-       (if frame
+       (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
           (when-not fullscreen?
             [detail-controls chapter-id frame-neighbors])
-          [frame/frame frame
-           (get frame-inputs (:frameId frame) "")
+          [frame/frame active-frame
+           (get frame-inputs (:frameId active-frame) "")
            {:clickable? false
             :media-nav? true
-            :actions-open? (true? (get open-frame-actions (:frameId frame)))}]
+            :actions-open? (true? (get open-frame-actions (:frameId active-frame)))}]
           (if fullscreen?
             [:> ActionIcon
              {:className "fullscreen-close"

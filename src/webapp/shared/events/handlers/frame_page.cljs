@@ -22,8 +22,8 @@
      (if (= :frame (:view route))
        (let [chapter-id (:chapter route)
              ordered (model/frames-for-chapter (:gallery-items db) chapter-id)
-             current-frame-id (:frame-id route)
-             target-frame (model/relative-frame-by-id ordered current-frame-id delta)]
+             active-frame-id (:frame-id route)
+             target-frame (model/relative-frame-by-id ordered active-frame-id delta)]
          (if target-frame
            {:db db
             :dispatch [:navigate-frame chapter-id (:frameId target-frame)]}

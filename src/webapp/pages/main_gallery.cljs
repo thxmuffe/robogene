@@ -33,12 +33,12 @@
       (interaction/prevent! e)
       (rf/dispatch [:save-chapter-name chapter-id]))))
 
-(defn next-frame-id-for-key [current-id key]
+(defn next-frame-id-for-key [active-frame-id key]
   (case key
-    "ArrowLeft" (frame-nav/adjacent-frame-id current-id -1)
-    "ArrowRight" (frame-nav/adjacent-frame-id current-id 1)
-    "ArrowUp" (frame-nav/nearest-vertical-frame-id current-id :up)
-    "ArrowDown" (frame-nav/nearest-vertical-frame-id current-id :down)
+    "ArrowLeft" (frame-nav/adjacent-frame-id active-frame-id -1)
+    "ArrowRight" (frame-nav/adjacent-frame-id active-frame-id 1)
+    "ArrowUp" (frame-nav/nearest-vertical-frame-id active-frame-id :up)
+    "ArrowDown" (frame-nav/nearest-vertical-frame-id active-frame-id :down)
     nil))
 
 (defn on-gallery-key-down [active-frame-id e]
@@ -159,10 +159,17 @@
 
 (defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil})
+               focused-active-id* (r/atom nil)
                key-handler (fn [e]
                              (on-gallery-key-down (:active-frame-id @context*) e))]
     (.addEventListener js/window "keydown" key-handler)
     (reset! context* {:active-frame-id active-frame-id})
+    (when (not= active-frame-id @focused-active-id*)
+      (reset! focused-active-id* active-frame-id)
+      (when active-frame-id
+        (.requestAnimationFrame js/window
+                                (fn []
+                                  (frame-nav/focus-subtitle! active-frame-id)))))
     (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
           chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
       [:> Stack {:component "section"

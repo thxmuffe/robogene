@@ -13,23 +13,23 @@
        vec))
 
 (defn relative-frame-by-id [frames frame-id delta]
-  (let [{:keys [prev next current]}
+  (let [{:keys [prev next active-frame]}
         (loop [remaining (seq frames)
                prev nil]
-          (if-let [current (first remaining)]
-            (if (= (frame-id-of current) frame-id)
+          (if-let [active-frame (first remaining)]
+            (if (= (frame-id-of active-frame) frame-id)
               {:prev prev
                :next (second remaining)
-               :current current}
-              (recur (rest remaining) current))
-            {:prev nil :next nil :current nil}))
+               :active-frame active-frame}
+              (recur (rest remaining) active-frame))
+            {:prev nil :next nil :active-frame nil}))
         first-frame (first frames)
         last-frame (last frames)]
     (cond
       (or (empty? frames) (zero? delta)) nil
       (pos? delta) (or next first-frame)
       (neg? delta) (or prev last-frame)
-      (some? current) current
+      (some? active-frame) active-frame
       :else first-frame)))
 
 (defn parse-hash-route [hash]
