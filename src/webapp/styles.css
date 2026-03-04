@@ -856,8 +856,15 @@ h2 { margin: 24px 0 10px; }
 .gallery {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
+  justify-content: start;
   align-items: start;
+}
+
+@media (max-width: 320px) {
+  .gallery {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes rise {
