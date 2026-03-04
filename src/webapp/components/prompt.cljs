@@ -2,6 +2,7 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.shared.ui.interaction :as interaction]
+            [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.components.frame-menu :as frame-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
             ["@mantine/core" :refer [ActionIcon Box Stack Textarea Tooltip]]
@@ -19,9 +20,14 @@
     (let [submit! (fn []
                     (rf/dispatch [:set-frame-actions-open frameId false])
                     (rf/dispatch [:generate-frame frameId]))
+          focus-subtitle! (fn []
+                            (.requestAnimationFrame js/window
+                                                    (fn []
+                                                      (frame-nav/focus-subtitle! frameId))))
           close-prompt! (fn [e]
                           (interaction/halt! e)
-                          (rf/dispatch [:set-frame-actions-open frameId false]))
+                          (rf/dispatch [:set-frame-actions-open frameId false])
+                          (focus-subtitle!))
           on-send-click (fn [e]
                           (interaction/halt! e)
                           (submit!))

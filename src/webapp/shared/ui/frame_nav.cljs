@@ -21,7 +21,7 @@
                           (map-indexed vector nodes))
                     (if (neg? delta) 0 (dec n)))
             step (if (neg? delta) -1 1)
-            next-idx (mod (+ idx step) n)
+            next-idx (+ idx step)
             next-el (nth nodes next-idx nil)]
         (some-> next-el frame-id-of)))))
 
@@ -43,11 +43,7 @@
                                       :dy (js/Math.abs (- y cy))
                                       :dx (js/Math.abs (- x cx))})))
                             (sort-by (fn [{:keys [dy dx]}] [dy dx])))]
-        (or (:id (first candidates))
-            (case direction
-              :up (some-> nodes last frame-id-of)
-              :down (some-> nodes first frame-id-of)
-              nil))))))
+        (:id (first candidates))))))
 
 (defn subtitle-nodes []
   (array-seq (.querySelectorAll js/document ".subtitle-display[data-frame-id]")))

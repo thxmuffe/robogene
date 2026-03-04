@@ -1,7 +1,9 @@
 (ns webapp.components.frame
   (:require [clojure.string :as str]
+            [reagent.core :as r]
             [re-frame.core :as rf]
             [webapp.shared.controls :as controls]
+            [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.prompt :as prompt]
             ["@mantine/core" :refer [ActionIcon Badge Box Card Image]]
@@ -23,7 +25,10 @@
 (defn on-editor-close [frame-id]
   (fn [e]
     (interaction/stop! e)
-    (rf/dispatch [:set-frame-actions-open frame-id false])))
+    (rf/dispatch [:set-frame-actions-open frame-id false])
+    (.requestAnimationFrame js/window
+                            (fn []
+                              (frame-nav/focus-subtitle! frame-id)))))
 
 (defn on-frame-click [chapter-id frame-id]
   (fn [e]
@@ -74,69 +79,75 @@
    [frame frame-input {:clickable? true}])
   ([frame frame-input {:keys [clickable? active? actions-open? media-nav?]
                        :or {clickable? true active? false actions-open? false media-nav? false}}]
-   (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
-         busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
-         image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
-         image-loading? (= :loading image-ui)
-         image-error? (= :error image-ui)
-         editable? (true? actions-open?)
-         frame* (assoc frame :actionsOpen actions-open?)
-         attrs {:data-frame-id (:frameId frame)
-                :className (str "frame frame-panel"
-                                (when clickable? " frame-clickable")
-                                (when active? " frame-active"))
-                :onMouseEnter (controls/on-frame-activate (:frameId frame))}
-         nav-attrs (cond-> {:className "frame-nav-surface"}
-                     clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame))))]
-     [:> Card
-      (merge attrs
-             {:component "article"
-              :withBorder true
-              :padding 0
-              :radius "md"})
-      [:> Box {:className "media-shell"}
-       [:> Box nav-attrs
-        (if has-image?
-          [:<>
-           [frame-image frame*]
-           (when (or busy? image-loading?)
-             [:div.media-loading-overlay
-              [:div.spinner]
-              [:div.placeholder-text (if busy? "Generating..." "Loading image...")]])
-           (when (and image-error? (not busy?))
-             [:div.media-loading-overlay
-              [:div.placeholder-text "Image failed to load"]])]
-          [frame-placeholder frame])]
-       (if editable?
-         [prompt/prompt-panel frame* frame-input]
-         [subtitle-display frame* frame-input])
-       (when editable?
-         [:> ActionIcon
-          {:className "frame-prompt-close"
-           :aria-label "Close prompt"
-           :title "Close prompt"
-           :variant "filled"
-           :color "gray"
-           :radius "xl"
-           :onClick (on-editor-close (:frameId frame))}
-          [:> FaXmark]])
-       (when (and media-nav? (not editable?))
-         [:div.media-nav-zones
-          [:button
-           {:type "button"
-            :className "media-nav-zone media-nav-prev"
-            :tabIndex -1
-            :onFocus (fn [e] (.blur (.-currentTarget e)))
-            :aria-label "Previous frame"
-            :onClick (on-media-nav-click -1)}]
-          [:button
-           {:type "button"
-            :className "media-nav-zone media-nav-next"
-            :tabIndex -1
-            :onFocus (fn [e] (.blur (.-currentTarget e)))
-            :aria-label "Next frame"
-            :onClick (on-media-nav-click 1)}]])]
-      (when busy?
-        [:> Badge {:className "badge queue badge-queue-overlay"
-                   :size "sm"}
-         "In Queue"])])))
+   (r/with-let [was-editable* (r/atom false)]
+     (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
+           busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+           image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
+           image-loading? (= :loading image-ui)
+           image-error? (= :error image-ui)
+           editable? (true? actions-open?)
+           frame* (assoc frame :actionsOpen actions-open?)
+           attrs {:data-frame-id (:frameId frame)
+                  :className (str "frame frame-panel"
+                                  (when clickable? " frame-clickable")
+                                  (when active? " frame-active"))
+                  :onMouseEnter (controls/on-frame-activate (:frameId frame))}
+           nav-attrs (cond-> {:className "frame-nav-surface"}
+                       clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame))))]
+       (when (and @was-editable* (not editable?))
+         (.requestAnimationFrame js/window
+                                 (fn []
+                                   (frame-nav/focus-subtitle! (:frameId frame)))))
+       (reset! was-editable* editable?)
+       [:> Card
+        (merge attrs
+               {:component "article"
+                :withBorder true
+                :padding 0
+                :radius "md"})
+        [:> Box {:className "media-shell"}
+         [:> Box nav-attrs
+          (if has-image?
+            [:<>
+             [frame-image frame*]
+             (when (or busy? image-loading?)
+               [:div.media-loading-overlay
+                [:div.spinner]
+                [:div.placeholder-text (if busy? "Generating..." "Loading image...")]])
+             (when (and image-error? (not busy?))
+               [:div.media-loading-overlay
+                [:div.placeholder-text "Image failed to load"]])]
+            [frame-placeholder frame])]
+         (if editable?
+           [prompt/prompt-panel frame* frame-input]
+           [subtitle-display frame* frame-input])
+         (when editable?
+           [:> ActionIcon
+            {:className "frame-prompt-close"
+             :aria-label "Close prompt"
+             :title "Close prompt"
+             :variant "filled"
+             :color "gray"
+             :radius "xl"
+             :onClick (on-editor-close (:frameId frame))}
+            [:> FaXmark]])
+         (when (and media-nav? (not editable?))
+           [:div.media-nav-zones
+            [:button
+             {:type "button"
+              :className "media-nav-zone media-nav-prev"
+              :tabIndex -1
+              :onFocus (fn [e] (.blur (.-currentTarget e)))
+              :aria-label "Previous frame"
+              :onClick (on-media-nav-click -1)}]
+            [:button
+             {:type "button"
+              :className "media-nav-zone media-nav-next"
+              :tabIndex -1
+              :onFocus (fn [e] (.blur (.-currentTarget e)))
+              :aria-label "Next frame"
+              :onClick (on-media-nav-click 1)}]])]
+        (when busy?
+          [:> Badge {:className "badge queue badge-queue-overlay"
+                     :size "sm"}
+           "In Queue"])]))))
