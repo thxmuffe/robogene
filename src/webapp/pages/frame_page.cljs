@@ -79,14 +79,24 @@
         (recur (rest remaining) active-frame))
       {:prev nil :next nil :active nil})))
 
-(def back-button-label-by-page
-  {:roster "Back to Roster"
-   :saga "Back to Saga_page"})
+(defn owner-display-name [from-page chapter-id saga roster]
+  (let [rows (if (= :roster from-page) roster saga)
+        id-key (if (= :roster from-page) :characterId :chapterId)]
+    (some->> rows
+             (some (fn [row]
+                     (when (= (id-key row) chapter-id)
+                       (some-> (:description row) str/trim not-empty)))))))
 
-(defn detail-controls [chapter-id frame-neighbors from-page]
+(defn back-button-label [from-page owner-name saga-name]
+  (case from-page
+    :roster (str "Back to " (or owner-name "Roster"))
+    :saga (str "Back to " (or owner-name saga-name "Saga"))
+    nil))
+
+(defn detail-controls [chapter-id frame-neighbors from-page owner-name saga-name]
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)
-        back-text (get back-button-label-by-page from-page)]
+        back-text (back-button-label from-page owner-name saga-name)]
     [:> Group {:className "detail-controls"
                :gap "xs"
                :wrap "wrap"}
@@ -174,9 +184,12 @@
                              (handle-frame-page-key-down! @key-context* e))]
     (.addEventListener js/window "keydown" key-handler)
     (let [chapter-id (:chapter route)
+          saga @(rf/subscribe [:saga])
+          roster @(rf/subscribe [:roster])
           ordered @(rf/subscribe [:frames-for-chapter chapter-id])
           frame-id (:frame-id route)
           from-page (:from-page route)
+          owner-name (owner-display-name from-page chapter-id saga roster)
           fullscreen? (true? (:fullscreen? route))
           prompt-open? (true? (get open-frame-actions frame-id))
           frame-neighbors (prev-next-by-id ordered frame-id)
@@ -197,7 +210,7 @@
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
           (when-not fullscreen?
-            [detail-controls chapter-id frame-neighbors from-page])
+            [detail-controls chapter-id frame-neighbors from-page owner-name saga-name])
           [frame/frame active-frame
            (get frame-inputs (:frameId active-frame) "")
            {:clickable? false
@@ -217,7 +230,7 @@
             [share-actions saga-name])]
          [:> Box {:className "detail-missing"}
           [:p "Frame not found in this chapter."]
-          (when-let [back-text (get back-button-label-by-page from-page)]
+          (when-let [back-text (back-button-label from-page owner-name saga-name)]
             [:> Button
              {:variant "default"
               :size "sm"
