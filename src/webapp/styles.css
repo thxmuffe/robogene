@@ -121,57 +121,8 @@ h2 { margin: 24px 0 10px; }
 }
 
 .new-chapter-teaser {
-  position: relative;
   width: min(360px, 100%);
-  aspect-ratio: 3 / 2;
   margin: 26px auto 0;
-  border-radius: 14px;
-  border: 1px solid rgba(220, 235, 255, 0.45);
-  background: linear-gradient(145deg, rgba(20, 40, 64, 0.7), rgba(36, 62, 94, 0.55));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 16px 34px rgba(8, 20, 34, 0.42);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.new-chapter-teaser:focus-visible {
-  outline: 3px solid #7ec8ff;
-  outline-offset: 3px;
-}
-
-.new-chapter-teaser .teaser-content {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: #f2f7ff;
-  z-index: 2;
-}
-
-.teaser-title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.teaser-sub {
-  margin-top: 8px;
-  font-size: 0.9rem;
-  opacity: 0.92;
-}
-
-.sparkles {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 15% 20%, rgba(255,255,255,0.75) 0 2px, transparent 3px),
-    radial-gradient(circle at 72% 28%, rgba(255,255,255,0.65) 0 1.8px, transparent 3px),
-    radial-gradient(circle at 42% 72%, rgba(255,255,255,0.8) 0 2px, transparent 3px),
-    radial-gradient(circle at 84% 68%, rgba(255,255,255,0.7) 0 1.8px, transparent 3px);
-  animation: sparkle-drift 1800ms ease-in-out infinite;
-  opacity: 0.9;
 }
 
 .chapter-celebration {

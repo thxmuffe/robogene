@@ -127,7 +127,7 @@
 
 (defn new-chapter-teaser [active-frame-id]
   [:article.new-chapter-teaser
-   {:class (str "frame frame-clickable"
+   {:class (str "frame frame-clickable add-frame-tile"
                 (when (= active-frame-id controls/new-chapter-frame-id)
                   " frame-active"))
     :data-frame-id controls/new-chapter-frame-id
@@ -137,10 +137,8 @@
     :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
     :on-click on-new-chapter-teaser-click
     :on-key-down on-new-chapter-teaser-keydown}
-   [:div.sparkles]
-   [:div.teaser-content
-    [:div.teaser-title "Add New Chapter"]
-    [:div.teaser-sub "Click to start a new adventure"]]])
+   [:div.add-frame-tile-title "Add New Chapter"]
+   [:div.add-frame-tile-sub "Click to start a new adventure"]])
 
 (defn chapter-celebration []
   [:div.chapter-celebration
