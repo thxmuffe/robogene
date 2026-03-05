@@ -6,9 +6,12 @@
 (defn activate-frame! [frame-id]
   (rf/dispatch [:set-active-frame frame-id]))
 
-(defn navigate-frame! [chapter-id frame-id]
+(defn navigate-frame!
+  ([chapter-id frame-id]
+   (navigate-frame! chapter-id frame-id nil))
+  ([chapter-id frame-id from-page]
   (activate-frame! frame-id)
-  (rf/dispatch [:navigate-frame chapter-id frame-id]))
+  (rf/dispatch [:navigate-frame chapter-id frame-id from-page])))
 
 (defn open-new-chapter-panel! []
   (activate-frame! new-chapter-frame-id)

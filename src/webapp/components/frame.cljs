@@ -30,10 +30,15 @@
                             (fn []
                               (frame-nav/focus-subtitle! frame-id)))))
 
-(defn on-frame-click [chapter-id frame-id]
+(defn frame-owner-page [owner-type]
+  (if (= "character" (str owner-type))
+    :characters
+    :saga))
+
+(defn on-frame-click [chapter-id frame-id owner-type]
   (fn [e]
     (when-not (interaction/interactive-child-event? e)
-      (controls/navigate-frame! chapter-id frame-id))))
+      (controls/navigate-frame! chapter-id frame-id (frame-owner-page owner-type)))))
 
 (defn on-media-nav-click [delta]
   (fn [e]
@@ -94,7 +99,7 @@
                                   (when active? " frame-active"))
                   :onMouseEnter (controls/on-frame-activate (:frameId frame))}
            nav-attrs (cond-> {:className "frame-nav-surface"}
-                       clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame))))]
+                       clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame) (:ownerType frame))))]
        (when (and @was-editable* (not editable?))
          (.requestAnimationFrame js/window
                                  (fn []

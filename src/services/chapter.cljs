@@ -485,10 +485,18 @@
 (defn set-image-generator! [f]
   (image-generator/set-image-generator! f))
 
-(defn generate-image! [frame]
+(defn generate-image-from-prompt-only! [frame]
   (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
-                                    :refs (reference-images)
+                                    :refs []
                                     :options (:openaiOptions @state)}))
+
+(defn generate-image! [frame]
+  (let [owner-type (or (:ownerType frame) "saga")]
+    (if (= "character" (str owner-type))
+      (generate-image-from-prompt-only! frame)
+      (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
+                                        :refs (reference-images)
+                                        :options (:openaiOptions @state)}))))
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]

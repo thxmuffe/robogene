@@ -36,11 +36,17 @@
   (let [raw (or hash "")]
     (or
      (when-let [[_ chapter frame query] (re-matches #"^#/chapter/([^/]+)/frame/([^?]+)(?:\?(.*))?$" raw)]
-       (let [fullscreen? (boolean (re-find #"(^|&)fullscreen=1(&|$)" (or query "")))]
+       (let [query* (or query "")
+             fullscreen? (boolean (re-find #"(^|&)fullscreen=1(&|$)" query*))
+             from-page (cond
+                         (re-find #"(^|&)from=characters(&|$)" query*) :characters
+                         (re-find #"(^|&)from=saga(&|$)" query*) :saga
+                         :else nil)]
          {:view :frame
           :chapter chapter
           :frame-id frame
-          :fullscreen? fullscreen?}))
+          :fullscreen? fullscreen?
+          :from-page from-page}))
      (when (re-matches #"^#/characters/?$" raw)
        {:view :characters})
      (when (or (str/blank? raw)
@@ -51,10 +57,16 @@
 
 (defn frame-hash
   ([chapter frame-id]
-   (frame-hash chapter frame-id false))
+   (frame-hash chapter frame-id false nil))
   ([chapter frame-id fullscreen?]
-   (str "#/chapter/" chapter "/frame/" frame-id
-        (when fullscreen? "?fullscreen=1"))))
+   (frame-hash chapter frame-id fullscreen? nil))
+  ([chapter frame-id fullscreen? from-page]
+   (let [query-parts (cond-> []
+                       fullscreen? (conj "fullscreen=1")
+                       (#{:saga :characters} from-page) (conj (str "from=" (name from-page))))
+         query (when (seq query-parts)
+                 (str "?" (str/join "&" query-parts)))]
+     (str "#/chapter/" chapter "/frame/" frame-id (or query "")))))
 
 (defn parse-json-safe [text]
   (js->clj (.parse js/JSON text) :keywordize-keys true))

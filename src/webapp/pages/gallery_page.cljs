@@ -1,4 +1,4 @@
-(ns webapp.pages.main-gallery
+(ns webapp.pages.gallery-page
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [reagent.core :as r]
@@ -72,7 +72,8 @@
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
 (defn collection-section [cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs]
-  (let [entity-id ((:entity-id-key cfg) entity)
+  (let [{:keys [entity-id-key entity-label entity-singular owner-type]} cfg
+        entity-id (entity-id-key entity)
         entity-name (:description entity)]
     [:> Box {:component "section" :className "chapter-block"}
      [:div.chapter-separator]
@@ -85,72 +86,95 @@
          [:> TextInput
           {:size "sm"
            :value (get entity-name-inputs entity-id "")
-           :onKeyDown (on-name-keydown (:entity-label cfg) entity-id)
-           :onChange #(rf/dispatch [:entity-name-input-changed (:entity-label cfg) entity-id (.. % -target -value)])}]
+           :onKeyDown (on-name-keydown entity-label entity-id)
+           :onChange #(rf/dispatch [:entity-name-input-changed entity-label entity-id (.. % -target -value)])}]
          [:> ActionIcon
           {:aria-label "Save name"
            :title "Save name"
            :variant "filled"
            :radius "xl"
-           :onClick #(rf/dispatch [:save-entity-name (:entity-label cfg) entity-id])}
+           :onClick #(rf/dispatch [:save-entity-name entity-label entity-id])}
           [:> FaCheck]]
          [:> ActionIcon
           {:aria-label "Cancel name editing"
            :title "Cancel name editing"
            :variant "subtle"
            :radius "xl"
-           :onClick #(rf/dispatch [:cancel-entity-name-edit (:entity-label cfg)])}
+           :onClick #(rf/dispatch [:cancel-entity-name-edit entity-label])}
           [:> FaXmark]]]
         [:p.chapter-description entity-name])
       [chapter-actions/chapter-actions
        {:entity-id entity-id
         :entity-name entity-name
-        :entity-label (:entity-label cfg)
-        :singular-label (:entity-singular cfg)}]]
-     [chapter-component/chapter entity-id (:owner-type cfg) frame-inputs open-frame-actions active-frame-id]]))
+        :entity-label entity-label
+        :singular-label entity-singular}]]
+     [chapter-component/chapter entity-id owner-type frame-inputs open-frame-actions active-frame-id]]))
 
 (defn new-entity-form [cfg description]
-  [:> Box {:component "form"
-           :className "new-chapter-panel"
-           :onSubmit (on-new-item-submit (:add-event cfg) (:set-open-event cfg))}
-   [:h3 (:add-title cfg)]
+  (let [{:keys [add-event set-open-event add-title input-id input-label input-placeholder description-changed-event add-submit-label]} cfg]
+    [:> Box {:component "form"
+             :className "new-chapter-panel"
+             :onSubmit (on-new-item-submit add-event set-open-event)}
+     [:h3 add-title]
    [:> ActionIcon
     {:className "new-chapter-close"
      :aria-label "Close"
      :variant "transparent"
-     :onClick #(rf/dispatch [(:set-open-event cfg) false])}
+     :onClick #(rf/dispatch [set-open-event false])}
     [:> FaXmark]]
-   [:label.dir-label {:for (:input-id cfg)} (:input-label cfg)]
-   [:> Textarea
-    {:id (:input-id cfg)
-     :autosize true
-     :minRows 3
-     :maxRows 10
-     :className "new-chapter-input"
-     :value (or description "")
-     :placeholder (:input-placeholder cfg)
-     :onChange #(rf/dispatch [(:description-changed-event cfg) (.. % -target -value)])}]
-   [:> Button
-    {:className "new-chapter-submit"
-     :type "submit"
-     :variant "filled"
-     :color "orange"}
-    (:add-submit-label cfg)]])
+     [:label.dir-label {:for input-id} input-label]
+     [:> Textarea
+      {:id input-id
+       :autosize true
+       :minRows 3
+       :maxRows 10
+       :className "new-chapter-input"
+       :value (or description "")
+       :placeholder input-placeholder
+       :onChange #(rf/dispatch [description-changed-event (.. % -target -value)])}]
+     [:> Button
+      {:className "new-chapter-submit"
+       :type "submit"
+       :variant "filled"
+       :color "orange"}
+      add-submit-label]]))
 
 (defn new-entity-teaser [cfg active-frame-id]
-  [:article.new-chapter-teaser
-   {:class (str "frame frame-clickable add-frame-tile"
-                (when (= active-frame-id controls/new-chapter-frame-id)
-                  " frame-active"))
-    :data-frame-id controls/new-chapter-frame-id
-    :role "button"
-    :tab-index 0
-    :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
-    :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
-    :on-click (on-new-item-teaser-click (:set-open-event cfg))
-    :on-key-down (on-new-item-teaser-keydown (:set-open-event cfg))}
-   [:div.add-frame-tile-title (:teaser-title cfg)]
-   [:div.add-frame-tile-sub (:teaser-sub cfg)]])
+  (let [{:keys [set-open-event teaser-title teaser-sub]} cfg]
+    [:article.new-chapter-teaser
+     {:class (str "frame frame-clickable add-frame-tile"
+                  (when (= active-frame-id controls/new-chapter-frame-id)
+                    " frame-active"))
+      :data-frame-id controls/new-chapter-frame-id
+      :role "button"
+      :tab-index 0
+      :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
+      :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
+      :on-click (on-new-item-teaser-click set-open-event)
+      :on-key-down (on-new-item-teaser-keydown set-open-event)}
+     [:div.add-frame-tile-title teaser-title]
+     [:div.add-frame-tile-sub teaser-sub]]))
+
+(defn page-header-action [view-id]
+  (case view-id
+    :saga
+    [:> ActionIcon
+     {:aria-label "Open roster"
+      :title "Open roster"
+      :variant "filled"
+      :radius "xl"
+      :onClick #(rf/dispatch [:navigate-characters-page])}
+     [:> FaGear]]
+
+    :characters
+    [:> Button
+     {:variant "default"
+      :size "sm"
+      :leftSection (r/as-element [:> FaArrowLeft])
+      :onClick #(rf/dispatch [:navigate-saga-page])}
+     "Back to Saga_page"]
+
+    nil))
 
 (defn collection-page [cfg entities frame-inputs open-frame-actions active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil})
@@ -165,36 +189,20 @@
         (.requestAnimationFrame js/window
                                 (fn []
                                   (frame-nav/focus-subtitle! active-frame-id)))))
-    (let [editing-entity-id @(rf/subscribe (:editing-id-sub cfg))
-          entity-name-inputs @(rf/subscribe (:name-inputs-sub cfg))]
+    (let [{:keys [view-id page-title page-class editing-id-sub name-inputs-sub entity-id-key]} cfg
+          editing-entity-id @(rf/subscribe editing-id-sub)
+          entity-name-inputs @(rf/subscribe name-inputs-sub)]
       [:> Stack {:component "section"
+                 :className page-class
                  :gap "md"}
        [:> Group {:justify "space-between" :align "center"}
-        [:h2 (:page-title cfg)]
-        (cond
-          (= :saga (:view-id cfg))
-          [:> ActionIcon
-           {:aria-label "Open character settings"
-            :title "Open character settings"
-            :variant "filled"
-            :radius "xl"
-            :onClick #(rf/dispatch [:navigate-characters-page])}
-           [:> FaGear]]
-
-          (= :characters (:view-id cfg))
-          [:> Button
-           {:variant "default"
-            :size "sm"
-            :leftSection (r/as-element [:> FaArrowLeft])
-            :onClick #(rf/dispatch [:navigate-saga-page])}
-           "Back to Saga_page"]
-
-          :else nil)]
+        [:h2 page-title]
+        [page-header-action view-id]]
        (map-indexed (fn [idx entity]
-                      ^{:key (or ((:entity-id-key cfg) entity) (str "entity-" idx))}
+                      ^{:key (or (entity-id-key entity) (str "entity-" idx))}
                       [collection-section cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs])
                     entities)
-       (when (and show-celebration? (= :saga (:view-id cfg)))
+       (when (and show-celebration? (= :saga view-id))
          [chapter-celebration])
        (if panel-open?
          [new-entity-form cfg form-description]
@@ -204,11 +212,12 @@
 
 (def saga-config
   {:view-id :saga
+   :page-class "saga-page"
    :entity-label "chapter"
    :entity-singular "chapter"
    :entity-id-key :chapterId
    :owner-type "saga"
-   :page-title "Saga_page"
+   :page-title "Robot Emperor"
    :editing-id-sub [:editing-chapter-id]
    :name-inputs-sub [:chapter-name-inputs]
    :description-changed-event :new-chapter-description-changed

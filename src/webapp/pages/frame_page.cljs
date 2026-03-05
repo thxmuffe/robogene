@@ -79,30 +79,36 @@
         (recur (rest remaining) active-frame))
       {:prev nil :next nil :active nil})))
 
-(defn detail-controls [chapter-id frame-neighbors]
+(def back-button-label-by-page
+  {:characters "Back to Roster"
+   :saga "Back to Saga_page"})
+
+(defn detail-controls [chapter-id frame-neighbors from-page]
   (let [prev-frame (:prev frame-neighbors)
-        next-frame (:next frame-neighbors)]
+        next-frame (:next frame-neighbors)
+        back-text (get back-button-label-by-page from-page)]
     [:> Group {:className "detail-controls"
                :gap "xs"
                :wrap "wrap"}
+     (when back-text
+       [:> Button
+        {:variant "default"
+         :size "sm"
+         :onClick #(rf/dispatch [:navigate-from-page])}
+        back-text])
      [:> Button
       {:variant "default"
-       :size "sm"
-       :onClick #(rf/dispatch [:navigate-index])}
-      "Back to Gallery"]
-     [:> Button
-      {:variant "default"
-       :size "sm"
+      :size "sm"
        :disabled (nil? prev-frame)
        :onClick #(when prev-frame
-                   (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame)]))}
+                   (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame) from-page]))}
       "Previous"]
      [:> Button
       {:variant "default"
        :size "sm"
        :disabled (nil? next-frame)
        :onClick #(when next-frame
-                   (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame)]))}
+                   (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame) from-page]))}
       "Next"]
      [:> Button
       {:variant "filled"
@@ -111,7 +117,7 @@
        :onClick #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id prompt-open?]} e]
+(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id prompt-open? from-page]} e]
   (let [key (or (.-key e) "")
         lower-key (str/lower-case key)]
     (when-not (or (interaction/modal-open?)
@@ -141,7 +147,8 @@
             (do
               (when active-frame-id
                 (rf/dispatch [:set-active-frame active-frame-id]))
-              (rf/dispatch [:navigate-index]))))
+              (when from-page
+                (rf/dispatch [:navigate-from-page])))))
 
         (= "f" lower-key)
         (do
@@ -169,13 +176,15 @@
     (let [chapter-id (:chapter route)
           ordered @(rf/subscribe [:frames-for-chapter chapter-id])
           frame-id (:frame-id route)
+          from-page (:from-page route)
           fullscreen? (true? (:fullscreen? route))
           prompt-open? (true? (get open-frame-actions frame-id))
           frame-neighbors (prev-next-by-id ordered frame-id)
           active-frame (:active frame-neighbors)]
       (reset! key-context* {:fullscreen? fullscreen?
                             :active-frame-id frame-id
-                            :prompt-open? prompt-open?})
+                            :prompt-open? prompt-open?
+                            :from-page from-page})
       (let [focus-key [frame-id fullscreen? prompt-open?]]
         (when (and active-frame
                    (not prompt-open?)
@@ -188,7 +197,7 @@
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
           (when-not fullscreen?
-            [detail-controls chapter-id frame-neighbors])
+            [detail-controls chapter-id frame-neighbors from-page])
           [frame/frame active-frame
            (get frame-inputs (:frameId active-frame) "")
            {:clickable? false
@@ -208,10 +217,11 @@
             [share-actions saga-name])]
          [:> Box {:className "detail-missing"}
           [:p "Frame not found in this chapter."]
-          [:> Button
-           {:variant "default"
-            :size "sm"
-            :onClick #(rf/dispatch [:navigate-index])}
-           "Back to Gallery"]])])
+          (when-let [back-text (get back-button-label-by-page from-page)]
+            [:> Button
+             {:variant "default"
+              :size "sm"
+              :onClick #(rf/dispatch [:navigate-from-page])}
+             back-text])])])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))

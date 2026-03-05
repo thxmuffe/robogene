@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.theme :as theme]
-            [webapp.pages.main-gallery :as gallery-page]
+            [webapp.pages.gallery-page :as gallery-page]
             [webapp.pages.characters-page :as characters-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
@@ -21,9 +21,10 @@
     (str "Frame Page · " chapter-name " · " (saga-name saga))))
 
 (defn main-page-title [route]
-  (if (= :characters (:view route))
-    (str app-name " · Saga_characters_page")
-    (str app-name " · Saga_page")))
+  (let [page-title (if (= :characters (:view route))
+                     (:page-title characters-page/characters-config)
+                     (:page-title gallery-page/saga-config))]
+    (str app-name " · " page-title)))
 
 (defn main-view []
   (let [saga @(rf/subscribe [:saga])
@@ -50,26 +51,32 @@
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true}
       [:main.app
-       [:> Stack {:gap "md"}
+        [:> Stack {:gap "md"}
         [:> Box {:component "header" :className "hero"}
-         [:h1 app-name]]
-        (if (= :frame (:view route))
+         [:h1
+          [:a {:href "#/saga"
+               :className "hero-home-link"}
+           app-name]]]
+        (case (:view route)
+          :frame
           [frame-page/frame-page route frame-inputs open-frame-actions saga-name*]
-          (if (= :characters (:view route))
-            [characters-page/characters-page saga-name*
-             characters
-             frame-inputs
-             open-frame-actions
-             active-frame-id
-             new-character-description
-             new-character-panel-open?]
-            [gallery-page/saga-page saga
-             frame-inputs
-             open-frame-actions
-             active-frame-id
-             new-chapter-description
-             new-chapter-panel-open?
-             show-chapter-celebration?]))
+
+          :characters
+          [characters-page/characters-page saga-name*
+           characters
+           frame-inputs
+           open-frame-actions
+           active-frame-id
+           new-character-description
+           new-character-panel-open?]
+
+          [gallery-page/saga-page saga
+           frame-inputs
+           open-frame-actions
+           active-frame-id
+           new-chapter-description
+           new-chapter-panel-open?
+           show-chapter-celebration?])
         [traffic-indicator/traffic-indicator
          {:pending-api-requests pending-api-requests
           :wait-lights-visible? wait-lights-visible?

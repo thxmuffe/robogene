@@ -1,13 +1,14 @@
 (ns webapp.pages.characters-page
-  (:require [webapp.pages.main-gallery :as gallery-page]))
+  (:require [webapp.pages.gallery-page :as gallery-page]))
 
 (def characters-config
   {:view-id :characters
+   :page-class "characters-page"
    :entity-label "character"
    :entity-singular "character"
    :entity-id-key :characterId
    :owner-type "character"
-   :page-title ""
+   :page-title "Roster"
    :editing-id-sub [:editing-character-id]
    :name-inputs-sub [:character-name-inputs]
    :description-changed-event :new-character-description-changed
@@ -22,7 +23,7 @@
    :teaser-sub "Create a character profile with image frames"})
 
 (defn characters-page [saga-name characters frame-inputs open-frame-actions active-frame-id new-character-description new-character-panel-open?]
-  (let [title (str (or saga-name "Saga") " character definitions")]
+  (let [title (str (or saga-name "Saga") " roster")]
     [gallery-page/collection-page (assoc characters-config :page-title title)
    characters
    frame-inputs

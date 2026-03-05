@@ -31,10 +31,23 @@ body {
   z-index: 1;
 }
 
+.characters-page {
+  min-height: calc(100vh - 40px);
+  border-radius: 16px;
+  background: radial-gradient(circle at 20% 15%, #384a60 0%, #253344 42%, #1a2534 72%, #111924 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  padding: 8px;
+}
+
 .hero h1 {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.2rem);
   letter-spacing: 0.04em;
+}
+
+.hero-home-link {
+  color: inherit;
+  text-decoration: none;
 }
 .hero p { margin: 6px 0 10px; font-weight: 600; }
 
