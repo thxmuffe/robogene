@@ -155,8 +155,8 @@
      [:div.add-frame-tile-title teaser-title]
      [:div.add-frame-tile-sub teaser-sub]]))
 
-(defn page-header-action [view-id]
-  (case view-id
+(defn page-header-action [cfg]
+  (case (:view-id cfg)
     :saga
     [:> ActionIcon
      {:aria-label "Open roster"
@@ -167,12 +167,13 @@
      [:> FaGear]]
 
     :characters
-    [:> Button
-     {:variant "default"
-      :size "sm"
-      :leftSection (r/as-element [:> FaArrowLeft])
-      :onClick #(rf/dispatch [:navigate-saga-page])}
-     "Back to Saga_page"]
+    (when-let [back-label (:saga-back-label cfg)]
+      [:> Button
+       {:variant "default"
+        :size "sm"
+        :leftSection (r/as-element [:> FaArrowLeft])
+        :onClick #(rf/dispatch [:navigate-saga-page])}
+       back-label])
 
     nil))
 
@@ -197,7 +198,7 @@
                  :gap "md"}
        [:> Group {:justify "space-between" :align "center"}
         [:h2 page-title]
-        [page-header-action view-id]]
+        [page-header-action cfg]]
        (map-indexed (fn [idx entity]
                       ^{:key (or (entity-id-key entity) (str "entity-" idx))}
                       [collection-section cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs])

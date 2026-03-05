@@ -20,11 +20,15 @@
    :add-title "Add New Character"
    :add-submit-label "Add New Character"
    :teaser-title "Add New Character"
-   :teaser-sub "Create a character profile with image frames"})
+   :teaser-sub "Create a character profile with image frames"
+   :saga-back-label nil})
 
 (defn characters-page [saga-name characters frame-inputs open-frame-actions active-frame-id new-character-description new-character-panel-open?]
-  (let [title (str (or saga-name "Saga") " roster")]
-    [gallery-page/collection-page (assoc characters-config :page-title title)
+  (let [safe-saga-name (or saga-name "Saga")
+        title (str safe-saga-name " roster")]
+    [gallery-page/collection-page (assoc characters-config
+                                         :page-title title
+                                         :saga-back-label (str "Back to " safe-saga-name))
    characters
    frame-inputs
    open-frame-actions
