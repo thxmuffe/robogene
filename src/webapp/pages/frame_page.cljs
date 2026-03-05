@@ -193,7 +193,8 @@
            (get frame-inputs (:frameId active-frame) "")
            {:clickable? false
             :media-nav? true
-            :actions-open? (true? (get open-frame-actions (:frameId active-frame)))}]
+            :actions-open? (true? (get open-frame-actions (:frameId active-frame)))
+            :image-fit (if fullscreen? "contain" "cover")}]
           (if fullscreen?
             [:> ActionIcon
              {:className "fullscreen-close"

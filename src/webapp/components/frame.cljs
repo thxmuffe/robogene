@@ -40,12 +40,19 @@
     (interaction/halt! e)
     (rf/dispatch [:navigate-relative-frame delta])))
 
-(defn frame-image [{:keys [imageUrl frameId]}]
+(defn frame-image [{:keys [imageUrl frameId]} image-fit fill-container?]
   [:> Image
-   {:src (or imageUrl "")
-    :alt (str "Frame " frameId)
-    :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
-    :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}])
+   (cond-> {:src (or imageUrl "")
+            :alt (str "Frame " frameId)
+            :fit image-fit
+            :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
+            :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}
+     fill-container?
+     (assoc :w "100%"
+            :h "100%"
+            :styles #js {:root #js {:width "100%" :height "100%"}
+                         :wrapper #js {:width "100%" :height "100%"}
+                         :image #js {:width "100%" :height "100%"}}))])
 
 (defn subtitle-display [{:keys [frameId description]} frame-input]
   (let [subtitle (str/trim (or frame-input description ""))]
@@ -77,8 +84,8 @@
 (defn frame
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav?]
-                       :or {clickable? true active? false actions-open? false media-nav? false}}]
+  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? image-fit image-fill-container?]
+                       :or {clickable? true active? false actions-open? false media-nav? false image-fit "cover" image-fill-container? false}}]
    (r/with-let [was-editable* (r/atom false)]
      (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
            busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
@@ -109,7 +116,7 @@
          [:> Box nav-attrs
           (if has-image?
             [:<>
-             [frame-image frame*]
+             [frame-image frame* image-fit image-fill-container?]
              (when (or busy? image-loading?)
                [:div.media-loading-overlay
                 [:div.spinner]
