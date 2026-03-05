@@ -60,7 +60,7 @@ test('api mutation: add character works independently', async (t) => {
 
   try {
     const before = await getState(baseFromEnv);
-    const beforeCount = (before.characters || []).length;
+    const beforeCount = (before.roster || []).length;
 
     const { res, body } = await postJson(baseFromEnv, '/api/add-character', { description: unique });
     assert.equal(res.status, 201, `POST /api/add-character -> HTTP ${res.status}`);
@@ -69,9 +69,9 @@ test('api mutation: add character works independently', async (t) => {
     createdCharacterId = body.character.characterId;
 
     const after = await getState(baseFromEnv);
-    const afterCount = (after.characters || []).length;
+    const afterCount = (after.roster || []).length;
     assert.equal(afterCount, beforeCount + 1, 'character count should increment by one');
-    assert.ok((after.characters || []).some((c) => c.characterId === createdCharacterId), 'new character should exist in characters list');
+    assert.ok((after.roster || []).some((c) => c.characterId === createdCharacterId), 'new character should exist in roster list');
   } finally {
     if (createdCharacterId) {
       await postJson(baseFromEnv, '/api/delete-character', { characterId: createdCharacterId });

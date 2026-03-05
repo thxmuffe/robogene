@@ -75,11 +75,11 @@
 
 (defn entity-meta [entity-label]
   (if (= "character" (str entity-label))
-    {:list-key :characters
+    {:list-key :roster
      :id-key :characterId
-     :latest-list-key :characters
-     :name-inputs-key [:view-state :characters :name-inputs]
-     :editing-key [:view-state :characters :editing-id]}
+     :latest-list-key :roster
+     :name-inputs-key [:view-state :roster :name-inputs]
+     :editing-key [:view-state :roster :editing-id]}
     {:list-key :saga
      :id-key :chapterId
      :latest-list-key :saga
@@ -201,8 +201,8 @@
 
       :add-character
       {:db (-> db-with-status
-               (assoc-in [:view-state :characters :new-description] "")
-               (assoc-in [:view-state :characters :new-panel-open?] false))}
+               (assoc-in [:view-state :roster :new-description] "")
+               (assoc-in [:view-state :roster :new-panel-open?] false))}
 
       {:db db-with-status})))
 

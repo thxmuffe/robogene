@@ -1,9 +1,9 @@
-(ns webapp.pages.characters-page
+(ns webapp.pages.roster-page
   (:require [webapp.pages.gallery-page :as gallery-page]))
 
-(def characters-config
-  {:view-id :characters
-   :page-class "characters-page"
+(def roster-config
+  {:view-id :roster
+   :page-class "roster-page"
    :entity-label "character"
    :entity-singular "character"
    :entity-id-key :characterId
@@ -23,13 +23,13 @@
    :teaser-sub "Create a character profile with image frames"
    :saga-back-label nil})
 
-(defn characters-page [saga-name characters frame-inputs open-frame-actions active-frame-id new-character-description new-character-panel-open?]
+(defn roster-page [saga-name roster frame-inputs open-frame-actions active-frame-id new-character-description new-character-panel-open?]
   (let [safe-saga-name (or saga-name "Saga")
         title (str safe-saga-name " roster")]
-    [gallery-page/collection-page (assoc characters-config
+    [gallery-page/collection-page (assoc roster-config
                                          :page-title title
                                          :saga-back-label (str "Back to " safe-saga-name))
-   characters
+   roster
    frame-inputs
    open-frame-actions
    active-frame-id

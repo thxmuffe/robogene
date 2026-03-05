@@ -214,13 +214,13 @@
                                                 (fn [_] nil)))))
                                   nil)))))))))
 
-(defn save-characters! [chapter-root-id characters]
+(defn save-roster! [chapter-root-id roster]
   (-> (list-entities saga-client chapter-root-id)
       (.then
        (fn [existing]
-         (let [characters (vec characters)
-               keep (set (map #(gobj/get % "characterId") characters))]
-           (-> (reduce-promise characters
+         (let [roster (vec roster)
+               keep (set (map #(gobj/get % "characterId") roster))]
+           (-> (reduce-promise roster
                                (fn [_ character]
                                  (.upsertEntity saga-client
                                                 #js {:partitionKey chapter-root-id
@@ -296,7 +296,7 @@
                                               (map #(parse-json (gobj/get % "payloadJson") nil))
                                               (filter some?)
                                               clj->js)
-                                   :characters (->> chapter-rows
+                                   :roster (->> chapter-rows
                                                     (filter character-row?)
                                                     (map #(parse-json (gobj/get % "payloadJson") nil))
                                                     (filter some?)
@@ -323,8 +323,8 @@
                           (save-saga! (read-chapter-id initial-state)
                                           (or (gobj/get initial-state "saga") #js []))))
                  (.then (fn [_]
-                          (save-characters! (read-chapter-id initial-state)
-                                            (or (gobj/get initial-state "characters") #js []))))
+                          (save-roster! (read-chapter-id initial-state)
+                                            (or (gobj/get initial-state "roster") #js []))))
                  (.then (fn [_]
                           (save-frames! (read-chapter-id initial-state)
                                         (or (gobj/get initial-state "frames") #js []))))
@@ -342,7 +342,7 @@
                         (gobj/set "revision" revision)
                         (gobj/set "failedJobs" failed-jobs)
                         (gobj/set "saga" (gobj/get rows "saga"))
-                        (gobj/set "characters" (or (gobj/get rows "characters") #js []))
+                        (gobj/set "roster" (or (gobj/get rows "roster") #js []))
                         (gobj/set "frames" (gobj/get rows "frames"))
                         (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
                         (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
@@ -360,7 +360,7 @@
            (fn [frames]
              (-> (save-saga! chapter-root-id (or (gobj/get state "saga") #js []))
                  (.then (fn [_]
-                          (save-characters! chapter-root-id (or (gobj/get state "characters") #js []))))
+                          (save-roster! chapter-root-id (or (gobj/get state "roster") #js []))))
                  (.then (fn [_]
                           (set-active-meta! #js {:chapterId chapter-root-id
                                                  :revision (or (gobj/get state "revision") 1)

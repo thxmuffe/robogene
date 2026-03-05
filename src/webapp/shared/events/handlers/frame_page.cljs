@@ -4,8 +4,8 @@
 
 (defn- from-page->hash [from-page]
   (case from-page
-    :characters "#/characters"
-    :saga "#/saga"
+    :roster "#/roster"
+    :saga (model/saga-hash)
     nil))
 
 (rf/reg-event-fx
@@ -21,7 +21,7 @@
  :navigate-index
  (fn [{:keys [db]} _]
    {:db db
-    :set-hash "#/saga"}))
+    :set-hash (model/saga-hash)}))
 
 (rf/reg-event-fx
  :navigate-from-page
@@ -35,13 +35,13 @@
  :navigate-saga-page
  (fn [{:keys [db]} _]
    {:db db
-    :set-hash "#/saga"}))
+    :set-hash (model/saga-hash)}))
 
 (rf/reg-event-fx
- :navigate-characters-page
+ :navigate-roster-page
  (fn [{:keys [db]} _]
    {:db db
-    :set-hash "#/characters"}))
+    :set-hash "#/roster"}))
 
 (rf/reg-event-fx
  :navigate-relative-frame

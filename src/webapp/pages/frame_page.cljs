@@ -80,7 +80,7 @@
       {:prev nil :next nil :active nil})))
 
 (def back-button-label-by-page
-  {:characters "Back to Roster"
+  {:roster "Back to Roster"
    :saga "Back to Saga_page"})
 
 (defn detail-controls [chapter-id frame-neighbors from-page]

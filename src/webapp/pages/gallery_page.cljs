@@ -8,7 +8,7 @@
             [webapp.components.chapter :as chapter-component]
             [webapp.components.chapter-actions :as chapter-actions]
             ["@mantine/core" :refer [ActionIcon Box Button Group Stack TextInput Textarea]]
-            ["react-icons/fa6" :refer [FaArrowLeft FaCheck FaGear FaXmark]]))
+            ["react-icons/fa6" :refer [FaArrowLeft FaCheck FaXmark]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
   (case key
@@ -158,15 +158,15 @@
 (defn page-header-action [cfg]
   (case (:view-id cfg)
     :saga
-    [:> ActionIcon
+    [:> Button
      {:aria-label "Open roster"
       :title "Open roster"
-      :variant "filled"
-      :radius "xl"
-      :onClick #(rf/dispatch [:navigate-characters-page])}
-     [:> FaGear]]
+      :variant "default"
+      :size "sm"
+      :onClick #(rf/dispatch [:navigate-roster-page])}
+     "Roster"]
 
-    :characters
+    :roster
     (when-let [back-label (:saga-back-label cfg)]
       [:> Button
        {:variant "default"
@@ -213,6 +213,7 @@
 
 (def saga-config
   {:view-id :saga
+   :route-name "robot emperor"
    :page-class "saga-page"
    :entity-label "chapter"
    :entity-singular "chapter"

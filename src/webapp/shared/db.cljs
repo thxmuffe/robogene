@@ -12,7 +12,7 @@
                        :new-description ""
                        :new-panel-open? false
                        :show-celebration? false}
-                :characters {:name-inputs {}
+                :roster {:name-inputs {}
                              :editing-id nil
                              :new-description ""
                              :new-panel-open? false}}
@@ -20,7 +20,7 @@
    :last-rendered-revision nil
    :active-frame-id nil
    :saga []
-   :characters []
+   :roster []
    :gallery-items []
    :sync-outbox []
    :sync-inflight nil

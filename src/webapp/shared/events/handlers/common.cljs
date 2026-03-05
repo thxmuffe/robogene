@@ -73,7 +73,7 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [previous-frames (:gallery-items db)
-         {:keys [saga characters frames]} (model/derived-state state)
+         {:keys [saga roster frames]} (model/derived-state state)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -95,10 +95,10 @@
                                frames)]
      {:db (-> db
               (assoc :latest-state state
-                     :status (model/status-line state saga characters frames)
+                     :status (model/status-line state saga roster frames)
                      :last-rendered-revision (:revision state)
                      :saga saga
-                     :characters characters
+                     :roster roster
                      :gallery-items frames
                      :image-ui-by-frame-id image-ui-by-frame-id
                      :open-frame-actions open-frame-actions

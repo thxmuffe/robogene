@@ -84,7 +84,7 @@
            :descriptions []
            :visual {:globalStyle "" :pagePrompts {}}
            :saga []
-           :characters []
+           :roster []
            :frames []
            :failedJobs []
            :processing false
@@ -131,14 +131,14 @@
 (defn next-chapter-number [saga]
   (inc (reduce max 0 (map :chapterNumber saga))))
 
-(defn next-character-number [characters]
-  (inc (reduce max 0 (map :characterNumber characters))))
+(defn next-character-number [roster]
+  (inc (reduce max 0 (map :characterNumber roster))))
 
 (defn chapter-by-id [saga chapter-id]
   (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) saga))
 
-(defn character-by-id [characters character-id]
-  (some (fn [character] (when (= (:characterId character) character-id) character)) characters))
+(defn character-by-id [roster character-id]
+  (some (fn [character] (when (= (:characterId character) character-id) character)) roster))
 
 (defn frames-for-owner [frames owner-id owner-type]
   (->> frames
@@ -154,7 +154,7 @@
 (defn entity-type->meta [entity-label]
   (if (= "character" (str entity-label))
     {:label "character"
-     :collection-key :characters
+     :collection-key :roster
      :id-key :characterId
      :number-key :characterNumber
      :default-name "Character"
@@ -354,7 +354,7 @@
              :descriptions descriptions
              :visual visual
              :saga [chapter1]
-             :characters []
+             :roster []
              :frames frames
              :failedJobs []
              :processing false
@@ -380,7 +380,7 @@
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
                  (assoc :saga (vec (:saga persisted)))
-                 (assoc :characters (vec (or (:characters persisted) [])))
+                 (assoc :roster (vec (or (:roster persisted) [])))
                  (assoc :frames (vec (:frames persisted)))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
@@ -391,7 +391,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :characters :frames
+                             [:chapterId :revision :failedJobs :saga :roster :frames
                               :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
@@ -401,7 +401,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :characters :frames])))
+                             [:chapterId :revision :failedJobs :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
@@ -457,7 +457,7 @@
 (defn build-prompt-for-frame [frame]
   (let [owner-type (or (:ownerType frame) "saga")
         chapter (chapter-by-id (:saga @state) (:chapterId frame))
-        character (character-by-id (:characters @state) (:chapterId frame))
+        character (character-by-id (:roster @state) (:chapterId frame))
         chapter-label (when chapter
                         (str "Chapter " (:chapterNumber chapter)
                              " theme: " (:description chapter)))]

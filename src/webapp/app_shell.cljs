@@ -2,8 +2,9 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.theme :as theme]
+            [webapp.shared.model :as model]
             [webapp.pages.gallery-page :as gallery-page]
-            [webapp.pages.characters-page :as characters-page]
+            [webapp.pages.roster-page :as roster-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
@@ -21,14 +22,14 @@
     (str "Frame Page · " chapter-name " · " (saga-name saga))))
 
 (defn main-page-title [route]
-  (let [page-title (if (= :characters (:view route))
-                     (:page-title characters-page/characters-config)
+  (let [page-title (if (= :roster (:view route))
+                     (:page-title roster-page/roster-config)
                      (:page-title gallery-page/saga-config))]
     (str app-name " · " page-title)))
 
 (defn main-view []
   (let [saga @(rf/subscribe [:saga])
-        characters @(rf/subscribe [:characters])
+        roster @(rf/subscribe [:roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         frame-inputs @(rf/subscribe [:frame-inputs])
@@ -54,16 +55,16 @@
         [:> Stack {:gap "md"}
         [:> Box {:component "header" :className "hero"}
          [:h1
-          [:a {:href "#/saga"
+          [:a {:href (model/saga-hash)
                :className "hero-home-link"}
            app-name]]]
         (case (:view route)
           :frame
           [frame-page/frame-page route frame-inputs open-frame-actions saga-name*]
 
-          :characters
-          [characters-page/characters-page saga-name*
-           characters
+          :roster
+          [roster-page/roster-page saga-name*
+           roster
            frame-inputs
            open-frame-actions
            active-frame-id

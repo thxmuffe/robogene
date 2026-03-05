@@ -32,7 +32,7 @@
 
 (defn frame-owner-page [owner-type]
   (if (= "character" (str owner-type))
-    :characters
+    :roster
     :saga))
 
 (defn on-frame-click [chapter-id frame-id owner-type]

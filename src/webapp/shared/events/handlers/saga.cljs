@@ -4,10 +4,10 @@
 
 (defn entity-label->keys [entity-label]
   (if (= "character" (str entity-label))
-    {:editing-key [:view-state :characters :editing-id]
-     :name-inputs-key [:view-state :characters :name-inputs]
-     :description-key [:view-state :characters :new-description]
-     :panel-open-key [:view-state :characters :new-panel-open?]}
+    {:editing-key [:view-state :roster :editing-id]
+     :name-inputs-key [:view-state :roster :name-inputs]
+     :description-key [:view-state :roster :new-description]
+     :panel-open-key [:view-state :roster :new-panel-open?]}
     {:editing-key [:view-state :saga :editing-id]
      :name-inputs-key [:view-state :saga :name-inputs]
      :description-key [:view-state :saga :new-description]
@@ -21,7 +21,7 @@
 (rf/reg-event-db
 :new-character-description-changed
 (fn [db [_ value]]
-   (assoc-in db [:view-state :characters :new-description] value)))
+   (assoc-in db [:view-state :roster :new-description] value)))
 
 (rf/reg-event-db
  :start-entity-name-edit
@@ -65,7 +65,7 @@
 (rf/reg-event-db
 :set-new-character-panel-open
 (fn [db [_ open?]]
-   (assoc-in db [:view-state :characters :new-panel-open?] (true? open?))))
+   (assoc-in db [:view-state :roster :new-panel-open?] (true? open?))))
 
 (rf/reg-event-db
 :chapter-celebration-ended
@@ -86,10 +86,10 @@
 (rf/reg-event-fx
 :add-character
 (fn [{:keys [db]} _]
-   (let [description (get-in db [:view-state :characters :new-description])]
+   (let [description (get-in db [:view-state :roster :new-description])]
      (if (str/blank? (or description ""))
        {:db (-> db
-                (assoc-in [:view-state :characters :new-panel-open?] true)
+                (assoc-in [:view-state :roster :new-panel-open?] true)
                 (assoc :status "Add a character description first."))}
      {:db db
       :dispatch [:enqueue-add-character description]}))))
