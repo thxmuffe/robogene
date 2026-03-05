@@ -3,6 +3,7 @@
             [goog.object :as gobj]
             [services.chapter :as chapter]
             [services.character :as character]
+            [services.image-handler :as image-handler]
             [services.realtime :as realtime]
             [host.settings :as settings]
             ["@azure/functions" :as azf]))
@@ -228,13 +229,16 @@
 (defn queueable-frame-outcome [frame-id]
   (let [snapshot @chapter/state
         frames (:frames snapshot)
-        idx (chapter/find-frame-index frames frame-id)]
+        idx (chapter/find-frame-index frames frame-id)
+        frame (when (number? idx) (get frames idx))
+        processing? (true? (:processing snapshot))
+        queued? (= "queued" (:status frame))
+        actively-processing? (and processing? (= "processing" (:status frame)))]
     (cond
       (nil? idx)
       {:ok false :status 404 :error "Frame not found."}
 
-      (or (= "queued" (:status (get frames idx)))
-          (= "processing" (:status (get frames idx))))
+      (or queued? actively-processing?)
       {:ok false :status 409 :error "Frame already in queue."}
 
       :else
@@ -313,6 +317,16 @@
                (on-success result snapshot)))
       (.catch (fn [err]
                 (command-error-response request default-error status-by-message err)))))
+
+(defn log-image-db-change! [kind frame snapshot]
+  (js/console.info
+   (str "[robogene] image db modified"
+        " kind=" kind
+        " frameId=" (:frameId frame)
+        " status=" (:status frame)
+        " revision=" (:revision snapshot)
+        " ownerType=" (or (:ownerType frame) "saga")
+        " ownerId=" (:chapterId frame))))
 
 (defn handle-add-chapter [request]
   (with-synced-body
@@ -487,7 +501,7 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! chapter/clear-frame-image!
+    :mutate! #(image-handler/clear-frame-image! chapter/state %)
     :default-error "Clear image failed."
     :status-by-message (messages->status-map #{"Frame not found."
                                                "Cannot clear image while queued or processing."}
@@ -495,6 +509,7 @@
     :emit-reason "frame-image-cleared"
     :success-status 200
     :success-body (fn [frame snapshot]
+                    (log-image-db-change! "cleared" frame snapshot)
                     (with-revision {:cleared true
                                     :frame frame}
                                    snapshot))}))
@@ -515,13 +530,14 @@
          :else
          (run-command
           request
-          {:run! #(chapter/replace-frame-image! frame-id image-data-url)
+          {:run! #(image-handler/replace-frame-image! chapter/state frame-id image-data-url)
            :reason "frame-image-replaced"
            :default-error "Replace image failed."
            :status-by-message {"Frame not found." 404
                                "Cannot replace image while queued or processing." 409
                                "Invalid imageDataUrl." 400}
            :on-success (fn [frame snapshot]
+                         (log-image-db-change! "replaced" frame snapshot)
                          (json-response 200
                                         (with-revision {:updated true
                                                         :frame frame}

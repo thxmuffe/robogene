@@ -331,49 +331,6 @@
                  (update :revision inc))))
     frame))
 
-(defn clear-frame-image! [frame-id]
-  (let [snapshot @state
-        frames (:frames snapshot)
-        idx (find-frame-index frames frame-id)
-        frame (when (number? idx) (get frames idx))]
-    (when (nil? idx)
-      (throw (js/Error. "Frame not found.")))
-    (when (or (= "queued" (:status frame))
-              (= "processing" (:status frame)))
-      (throw (js/Error. "Cannot clear image while queued or processing.")))
-    (swap! state
-           (fn [s]
-             (-> s
-                 (assoc-in [:frames idx :imageUrl] nil)
-                 (assoc-in [:frames idx :status] "draft")
-                 (assoc-in [:frames idx :error] nil)
-                 (assoc-in [:frames idx :completedAt] nil)
-                 (update :revision inc))))
-    (get (:frames @state) idx)))
-
-(defn replace-frame-image! [frame-id image-data-url]
-  (let [snapshot @state
-        frames (:frames snapshot)
-        idx (find-frame-index frames frame-id)
-        frame (when (number? idx) (get frames idx))
-        normalized-image (some-> image-data-url str str/trim)]
-    (when (nil? idx)
-      (throw (js/Error. "Frame not found.")))
-    (when (or (= "queued" (:status frame))
-              (= "processing" (:status frame)))
-      (throw (js/Error. "Cannot replace image while queued or processing.")))
-    (when-not (str/starts-with? (or normalized-image "") "data:image/")
-      (throw (js/Error. "Invalid imageDataUrl.")))
-    (swap! state
-           (fn [s]
-             (-> s
-                 (assoc-in [:frames idx :imageUrl] normalized-image)
-                 (assoc-in [:frames idx :status] "ready")
-                 (assoc-in [:frames idx :error] nil)
-                 (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
-                 (update :revision inc))))
-    (get (:frames @state) idx)))
-
 (defn initialize-state! []
   (let [openai-options (settings/image-settings)
         chapter-script-text (read-text default-chapter-script)
@@ -669,6 +626,20 @@
           " bytes=" bytes
           " options=" (pr-str opts)))))
 
+(defn log-image-persisted! [frame-id]
+  (let [snapshot @state
+        frame (some (fn [f]
+                      (when (= (:frameId f) frame-id) f))
+                    (:frames snapshot))]
+    (when frame
+      (js/console.info
+       (str "[robogene] image persisted"
+            " frameId=" frame-id
+            " status=" (:status frame)
+            " revision=" (:revision snapshot)
+            " ownerType=" (or (:ownerType frame) "saga")
+            " ownerId=" (:chapterId frame))))))
+
 (defn log-generation-failed! [frame duration-ms err]
   (let [chapter-number (some->> (:saga @state)
                                 (some (fn [chapter]
@@ -718,6 +689,7 @@
                          (do
                            (-> (persist-state!)
                                (.then (fn [_]
+                                        (log-image-persisted! frame-id)
                                         (emit-state-changed! "ready")
                                         (process-step!)
                                         nil))))
