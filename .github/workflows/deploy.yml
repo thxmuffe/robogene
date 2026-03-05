@@ -208,8 +208,6 @@ jobs:
         run: |
           npm ci
           npm run build
-          mkdir -p dist/release/webapp
-          cp src/webapp/index.html src/webapp/styles.css dist/release/webapp/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
