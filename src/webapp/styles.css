@@ -204,7 +204,7 @@ h2 { margin: 24px 0 10px; }
 .frame {
   background: var(--frame-surface);
   border: 2px solid #1f2a44;
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
   align-self: start;
@@ -588,8 +588,8 @@ h2 { margin: 24px 0 10px; }
   --subtitle-line-height: 1.35;
   max-width: min(94%, 74ch);
   display: inline-block;
-  padding: 4px 10px;
-  color: #ffffff;
+  padding: 1px 4px;
+  color: #ffe96a;
   font-weight: 900;
   text-align: center;
   font-size: var(--subtitle-font-size);
@@ -598,7 +598,7 @@ h2 { margin: 24px 0 10px; }
   -webkit-text-stroke: 3px rgba(38, 44, 54, 0.68);
   paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
-  background: rgba(10, 18, 28, 0.52);
+  background: rgba(10, 18, 28, 0.24);
   border-radius: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -826,6 +826,33 @@ h2 { margin: 24px 0 10px; }
   grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
   justify-content: start;
   align-items: start;
+}
+
+.add-frame-tile {
+  aspect-ratio: 3 / 2;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 14px;
+  background: linear-gradient(145deg, rgba(247, 251, 255, 0.52), rgba(232, 241, 251, 0.42));
+  border: 2px dashed rgba(32, 99, 155, 0.7);
+  color: #16324f;
+}
+
+.add-frame-tile-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.add-frame-tile-sub {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.add-frame-tile:hover {
+  background: linear-gradient(145deg, rgba(241, 248, 255, 0.66), rgba(221, 234, 248, 0.56));
 }
 
 @media (max-width: 320px) {

@@ -7,6 +7,9 @@
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
 
+(def app-name
+  "robogene")
+
 (defn saga-name [_]
   "Robot Emperor")
 
@@ -34,13 +37,13 @@
     (set! (.-title js/document)
           (if (= :frame (:view route))
             (frame-page-title route saga)
-            saga-name*))
+            (str app-name " · " saga-name*)))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true}
       [:main.app
        [:> Stack {:gap "md"}
         [:> Box {:component "header" :className "hero"}
-         [:h1 saga-name*]]
+         [:h1 app-name]]
         (if (= :frame (:view route))
           [frame-page/frame-page route frame-inputs open-frame-actions saga-name*]
           [gallery-page/main-gallery-page saga

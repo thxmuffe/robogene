@@ -90,18 +90,11 @@
          :radius "xl"
          :onClick #(rf/dispatch [:cancel-chapter-name-edit])}
         [:> FaXmark]]]
-      [:> Button
-       {:variant "default"
-        :size "sm"}
+      [:p.chapter-description
        (:description chapter)])
     [chapter-actions/chapter-actions
      {:chapter-id (:chapterId chapter)
-      :chapter-name (:description chapter)}]
-    [:> Button
-     {:variant "filled"
-      :size "sm"
-      :onClick #(rf/dispatch [:add-frame (:chapterId chapter)])}
-     "Add New Frame"]]
+      :chapter-name (:description chapter)}]]
    [chapter-component/chapter (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
 
 (defn new-chapter-form [description]
@@ -174,7 +167,7 @@
           chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
       [:> Stack {:component "section"
                  :gap "md"}
-       [:h2 "Saga"]
+       [:h2 "Robot Emperor"]
        (map-indexed (fn [idx chapter]
                       ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
                       [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
