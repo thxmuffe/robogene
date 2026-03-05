@@ -9,7 +9,7 @@ body {
   margin: 0;
   font-family: "Avenir Next", "Trebuchet MS", sans-serif;
   color: var(--ink);
-  background: radial-gradient(circle at 18% 16%, #2f4258 0%, #24364a 38%, #1a2939 64%, #121c28 100%);
+  background: radial-gradient(circle at 20% 20%, #ffe8c2 0%, #ffd9a8 35%, #ffc58b 60%, #ffb06f 100%);
   min-height: 100vh;
   isolation: isolate;
 }
@@ -31,7 +31,7 @@ body {
   z-index: 1;
 }
 
-.characters-page {
+.roster-page {
   min-height: calc(100vh - 40px);
   border-radius: 16px;
   background: radial-gradient(circle at 20% 15%, #425a76 0%, #2b3e53 40%, #1d2d3f 72%, #131d2b 100%);
@@ -40,23 +40,23 @@ body {
   color: #eaf2ff;
 }
 
-.characters-page h2 {
+.roster-page h2 {
   color: #f3f8ff;
   letter-spacing: 0.01em;
 }
 
-.characters-page .chapter-separator {
-  background: linear-gradient(90deg, #52a8ff, #4ed0c8, #f4d76f, #ff9a5a);
-  box-shadow: 0 4px 12px rgba(9, 20, 32, 0.32);
+.roster-page .chapter-separator {
+  background: linear-gradient(90deg, #2a7ebd, #2aa7a0, #6fbf7a, #d2b35f);
+  box-shadow: 0 3px 10px rgba(9, 20, 32, 0.26);
 }
 
-.characters-page .chapter-description {
+.roster-page .chapter-description {
   background: #f8ecd1;
   border-color: #d9ae64;
   color: #1c3048;
 }
 
-.characters-page .new-chapter-panel {
+.roster-page .new-chapter-panel {
   background: rgba(14, 27, 41, 0.9);
   border-color: rgba(197, 220, 245, 0.4);
 }
@@ -65,13 +65,39 @@ body {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.2rem);
   letter-spacing: 0.04em;
+  font-weight: 900;
 }
 
 .hero-home-link {
-  color: inherit;
+  display: inline-block;
+  background-image: linear-gradient(
+    110deg,
+    rgba(59, 66, 76, 0.74) 0%,
+    rgba(120, 130, 142, 0.68) 22%,
+    rgba(72, 80, 91, 0.7) 42%,
+    rgba(150, 160, 172, 0.62) 50%,
+    rgba(70, 78, 89, 0.7) 58%,
+    rgba(116, 126, 138, 0.68) 78%,
+    rgba(59, 66, 76, 0.74) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   text-decoration: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px rgba(10, 16, 24, 0.12);
+  animation: metallic-shimmer 24s linear infinite;
 }
 .hero p { margin: 6px 0 10px; font-weight: 600; }
+
+.saga-page h2 {
+  color: #143b5c;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
 
 .dir-label {
   display: block;
@@ -86,15 +112,54 @@ body {
 
 h2 { margin: 24px 0 10px; }
 
+.saga-page,
+.roster-page {
+  --card-width: 280px;
+  --card-gap: 14px;
+  --cols: 1;
+}
+
+@media (min-width: 640px) {
+  .saga-page,
+  .roster-page { --cols: 2; }
+}
+
+@media (min-width: 940px) {
+  .saga-page,
+  .roster-page { --cols: 3; }
+}
+
+@media (min-width: 1240px) {
+  .saga-page,
+  .roster-page { --cols: 4; }
+}
+
+@media (min-width: 1540px) {
+  .saga-page,
+  .roster-page { --cols: 5; }
+}
+
+@media (min-width: 1840px) {
+  .saga-page,
+  .roster-page { --cols: 6; }
+}
+
+.collection-header {
+  width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
+}
+
 .chapter-block {
   margin: 14px 0 26px;
+  width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
 }
 
 .chapter-separator {
+  width: 100%;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #20639b, #3caea3, #f6d55c, #ed553b);
+  background: linear-gradient(90deg, #2f74ad, #3295b2, #79b96f, #d0aa54);
   margin: 8px 0 14px;
+  box-shadow: 0 2px 8px rgba(16, 26, 38, 0.22);
 }
 
 .chapter-header {
@@ -574,17 +639,17 @@ h2 { margin: 24px 0 10px; }
   --subtitle-line-height: 1.35;
   max-width: min(94%, 74ch);
   display: inline-block;
-  padding: 1px 4px;
-  color: #ffe96a;
+  padding: 0 3px;
+  color: #fff3a6;
   font-weight: 900;
   text-align: center;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
   text-shadow: none;
-  -webkit-text-stroke: 3px rgba(38, 44, 54, 0.68);
+  -webkit-text-stroke: 2px rgba(12, 18, 28, 0.88);
   paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
-  background: rgba(10, 18, 28, 0.24);
+  background: rgba(6, 10, 16, 0.14);
   border-radius: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -808,10 +873,11 @@ h2 { margin: 24px 0 10px; }
 
 .gallery {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
+  gap: var(--card-gap);
+  grid-template-columns: repeat(var(--cols), minmax(0, var(--card-width)));
   justify-content: start;
   align-items: start;
+  width: 100%;
 }
 
 .add-frame-tile {
@@ -870,4 +936,9 @@ h2 { margin: 24px 0 10px; }
   0% { opacity: 0; transform: translateY(-6px); }
   20% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes metallic-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
 }

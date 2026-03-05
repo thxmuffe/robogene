@@ -196,7 +196,9 @@
       [:> Stack {:component "section"
                  :className page-class
                  :gap "md"}
-       [:> Group {:justify "space-between" :align "center"}
+       [:> Group {:className "collection-header"
+                  :justify "space-between"
+                  :align "center"}
         [:h2 page-title]
         [page-header-action cfg]]
        (map-indexed (fn [idx entity]
