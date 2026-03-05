@@ -11,13 +11,21 @@
         "run",
         "start"
       ],
+      "windows": {
+        "runtimeExecutable": "node",
+        "runtimeArgs": [
+          "${env:ProgramFiles}\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+          "run",
+          "start"
+        ]
+      },
       "outputCapture": "std",
       "console": "internalConsole",
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
         "pattern": "shadow-cljs - HTTP server available at (http://localhost:[0-9]+)",
         "action": "startDebugging",
-        "name": "Robogene: Open Chrome (reuse window)"
+        "name": "Robogene: Browser Debug"
       },
       "resolveSourceMapLocations": [
         "${workspaceFolder}/src/webapp/**",
@@ -26,21 +34,7 @@
       ]
     },
     {
-      "name": "Robogene: Open Chrome (reuse window)",
-      "type": "pwa-node",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "runtimeExecutable": "open",
-      "runtimeArgs": [
-        "-a",
-        "Google Chrome",
-        "http://localhost:8080/index.html"
-      ],
-      "console": "internalConsole",
-      "internalConsoleOptions": "neverOpen"
-    },
-    {
-      "name": "Robogene: Browser Debug (optional)",
+      "name": "Robogene: Browser Debug",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:8080/index.html",
