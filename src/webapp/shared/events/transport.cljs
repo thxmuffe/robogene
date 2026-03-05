@@ -227,10 +227,21 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-add-character
+ (fn [{:keys [description on-success on-failure]}]
+   (post-json "/api/add-character"
+              {:description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
  :post-add-frame
- (fn [{:keys [chapter-id on-success on-failure]}]
+ (fn [{:keys [owner-id owner-type on-success on-failure]}]
    (post-json "/api/add-frame"
-              {:chapterId chapter-id}
+              {:ownerType (or owner-type "saga")
+               :chapterId (when (not= "character" (str owner-type)) owner-id)
+               :characterId (when (= "character" (str owner-type)) owner-id)}
               on-success
               on-failure
               (fn [ok _] ok))))
@@ -264,10 +275,29 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-update-character
+ (fn [{:keys [character-id description on-success on-failure]}]
+   (post-json "/api/update-character"
+              {:characterId character-id
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
  :post-delete-chapter
  (fn [{:keys [chapter-id on-success on-failure]}]
    (post-json "/api/delete-chapter"
               {:chapterId chapter-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-character
+ (fn [{:keys [character-id on-success on-failure]}]
+   (post-json "/api/delete-character"
+              {:characterId character-id}
               on-success
               on-failure
               (fn [ok _] ok))))

@@ -1,30 +1,38 @@
 (ns webapp.components.chapter-actions
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.chapter-menu :as chapter-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]))
 
-(defn chapter-actions [{:keys [chapter-id chapter-name]}]
+(defn chapter-actions [{:keys [entity-id entity-name entity-label singular-label]}]
   (r/with-let [confirm* (r/atom nil)]
-    (let [items [{:id :rename-chapter
-                  :label "Rename chapter"}
-                 {:id :delete-chapter
-                  :label "Delete chapter"
-                  :confirm {:title "Delete this chapter?"
-                            :text "This deletes all frames in this chapter."
-                            :confirm-label "Delete chapter"
+    (let [label (or singular-label "chapter")
+          display-name (or entity-name "")
+          entity-label (or entity-label "chapter")
+          title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
+          items [{:id :rename-entity
+                  :label (str "Rename " label)}
+                 {:id :delete-entity
+                  :label (str "Delete " label)
+                  :confirm {:title (str "Delete this " label "?")
+                            :text (str "This deletes all frames in this " label ".")
+                            :confirm-label (str "Delete " label)
                             :confirm-color "error"}
-                  :dispatch-event [:delete-chapter chapter-id]}]
+                  :dispatch-event [(if (= "character" (str entity-label))
+                                     :delete-character
+                                     :delete-chapter)
+                                   entity-id]}]
           selected-item @confirm*]
       [:<>
        [chapter-menu/chapter-menu
-        {:title "Chapter actions"
-         :aria-label "Chapter actions"
+        {:title (str title-case-label " actions")
+         :aria-label (str title-case-label " actions")
          :button-class "chapter-menu-trigger"
          :items items
          :on-select (fn [item]
-                      (if (= :rename-chapter (:id item))
-                        (rf/dispatch [:start-chapter-name-edit chapter-id chapter-name])
+                      (if (= :rename-entity (:id item))
+                        (rf/dispatch [:start-entity-name-edit entity-label entity-id display-name])
                         (reset! confirm* item)))}]
        [confirm-dialog/confirm-dialog
         {:item selected-item

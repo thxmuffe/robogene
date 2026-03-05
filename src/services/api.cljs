@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [services.chapter :as chapter]
+            [services.character :as character]
             [services.realtime :as realtime]
             [host.settings :as settings]
             ["@azure/functions" :as azf]))
@@ -275,6 +276,7 @@
                                  :processing (:processing snapshot)
                                  :pendingCount pending-count
                                  :saga (:saga snapshot)
+                                 :characters (:characters snapshot)
                                  :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
@@ -335,6 +337,29 @@
                                                        snapshot)
                                         request)))})))))
 
+(defn handle-add-character [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [raw-description (gobj/get body "description")
+           description (if (some? raw-description)
+                         (some-> raw-description str str/trim)
+                         nil)]
+       (run-command
+        request
+        {:run! #(character/add-character! description)
+         :reason "character-added"
+         :default-error "Create character failed."
+         :status-by-message {}
+         :on-success (fn [result snapshot]
+                       (let [{:keys [character frame]} result]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :character character
+                                                        :frame frame}
+                                                       snapshot)
+                                        request)))})))))
+
 (defn messages->status-map [messages status]
   (into {} (map (fn [msg] [msg status]) messages)))
 
@@ -357,23 +382,34 @@
                                       request))})))))
 
 (defn handle-add-frame [request]
-  (with-synced-required-string
+  (with-synced-body
    request
-   "chapterId"
-   "Missing chapterId."
-   (fn [chapter-id]
-     (run-command
-      request
-      {:run! #(chapter/add-frame! chapter-id)
-       :reason "frame-added"
-       :default-error "Chapter not found."
-       :status-by-message {"Chapter not found." 404}
-       :on-success (fn [frame snapshot]
-                     (json-response 201
-                                    (with-revision {:created true
-                                                    :frame frame}
-                                                   snapshot)
-                                    request))}))))
+   (fn [body]
+     (let [owner-type (some-> (gobj/get body "ownerType") str str/lower-case)
+           chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           character-id (some-> (gobj/get body "characterId") str str/trim)
+           target-owner-type (if (= owner-type "character") "character" "saga")
+           owner-id (if (= target-owner-type "character") character-id chapter-id)]
+       (if (str/blank? owner-id)
+         (json-response 400 {:error (if (= target-owner-type "character")
+                                      "Missing characterId."
+                                      "Missing chapterId.")}
+                        request)
+         (run-command
+          request
+          {:run! #(if (= target-owner-type "character")
+                    (character/add-frame! owner-id)
+                    (chapter/add-frame! owner-id target-owner-type))
+           :reason "frame-added"
+           :default-error (if (= target-owner-type "character") "Character not found." "Chapter not found.")
+           :status-by-message {"Chapter not found." 404
+                               "Character not found." 404}
+           :on-success (fn [frame snapshot]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
 
 (defn handle-update-chapter [request]
   (with-synced-body
@@ -400,6 +436,34 @@
                          (json-response 200
                                         (with-revision {:updated true
                                                         :chapter chapter}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-character [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [character-id (some-> (gobj/get body "characterId") str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (cond
+         (str/blank? character-id)
+         (json-response 400 {:error "Missing characterId."} request)
+
+         (str/blank? description)
+         (json-response 400 {:error "Missing character description."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(character/update-description! character-id description)
+           :reason "character-updated"
+           :default-error "Update character failed."
+           :status-by-message {"Character not found." 404
+                               "Missing character description." 400}
+           :on-success (fn [character snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :character character}
                                                        snapshot)
                                         request))}))))))
 
@@ -447,6 +511,20 @@
                                     :chapter chapter}
                                    snapshot))}))
 
+(def handle-delete-character
+  (make-required-mutation-handler
+   {:field-key "characterId"
+    :missing-msg "Missing characterId."
+    :mutate! character/delete-character!
+    :default-error "Delete character failed."
+    :status-by-message (messages->status-map #{"Character not found."} 404)
+    :emit-reason "character-deleted"
+    :success-status 200
+    :success-body (fn [character snapshot]
+                    (with-revision {:deleted true
+                                    :character character}
+                                   snapshot))}))
+
 (defn handle-signalr-negotiate [request]
   (if-let [info (realtime/create-client-connection-info)]
     (json-response 200 info request)
@@ -468,8 +546,11 @@
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
    {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
+   {:method :post :name "post-update-character" :route "update-character" :handler handle-update-character}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
+   {:method :post :name "post-add-character" :route "add-character" :handler handle-add-character}
    {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
+   {:method :post :name "post-delete-character" :route "delete-character" :handler handle-delete-character}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}

@@ -8,30 +8,7 @@
             [webapp.components.chapter :as chapter-component]
             [webapp.components.chapter-actions :as chapter-actions]
             ["@mantine/core" :refer [ActionIcon Box Button Group Stack TextInput Textarea]]
-            ["react-icons/fa6" :refer [FaCheck FaXmark]]))
-
-(defn submit-new-chapter! []
-  (rf/dispatch [:add-chapter]))
-
-(defn on-new-chapter-submit [e]
-  (interaction/prevent! e)
-  (rf/dispatch [:set-new-chapter-panel-open false])
-  (submit-new-chapter!))
-
-(defn on-new-chapter-teaser-click [_]
-  (controls/open-new-chapter-panel!))
-
-(defn on-new-chapter-teaser-keydown [e]
-  (when (or (= "Enter" (.-key e))
-            (= " " (.-key e)))
-    (interaction/prevent! e)
-    (controls/open-new-chapter-panel!)))
-
-(defn on-chapter-name-keydown [chapter-id]
-  (fn [e]
-    (when (= "Enter" (.-key e))
-      (interaction/prevent! e)
-      (rf/dispatch [:save-chapter-name chapter-id]))))
+            ["react-icons/fa6" :refer [FaArrowLeft FaCheck FaGear FaXmark]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
   (case key
@@ -62,83 +39,29 @@
 
         :else nil))))
 
-(defn chapter-section [chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs]
-  [:> Box {:component "section" :className "chapter-block"}
-   [:div.chapter-separator]
-   [:> Group {:className "chapter-header"
-              :gap "sm"
-              :align "center"
-              :wrap "wrap"}
-    (if (= editing-chapter-id (:chapterId chapter))
-      [:<>
-       [:> TextInput
-        {:size "sm"
-         :value (get chapter-name-inputs (:chapterId chapter) "")
-         :onKeyDown (on-chapter-name-keydown (:chapterId chapter))
-         :onChange #(rf/dispatch [:chapter-name-input-changed (:chapterId chapter) (.. % -target -value)])}]
-       [:> ActionIcon
-        {:aria-label "Save chapter name"
-         :title "Save chapter name"
-         :variant "filled"
-         :radius "xl"
-         :onClick #(rf/dispatch [:save-chapter-name (:chapterId chapter)])}
-        [:> FaCheck]]
-       [:> ActionIcon
-        {:aria-label "Cancel chapter name editing"
-         :title "Cancel chapter name editing"
-         :variant "subtle"
-         :radius "xl"
-         :onClick #(rf/dispatch [:cancel-chapter-name-edit])}
-        [:> FaXmark]]]
-      [:p.chapter-description
-       (:description chapter)])
-    [chapter-actions/chapter-actions
-     {:chapter-id (:chapterId chapter)
-      :chapter-name (:description chapter)}]]
-   [chapter-component/chapter (:chapterId chapter) frame-inputs open-frame-actions active-frame-id]])
+(defn on-name-keydown [entity-label entity-id]
+  (fn [e]
+    (when (= "Enter" (.-key e))
+      (interaction/prevent! e)
+      (rf/dispatch [:save-entity-name entity-label entity-id]))))
 
-(defn new-chapter-form [description]
-  [:> Box {:component "form"
-           :className "new-chapter-panel"
-           :onSubmit on-new-chapter-submit}
-   [:h3 "Add New Chapter"]
-   [:> ActionIcon
-    {:className "new-chapter-close"
-     :aria-label "Close"
-     :variant "transparent"
-     :onClick #(rf/dispatch [:set-new-chapter-panel-open false])}
-    [:> FaXmark]]
-   [:label.dir-label {:for "new-chapter-description"} "Chapter Theme"]
-   [:> Textarea
-    {:id "new-chapter-description"
-     :autosize true
-     :minRows 3
-     :maxRows 10
-     :className "new-chapter-input"
-     :value (or description "")
-     :placeholder "Describe the next chapter theme..."
-     :onChange #(rf/dispatch [:new-chapter-description-changed (.. % -target -value)])}]
-   [:> Button
-    {:className "new-chapter-submit"
-     :type "submit"
-     :variant "filled"
-     :color "orange"}
-    "Add New Chapter"]])
+(defn on-new-item-submit [add-event set-open-event]
+  (fn [e]
+    (interaction/prevent! e)
+    (rf/dispatch [set-open-event false])
+    (rf/dispatch [add-event])))
 
-(defn new-chapter-teaser [active-frame-id]
-  [:article.new-chapter-teaser
-   {:class (str "frame frame-clickable add-frame-tile"
-                (when (= active-frame-id controls/new-chapter-frame-id)
-                  " frame-active"))
-    :data-frame-id controls/new-chapter-frame-id
-    :role "button"
-    :tab-index 0
-    :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
-    :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
-    :on-click on-new-chapter-teaser-click
-    :on-key-down on-new-chapter-teaser-keydown}
-   [:div.add-frame-tile-title "Add New Chapter"]
-   [:div.add-frame-tile-sub "Click to start a new adventure"]])
+(defn on-new-item-teaser-click [set-open-event]
+  (fn [_]
+    (controls/activate-frame! controls/new-chapter-frame-id)
+    (rf/dispatch [set-open-event true])))
+
+(defn on-new-item-teaser-keydown [set-open-event]
+  (fn [e]
+    (when (or (= "Enter" (.-key e))
+              (= " " (.-key e)))
+      (interaction/prevent! e)
+      ((on-new-item-teaser-click set-open-event) e))))
 
 (defn chapter-celebration []
   [:div.chapter-celebration
@@ -148,7 +71,88 @@
    [:div.rainbow-band.band-4]
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
-(defn main-gallery-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
+(defn collection-section [cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs]
+  (let [entity-id ((:entity-id-key cfg) entity)
+        entity-name (:description entity)]
+    [:> Box {:component "section" :className "chapter-block"}
+     [:div.chapter-separator]
+     [:> Group {:className "chapter-header"
+                :gap "sm"
+                :align "center"
+                :wrap "wrap"}
+      (if (= editing-entity-id entity-id)
+        [:<>
+         [:> TextInput
+          {:size "sm"
+           :value (get entity-name-inputs entity-id "")
+           :onKeyDown (on-name-keydown (:entity-label cfg) entity-id)
+           :onChange #(rf/dispatch [:entity-name-input-changed (:entity-label cfg) entity-id (.. % -target -value)])}]
+         [:> ActionIcon
+          {:aria-label "Save name"
+           :title "Save name"
+           :variant "filled"
+           :radius "xl"
+           :onClick #(rf/dispatch [:save-entity-name (:entity-label cfg) entity-id])}
+          [:> FaCheck]]
+         [:> ActionIcon
+          {:aria-label "Cancel name editing"
+           :title "Cancel name editing"
+           :variant "subtle"
+           :radius "xl"
+           :onClick #(rf/dispatch [:cancel-entity-name-edit (:entity-label cfg)])}
+          [:> FaXmark]]]
+        [:p.chapter-description entity-name])
+      [chapter-actions/chapter-actions
+       {:entity-id entity-id
+        :entity-name entity-name
+        :entity-label (:entity-label cfg)
+        :singular-label (:entity-singular cfg)}]]
+     [chapter-component/chapter entity-id (:owner-type cfg) frame-inputs open-frame-actions active-frame-id]]))
+
+(defn new-entity-form [cfg description]
+  [:> Box {:component "form"
+           :className "new-chapter-panel"
+           :onSubmit (on-new-item-submit (:add-event cfg) (:set-open-event cfg))}
+   [:h3 (:add-title cfg)]
+   [:> ActionIcon
+    {:className "new-chapter-close"
+     :aria-label "Close"
+     :variant "transparent"
+     :onClick #(rf/dispatch [(:set-open-event cfg) false])}
+    [:> FaXmark]]
+   [:label.dir-label {:for (:input-id cfg)} (:input-label cfg)]
+   [:> Textarea
+    {:id (:input-id cfg)
+     :autosize true
+     :minRows 3
+     :maxRows 10
+     :className "new-chapter-input"
+     :value (or description "")
+     :placeholder (:input-placeholder cfg)
+     :onChange #(rf/dispatch [(:description-changed-event cfg) (.. % -target -value)])}]
+   [:> Button
+    {:className "new-chapter-submit"
+     :type "submit"
+     :variant "filled"
+     :color "orange"}
+    (:add-submit-label cfg)]])
+
+(defn new-entity-teaser [cfg active-frame-id]
+  [:article.new-chapter-teaser
+   {:class (str "frame frame-clickable add-frame-tile"
+                (when (= active-frame-id controls/new-chapter-frame-id)
+                  " frame-active"))
+    :data-frame-id controls/new-chapter-frame-id
+    :role "button"
+    :tab-index 0
+    :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
+    :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
+    :on-click (on-new-item-teaser-click (:set-open-event cfg))
+    :on-key-down (on-new-item-teaser-keydown (:set-open-event cfg))}
+   [:div.add-frame-tile-title (:teaser-title cfg)]
+   [:div.add-frame-tile-sub (:teaser-sub cfg)]])
+
+(defn collection-page [cfg entities frame-inputs open-frame-actions active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil})
                focused-active-id* (r/atom nil)
                key-handler (fn [e]
@@ -161,19 +165,69 @@
         (.requestAnimationFrame js/window
                                 (fn []
                                   (frame-nav/focus-subtitle! active-frame-id)))))
-    (let [editing-chapter-id @(rf/subscribe [:editing-chapter-id])
-          chapter-name-inputs @(rf/subscribe [:chapter-name-inputs])]
+    (let [editing-entity-id @(rf/subscribe (:editing-id-sub cfg))
+          entity-name-inputs @(rf/subscribe (:name-inputs-sub cfg))]
       [:> Stack {:component "section"
                  :gap "md"}
-       [:h2 "Robot Emperor"]
-       (map-indexed (fn [idx chapter]
-                      ^{:key (or (:chapterId chapter) (str "chapter-" idx))}
-                      [chapter-section chapter frame-inputs open-frame-actions active-frame-id editing-chapter-id chapter-name-inputs])
-                    saga)
-       (when show-chapter-celebration?
+       [:> Group {:justify "space-between" :align "center"}
+        [:h2 (:page-title cfg)]
+        (cond
+          (= :saga (:view-id cfg))
+          [:> ActionIcon
+           {:aria-label "Open character settings"
+            :title "Open character settings"
+            :variant "filled"
+            :radius "xl"
+            :onClick #(rf/dispatch [:navigate-characters-page])}
+           [:> FaGear]]
+
+          (= :characters (:view-id cfg))
+          [:> Button
+           {:variant "default"
+            :size "sm"
+            :leftSection (r/as-element [:> FaArrowLeft])
+            :onClick #(rf/dispatch [:navigate-saga-page])}
+           "Back to Saga_page"]
+
+          :else nil)]
+       (map-indexed (fn [idx entity]
+                      ^{:key (or ((:entity-id-key cfg) entity) (str "entity-" idx))}
+                      [collection-section cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs])
+                    entities)
+       (when (and show-celebration? (= :saga (:view-id cfg)))
          [chapter-celebration])
-       (if new-chapter-panel-open?
-         [new-chapter-form new-chapter-description]
-         [new-chapter-teaser active-frame-id])])
+       (if panel-open?
+         [new-entity-form cfg form-description]
+         [new-entity-teaser cfg active-frame-id])])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
+
+(def saga-config
+  {:view-id :saga
+   :entity-label "chapter"
+   :entity-singular "chapter"
+   :entity-id-key :chapterId
+   :owner-type "saga"
+   :page-title "Saga_page"
+   :editing-id-sub [:editing-chapter-id]
+   :name-inputs-sub [:chapter-name-inputs]
+   :description-changed-event :new-chapter-description-changed
+   :set-open-event :set-new-chapter-panel-open
+   :add-event :add-chapter
+   :input-id "new-chapter-description"
+   :input-label "Chapter Theme"
+   :input-placeholder "Describe the next chapter theme..."
+   :add-title "Add New Chapter"
+   :add-submit-label "Add New Chapter"
+   :teaser-title "Add New Chapter"
+   :teaser-sub "Click to start a new adventure"})
+
+(defn saga-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
+  [collection-page saga-config
+   saga
+   frame-inputs
+   open-frame-actions
+   active-frame-id
+   new-chapter-description
+   new-chapter-panel-open?
+   show-chapter-celebration?])

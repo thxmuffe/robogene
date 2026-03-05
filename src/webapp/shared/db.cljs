@@ -7,17 +7,22 @@
    :wait-lights-events []
    :frame-inputs {}
    :open-frame-actions {}
-   :chapter-name-inputs {}
-   :editing-chapter-id nil
+   :view-state {:saga {:name-inputs {}
+                       :editing-id nil
+                       :new-description ""
+                       :new-panel-open? false
+                       :show-celebration? false}
+                :characters {:name-inputs {}
+                             :editing-id nil
+                             :new-description ""
+                             :new-panel-open? false}}
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil
    :saga []
+   :characters []
    :gallery-items []
-   :new-chapter-description ""
-   :new-chapter-panel-open? false
-   :show-chapter-celebration? false
    :sync-outbox []
    :sync-inflight nil
    :latest-state nil
-   :route {:view :index}})
+   :route {:view :saga}})

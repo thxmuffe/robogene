@@ -26,9 +26,10 @@
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-status (or frames [])))))))
 
-(defn add-frame [db chapter-id frame-id]
+(defn add-frame [db owner-id owner-type frame-id]
   (let [frame {:frameId frame-id
-               :chapterId chapter-id
+               :chapterId owner-id
+               :ownerType (or owner-type "saga")
                :description ""
                :imageUrl nil
                :status "draft"
@@ -72,26 +73,46 @@
                    (fn [frames] (mapv clear-image (or frames []))))
         (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
-(defn rename-chapter [db chapter-id description]
-  (let [rename-chapter* (fn [chapter]
-                          (if (= (:chapterId chapter) chapter-id)
-                            (assoc chapter :description description)
-                            chapter))]
-    (-> db
-        (update :saga (fn [rows] (mapv rename-chapter* (or rows []))))
-        (update-in [:latest-state :saga]
-                   (fn [rows] (mapv rename-chapter* (or rows [])))))))
+(defn entity-meta [entity-label]
+  (if (= "character" (str entity-label))
+    {:list-key :characters
+     :id-key :characterId
+     :latest-list-key :characters
+     :name-inputs-key [:view-state :characters :name-inputs]
+     :editing-key [:view-state :characters :editing-id]}
+    {:list-key :saga
+     :id-key :chapterId
+     :latest-list-key :saga
+     :name-inputs-key [:view-state :saga :name-inputs]
+     :editing-key [:view-state :saga :editing-id]}))
 
-(defn remove-chapter [db chapter-id]
-  (let [remaining-saga (->> (or (:saga db) [])
-                            (remove (fn [chapter] (= (:chapterId chapter) chapter-id)))
-                            vec)
+(defn rename-entity [db entity-label entity-id description]
+  (let [{:keys [list-key id-key latest-list-key]} (entity-meta entity-label)
+        rename-entity* (fn [entity]
+                         (if (= (id-key entity) entity-id)
+                           (assoc entity :description description)
+                           entity))]
+    (-> db
+        (update list-key (fn [rows] (mapv rename-entity* (or rows []))))
+        (update-in [:latest-state latest-list-key]
+                   (fn [rows] (mapv rename-entity* (or rows [])))))))
+
+(defn remove-entity [db entity-label entity-id]
+  (let [{:keys [list-key id-key latest-list-key name-inputs-key editing-key]} (entity-meta entity-label)
+        owner-type (if (= "character" (str entity-label)) "character" "saga")
+        remaining-entities (->> (or (list-key db) [])
+                                (remove (fn [entity] (= (id-key entity) entity-id)))
+                                vec)
         removed-frame-ids (->> (or (:gallery-items db) [])
-                               (filter (fn [frame] (= (:chapterId frame) chapter-id)))
+                               (filter (fn [frame]
+                                         (and (= (:chapterId frame) entity-id)
+                                              (= (or (:ownerType frame) "saga") owner-type))))
                                (map :frameId)
                                set)
         remaining-frames (->> (or (:gallery-items db) [])
-                              (remove (fn [frame] (= (:chapterId frame) chapter-id)))
+                              (remove (fn [frame]
+                                        (and (= (:chapterId frame) entity-id)
+                                             (= (or (:ownerType frame) "saga") owner-type))))
                               vec)
         current-active-id (:active-frame-id db)
         next-active-id (if (contains? removed-frame-ids current-active-id)
@@ -100,16 +121,16 @@
         dissoc-ids (fn [m]
                      (apply dissoc (or m {}) removed-frame-ids))]
     (-> db
-        (assoc :saga remaining-saga
+        (assoc list-key remaining-entities
                :gallery-items remaining-frames
                :active-frame-id next-active-id)
-        (update :chapter-name-inputs dissoc chapter-id)
-        (cond-> (= (:editing-chapter-id db) chapter-id)
-          (assoc :editing-chapter-id nil))
+        (update-in name-inputs-key dissoc entity-id)
+        (cond-> (= (get-in db editing-key) entity-id)
+          (assoc-in editing-key nil))
         (update :frame-inputs dissoc-ids)
         (update :open-frame-actions dissoc-ids)
         (update :image-ui-by-frame-id dissoc-ids)
-        (update-in [:latest-state :saga] (fn [rows] (vec remaining-saga)))
+        (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
         (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
 
 (defn command->fx [command]
@@ -132,11 +153,20 @@
       :add-chapter
       {:post-add-chapter (merge payload callbacks)}
 
+      :add-character
+      {:post-add-character (merge payload callbacks)}
+
       :rename-chapter
       {:post-update-chapter (merge payload callbacks)}
 
+      :rename-character
+      {:post-update-character (merge payload callbacks)}
+
       :delete-chapter
       {:post-delete-chapter (merge payload callbacks)}
+
+      :delete-character
+      {:post-delete-character (merge payload callbacks)}
 
       nil)))
 
@@ -163,11 +193,16 @@
                             (fn [frames] (mapv replace-frame (or frames [])))))} )
 
       :add-chapter
-      {:db (assoc db-with-status
-                  :new-chapter-description ""
-                  :new-chapter-panel-open? false
-                  :show-chapter-celebration? true)
+      {:db (-> db-with-status
+               (assoc-in [:view-state :saga :new-description] "")
+               (assoc-in [:view-state :saga :new-panel-open?] false)
+               (assoc-in [:view-state :saga :show-celebration?] true))
        :start-chapter-celebration true}
+
+      :add-character
+      {:db (-> db-with-status
+               (assoc-in [:view-state :characters :new-description] "")
+               (assoc-in [:view-state :characters :new-panel-open?] false))}
 
       {:db db-with-status})))
 
@@ -190,14 +225,16 @@
 
 (rf/reg-event-fx
  :add-frame
-  (fn [{:keys [db]} [_ chapter-id]]
+  (fn [{:keys [db]} [_ owner-id owner-type]]
    (let [temp-frame-id (str "temp-frame-" (sync/next-command-id))
+         owner-type (or owner-type "saga")
          command {:id (sync/next-command-id)
                   :kind :add-frame
-                  :payload {:chapter-id chapter-id
+                  :payload {:owner-id owner-id
+                            :owner-type owner-type
                             :optimistic-frame-id temp-frame-id}
                   :success-status "Frame added."}]
-     (sync/queue-command (add-frame db chapter-id temp-frame-id)
+     (sync/queue-command (add-frame db owner-id owner-type temp-frame-id)
                          "Adding frame..."
                          command))))
 
@@ -234,6 +271,17 @@
      (sync/queue-command db "Creating chapter..." command))))
 
 (rf/reg-event-fx
+ :enqueue-add-character
+  (fn [{:keys [db]} [_ description]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :add-character
+                  :payload {:description description}
+                  :success-status "Character created."}]
+     (sync/queue-command db
+                         "Creating character..."
+                         command))))
+
+(rf/reg-event-fx
  :rename-chapter
  (fn [{:keys [db]} [_ chapter-id description]]
    (let [command {:id (sync/next-command-id)
@@ -241,8 +289,20 @@
                   :payload {:chapter-id chapter-id
                             :description description}
                   :success-status "Chapter name updated."}]
-     (sync/queue-command (rename-chapter db chapter-id description)
+     (sync/queue-command (rename-entity db "chapter" chapter-id description)
                          "Updating chapter name..."
+                         command))))
+
+(rf/reg-event-fx
+ :rename-character
+ (fn [{:keys [db]} [_ character-id description]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :rename-character
+                  :payload {:character-id character-id
+                            :description description}
+                  :success-status "Character name updated."}]
+     (sync/queue-command (rename-entity db "character" character-id description)
+                         "Updating character name..."
                          command))))
 
 (rf/reg-event-fx
@@ -252,8 +312,19 @@
                   :kind :delete-chapter
                   :payload {:chapter-id chapter-id}
                   :success-status "Chapter deleted."}]
-     (sync/queue-command (remove-chapter db chapter-id)
+     (sync/queue-command (remove-entity db "chapter" chapter-id)
                          "Deleting chapter..."
+                         command))))
+
+(rf/reg-event-fx
+ :delete-character
+ (fn [{:keys [db]} [_ character-id]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :delete-character
+                  :payload {:character-id character-id}
+                  :success-status "Character deleted."}]
+     (sync/queue-command (remove-entity db "character" character-id)
+                         "Deleting character..."
                          command))))
 
 (rf/reg-event-fx

@@ -41,7 +41,13 @@
           :chapter chapter
           :frame-id frame
           :fullscreen? fullscreen?}))
-     {:view :index})))
+     (when (re-matches #"^#/characters/?$" raw)
+       {:view :characters})
+     (when (or (str/blank? raw)
+               (re-matches #"^#/?$" raw)
+               (re-matches #"^#/saga/?$" raw))
+       {:view :saga})
+     {:view :saga})))
 
 (defn frame-hash
   ([chapter frame-id]
@@ -83,24 +89,56 @@
                    (or (:chapterId chapter) "")]))
        vec))
 
+(defn derived-characters [state]
+  (->> (or (:characters state) [])
+       (sort-by (fn [character]
+                  [(or (:characterNumber character) js/Number.MAX_SAFE_INTEGER)
+                   (or (:createdAt character) "")
+                   (or (:characterId character) "")]))
+       vec))
+
+(defn frame-owner-type [frame]
+  (let [owner-type (or (:ownerType frame) "saga")]
+    (if (keyword? owner-type)
+      (name owner-type)
+      (str owner-type))))
+
+(defn frames-for-owner [frames owner-type owner-id]
+  (let [owner-type (str owner-type)]
+    (->> (or frames [])
+         (filter (fn [frame]
+                   (and (= owner-type (frame-owner-type frame))
+                        (= (:chapterId frame) owner-id))))
+         ordered-frames)))
+
 (defn frames-for-chapter [frames chapter-id]
-  (->> (or frames [])
-       (filter (fn [frame] (= (:chapterId frame) chapter-id)))
-       ordered-frames))
+  (frames-for-owner (map (fn [frame]
+                           (if (:ownerType frame)
+                             frame
+                             (assoc frame :ownerType "saga")))
+                         (or frames []))
+                    "saga"
+                    chapter-id))
 
 (defn derived-state [state]
   (let [saga (derived-saga state)
+        characters (derived-characters state)
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
                                     (let [enriched (enrich-frame f)]
-                                      (assoc enriched :frameDescription (frame-description enriched)))))
+                                      (assoc (if (:ownerType enriched)
+                                               enriched
+                                               (assoc enriched :ownerType "saga"))
+                                             :frameDescription (frame-description enriched)))))
                              vec)]
     {:saga saga
+     :characters characters
      :frames enriched-frames}))
 
-(defn status-line [state saga frames]
+(defn status-line [state saga characters frames]
   (let [pending (or (:pendingCount state) 0)]
     (str "Saga: " (count saga)
+         " | Characters: " (count characters)
          " | Frames: " (count frames)
          (if (pos? pending)
            (str " | Queue: " pending)

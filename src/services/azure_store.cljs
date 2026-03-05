@@ -174,27 +174,71 @@
                       :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
                  "Replace"))
 
+(defn chapter-row-key [chapter]
+  (str "chapter:" (gobj/get chapter "chapterId")))
+
+(defn character-row-key [character]
+  (str "character:" (gobj/get character "characterId")))
+
+(defn chapter-row? [row]
+  (let [row-key (or (gobj/get row "rowKey") "")]
+    (or (str/starts-with? row-key "chapter:")
+        (not (str/starts-with? row-key "character:")))))
+
+(defn character-row? [row]
+  (str/starts-with? (or (gobj/get row "rowKey") "") "character:"))
+
 (defn save-saga! [chapter-root-id saga]
   (-> (list-entities saga-client chapter-root-id)
-      (.then (fn [existing]
-               (let [saga (vec saga)
-                     keep (set (map #(gobj/get % "chapterId") saga))]
-                 (-> (reduce-promise saga
-                                     (fn [_ chapter]
-                                       (.upsertEntity saga-client
-                                                      #js {:partitionKey chapter-root-id
-                                                           :rowKey (gobj/get chapter "chapterId")
-                                                           :payloadJson (.stringify js/JSON chapter)}
-                                                      "Replace"))
-                                     nil)
-                     (.then (fn [_]
-                              (reduce-promise existing
-                                              (fn [_ row]
-                                                (if (contains? keep (gobj/get row "rowKey"))
-                                                  (js/Promise.resolve nil)
-                                                 (.catch (.deleteEntity saga-client chapter-root-id (gobj/get row "rowKey"))
-                                                          (fn [_] nil))))
-                                              nil)))))))))
+      (.then
+       (fn [existing]
+         (let [saga (vec saga)
+               keep (set (map #(gobj/get % "chapterId") saga))]
+           (-> (reduce-promise saga
+                               (fn [_ chapter]
+                                 (.upsertEntity saga-client
+                                                #js {:partitionKey chapter-root-id
+                                                     :rowKey (chapter-row-key chapter)
+                                                     :payloadJson (.stringify js/JSON chapter)}
+                                                "Replace"))
+                               nil)
+               (.then
+                (fn [_]
+                  (reduce-promise existing
+                                  (fn [_ row]
+                                    (let [row-key (or (gobj/get row "rowKey") "")]
+                                      (if (or (not (chapter-row? row))
+                                              (contains? keep (str/replace row-key #"^chapter:" "")))
+                                        (js/Promise.resolve nil)
+                                        (.catch (.deleteEntity saga-client chapter-root-id row-key)
+                                                (fn [_] nil)))))
+                                  nil)))))))))
+
+(defn save-characters! [chapter-root-id characters]
+  (-> (list-entities saga-client chapter-root-id)
+      (.then
+       (fn [existing]
+         (let [characters (vec characters)
+               keep (set (map #(gobj/get % "characterId") characters))]
+           (-> (reduce-promise characters
+                               (fn [_ character]
+                                 (.upsertEntity saga-client
+                                                #js {:partitionKey chapter-root-id
+                                                     :rowKey (character-row-key character)
+                                                     :payloadJson (.stringify js/JSON character)}
+                                                "Replace"))
+                               nil)
+               (.then
+                (fn [_]
+                  (reduce-promise existing
+                                  (fn [_ row]
+                                    (let [row-key (or (gobj/get row "rowKey") "")]
+                                      (if (or (not (character-row? row))
+                                              (contains? keep (str/replace row-key #"^character:" "")))
+                                        (js/Promise.resolve nil)
+                                        (.catch (.deleteEntity saga-client chapter-root-id row-key)
+                                                (fn [_] nil)))))
+                                  nil)))))))))
 
 (defn save-frames! [chapter-root-id frames]
   (-> (list-entities frames-client chapter-root-id)
@@ -248,9 +292,15 @@
                                      [])
                      (.then (fn [frames]
                               #js {:saga (->> chapter-rows
-                                                  (map #(parse-json (gobj/get % "payloadJson") nil))
-                                                  (filter some?)
-                                                  clj->js)
+                                              (filter chapter-row?)
+                                              (map #(parse-json (gobj/get % "payloadJson") nil))
+                                              (filter some?)
+                                              clj->js)
+                                   :characters (->> chapter-rows
+                                                    (filter character-row?)
+                                                    (map #(parse-json (gobj/get % "payloadJson") nil))
+                                                    (filter some?)
+                                                    clj->js)
                                    :frames (clj->js frames)}))))))))
 
 (defn load-or-init-state [initial-state]
@@ -273,6 +323,9 @@
                           (save-saga! (read-chapter-id initial-state)
                                           (or (gobj/get initial-state "saga") #js []))))
                  (.then (fn [_]
+                          (save-characters! (read-chapter-id initial-state)
+                                            (or (gobj/get initial-state "characters") #js []))))
+                 (.then (fn [_]
                           (save-frames! (read-chapter-id initial-state)
                                         (or (gobj/get initial-state "frames") #js []))))
                  (.then (fn [frames]
@@ -289,6 +342,7 @@
                         (gobj/set "revision" revision)
                         (gobj/set "failedJobs" failed-jobs)
                         (gobj/set "saga" (gobj/get rows "saga"))
+                        (gobj/set "characters" (or (gobj/get rows "characters") #js []))
                         (gobj/set "frames" (gobj/get rows "frames"))
                         (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
                         (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
@@ -305,6 +359,8 @@
           (.then
            (fn [frames]
              (-> (save-saga! chapter-root-id (or (gobj/get state "saga") #js []))
+                 (.then (fn [_]
+                          (save-characters! chapter-root-id (or (gobj/get state "characters") #js []))))
                  (.then (fn [_]
                           (set-active-meta! #js {:chapterId chapter-root-id
                                                  :revision (or (gobj/get state "revision") 1)

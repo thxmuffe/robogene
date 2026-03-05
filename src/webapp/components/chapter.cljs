@@ -3,15 +3,11 @@
             [webapp.components.frame :as frame]
             ["@mantine/core" :refer [Box]]))
 
-(defn on-add-frame-keydown [chapter-id]
-  (fn [e]
-    (when (or (= "Enter" (.-key e))
-              (= " " (.-key e)))
-      (.preventDefault e)
-      (rf/dispatch [:add-frame chapter-id]))))
-
-(defn chapter [chapter-id frame-inputs open-frame-actions active-frame-id]
-  (let [frames @(rf/subscribe [:frames-for-chapter chapter-id])]
+(defn chapter [owner-id owner-type frame-inputs open-frame-actions active-frame-id]
+  (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
+        frame-subtitle (if (= "character" (str owner-type))
+                         "Create the next image for this character"
+                         "Create the next frame in this chapter")]
     [:> Box {:className "gallery"}
      (map-indexed (fn [idx frame-row]
                     ^{:key (or (:frameId frame-row) (str "frame-" idx))}
@@ -25,7 +21,11 @@
        :role "button"
        :tabIndex 0
        :aria-label "Add new frame"
-       :onClick #(rf/dispatch [:add-frame chapter-id])
-       :onKeyDown (on-add-frame-keydown chapter-id)}
+       :onClick #(rf/dispatch [:add-frame owner-id owner-type])
+       :onKeyDown (fn [e]
+                    (when (or (= "Enter" (.-key e))
+                              (= " " (.-key e)))
+                      (.preventDefault e)
+                      (rf/dispatch [:add-frame owner-id owner-type])))}
       [:div.add-frame-tile-title "Add New Frame"]
-      [:div.add-frame-tile-sub "Create the next frame in this chapter"]]]))
+      [:div.add-frame-tile-sub frame-subtitle]]]))

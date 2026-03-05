@@ -84,6 +84,7 @@
            :descriptions []
            :visual {:globalStyle "" :pagePrompts {}}
            :saga []
+           :characters []
            :frames []
            :failedJobs []
            :processing false
@@ -94,6 +95,12 @@
 (defn make-chapter [chapter-number description]
   {:chapterId (new-uuid)
    :chapterNumber chapter-number
+   :description (str/trim (or description ""))
+   :createdAt (.toISOString (js/Date.))})
+
+(defn make-character [character-number description]
+  {:characterId (new-uuid)
+   :characterNumber character-number
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
@@ -109,95 +116,175 @@
                           (:visual @state)
                           frame-number))
 
-(defn make-draft-frame [chapter-id frame-number]
+(defn make-draft-frame
+  ([chapter-id frame-number]
+   (make-draft-frame chapter-id frame-number "saga"))
+  ([chapter-id frame-number owner-type]
   {:frameId (new-uuid)
    :chapterId chapter-id
+   :ownerType (or owner-type "saga")
    :frameNumber frame-number
    :description (default-frame-description frame-number)
    :status "draft"
-   :createdAt (.toISOString (js/Date.))})
+   :createdAt (.toISOString (js/Date.))}))
 
 (defn next-chapter-number [saga]
   (inc (reduce max 0 (map :chapterNumber saga))))
 
+(defn next-character-number [characters]
+  (inc (reduce max 0 (map :characterNumber characters))))
+
 (defn chapter-by-id [saga chapter-id]
   (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) saga))
 
-(defn frames-for-chapter [frames chapter-id]
+(defn character-by-id [characters character-id]
+  (some (fn [character] (when (= (:characterId character) character-id) character)) characters))
+
+(defn frames-for-owner [frames owner-id owner-type]
   (->> frames
-       (filter (fn [f] (= (:chapterId f) chapter-id)))
+       (filter (fn [f]
+                 (and (= (:chapterId f) owner-id)
+                      (= (or (:ownerType f) "saga") (or owner-type "saga")))))
        (sort-by :frameNumber)
        vec))
 
-(defn next-frame-number [frames chapter-id]
-  (inc (reduce max 0 (map :frameNumber (frames-for-chapter frames chapter-id)))))
+(defn next-frame-number [frames owner-id owner-type]
+  (inc (reduce max 0 (map :frameNumber (frames-for-owner frames owner-id owner-type)))))
 
-(defn add-chapter! [description]
-  (let [chapter (make-chapter (next-chapter-number (:saga @state))
-                              (if (str/blank? (or description ""))
-                                (str "Chapter " (next-chapter-number (:saga @state)))
-                                description))
-        chapter-id (:chapterId chapter)
-        first-frame (assoc (make-draft-frame chapter-id 1)
-                           :description (str/trim (or description "Chapter opening scene.")))]
+(defn entity-type->meta [entity-label]
+  (if (= "character" (str entity-label))
+    {:label "character"
+     :collection-key :characters
+     :id-key :characterId
+     :number-key :characterNumber
+     :default-name "Character"
+     :not-found-msg "Character not found."}
+    {:label "chapter"
+     :collection-key :saga
+     :id-key :chapterId
+     :number-key :chapterNumber
+     :default-name "Chapter"
+     :not-found-msg "Chapter not found."}))
+
+(defn entity-by-id [entities id-key entity-id]
+  (some (fn [entity] (when (= (id-key entity) entity-id) entity)) entities))
+
+(defn next-entity-number [entities number-key]
+  (inc (reduce max 0 (map number-key entities))))
+
+(defn make-entity [entity-label number description]
+  (if (= "character" (str entity-label))
+    (make-character number description)
+    (make-chapter number description)))
+
+(defn add-entity! [entity-label description]
+  (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
+        entities (collection-key @state)
+        number-key (if (= "character" (str entity-label)) :characterNumber :chapterNumber)
+        entity-number (next-entity-number entities number-key)
+        entity (make-entity entity-label
+                            entity-number
+                            (if (str/blank? (or description ""))
+                              (str default-name " " entity-number)
+                              description))
+        entity-id (id-key entity)
+        first-frame (assoc (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))
+                           :description (str/trim
+                                         (or description
+                                             (if (= "character" (str entity-label))
+                                               "Character reference portrait."
+                                               "Chapter opening scene."))))]
     (swap! state
            (fn [s]
              (-> s
-                 (update :saga conj chapter)
+                 (update collection-key conj entity)
                  (update :frames conj first-frame)
                  (update :revision inc))))
-    {:chapter chapter
+    {:entity entity
      :frame first-frame}))
 
-(defn add-frame! [chapter-id]
-  (let [chapter (chapter-by-id (:saga @state) chapter-id)]
-    (when-not chapter
-      (throw (js/Error. "Chapter not found.")))
-    (let [frame-number (next-frame-number (:frames @state) chapter-id)
-          frame (make-draft-frame chapter-id frame-number)]
+(defn add-chapter! [description]
+  (let [{:keys [entity frame]} (add-entity! "chapter" description)]
+    {:chapter entity
+     :frame frame}))
+
+(defn add-character! [description]
+  (let [{:keys [entity frame]} (add-entity! "character" description)]
+    {:character entity
+     :frame frame}))
+
+(defn add-frame!
+  ([chapter-id]
+   (add-frame! chapter-id "saga"))
+  ([owner-id owner-type]
+   (let [owner-type (or owner-type "saga")
+         {:keys [collection-key id-key not-found-msg]} (entity-type->meta (if (= owner-type "character") "character" "chapter"))
+         owner (entity-by-id (collection-key @state) id-key owner-id)]
+    (when-not owner
+      (throw (js/Error. not-found-msg)))
+    (let [frame-number (next-frame-number (:frames @state) owner-id owner-type)
+          frame (make-draft-frame owner-id frame-number owner-type)]
       (swap! state
              (fn [s]
                (-> s
                    (update :frames conj frame)
                    (update :revision inc))))
-      frame)))
+      frame))))
+
+(defn update-entity-description! [entity-label entity-id description]
+  (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
+        description (some-> (or description "") str str/trim)
+        idx (first (keep-indexed (fn [i entity]
+                                   (when (= (id-key entity) entity-id)
+                                     i))
+                                 (collection-key @state)))]
+    (when-not (number? idx)
+      (throw (js/Error. not-found-msg)))
+    (when (str/blank? description)
+      (throw (js/Error. (if (= "character" (str entity-label))
+                          "Missing character description."
+                          "Missing chapter description."))))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc-in [collection-key idx :description] description)
+                 (update :revision inc))))
+    (get-in @state [collection-key idx])))
 
 (defn update-chapter-description! [chapter-id description]
-  (let [description (some-> (or description "") str str/trim)
-        idx (first (keep-indexed (fn [i chapter]
-                                   (when (= (:chapterId chapter) chapter-id)
-                                     i))
-                                 (:saga @state)))]
-    (when-not (number? idx)
-      (throw (js/Error. "Chapter not found.")))
-    (when (str/blank? description)
-      (throw (js/Error. "Missing chapter description.")))
-    (swap! state
-           (fn [s]
-             (-> s
-                 (assoc-in [:saga idx :description] description)
-                 (update :revision inc))))
-    (get-in @state [:saga idx])))
+  (update-entity-description! "chapter" chapter-id description))
 
-(defn delete-chapter! [chapter-id]
-  (let [snapshot @state
-        saga (:saga snapshot)
-        chapter (chapter-by-id saga chapter-id)]
-    (when-not chapter
-      (throw (js/Error. "Chapter not found.")))
+(defn update-character-description! [character-id description]
+  (update-entity-description! "character" character-id description))
+
+(defn delete-entity! [entity-label entity-id]
+  (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
+        owner-type (if (= "character" (str entity-label)) "character" "saga")
+        snapshot @state
+        entity (entity-by-id (collection-key snapshot) id-key entity-id)]
+    (when-not entity
+      (throw (js/Error. not-found-msg)))
     (swap! state
            (fn [s]
              (-> s
-                 (update :saga (fn [rows]
-                                 (->> (or rows [])
-                                      (remove (fn [row] (= (:chapterId row) chapter-id)))
-                                      vec)))
+                 (update collection-key (fn [rows]
+                                          (->> (or rows [])
+                                               (remove (fn [row] (= (id-key row) entity-id)))
+                                               vec)))
                  (update :frames (fn [rows]
                                    (->> (or rows [])
-                                        (remove (fn [frame] (= (:chapterId frame) chapter-id)))
+                                        (remove (fn [frame]
+                                                  (and (= (:chapterId frame) entity-id)
+                                                       (= (or (:ownerType frame) "saga") owner-type))))
                                         vec)))
                  (update :revision inc))))
-    chapter))
+    entity))
+
+(defn delete-chapter! [chapter-id]
+  (delete-entity! "chapter" chapter-id))
+
+(defn delete-character! [character-id]
+  (delete-entity! "character" character-id))
 
 (declare find-frame-index)
 
@@ -250,6 +337,7 @@
         chapter-id (:chapterId chapter1)
         frame1 {:frameId (new-uuid)
                 :chapterId chapter-id
+                :ownerType "saga"
                 :frameNumber 1
                 :description (best-frame-description descriptions visual 1)
                 :imageUrl (when page1-bytes (png-data-url page1-bytes))
@@ -266,6 +354,7 @@
              :descriptions descriptions
              :visual visual
              :saga [chapter1]
+             :characters []
              :frames frames
              :failedJobs []
              :processing false
@@ -291,6 +380,7 @@
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
                  (assoc :saga (vec (:saga persisted)))
+                 (assoc :characters (vec (or (:characters persisted) [])))
                  (assoc :frames (vec (:frames persisted)))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
@@ -301,7 +391,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :frames
+                             [:chapterId :revision :failedJobs :saga :characters :frames
                               :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
@@ -311,7 +401,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :frames])))
+                             [:chapterId :revision :failedJobs :saga :characters :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
@@ -351,14 +441,23 @@
        (filter (fn [f] (not (str/blank? (or (:imageUrl f) "")))))
        vec))
 
-(defn continuity-window [limit]
-  (let [tail (take-last limit (completed-frames))]
+(defn completed-frames-for-owner [owner-id owner-type]
+  (->> (completed-frames)
+       (filter (fn [frame]
+                 (and (= (:chapterId frame) owner-id)
+                      (= (or (:ownerType frame) "saga") owner-type))))
+       vec))
+
+(defn continuity-window [limit owner-id owner-type]
+  (let [tail (take-last limit (completed-frames-for-owner owner-id owner-type))]
     (if (empty? tail)
       "No previous frames yet."
       (str/join "\n" (map (fn [s] (str "Frame " (:frameNumber s) ": " (:description s) ".")) tail)))))
 
 (defn build-prompt-for-frame [frame]
-  (let [chapter (chapter-by-id (:saga @state) (:chapterId frame))
+  (let [owner-type (or (:ownerType frame) "saga")
+        chapter (chapter-by-id (:saga @state) (:chapterId frame))
+        character (character-by-id (:characters @state) (:chapterId frame))
         chapter-label (when chapter
                         (str "Chapter " (:chapterNumber chapter)
                              " theme: " (:description chapter)))]
@@ -367,11 +466,13 @@
      (filter seq
              ["Create ONE comic chapter image for the next frame."
               "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
+              (when character
+                (str "Character profile: " (:description character)))
               chapter-label
               (get-in @state [:visual :globalStyle] "")
               (str "Frame description for this chapter: " (:description frame))
               (str "User direction for this frame:\n" (or (:description frame) ""))
-              (str "Chapter continuity memory:\n" (continuity-window 6))
+              (str "Chapter continuity memory:\n" (continuity-window 6 (:chapterId frame) owner-type))
               "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
 

@@ -13,7 +13,19 @@
  :navigate-index
  (fn [{:keys [db]} _]
    {:db db
-    :set-hash ""}))
+    :set-hash "#/saga"}))
+
+(rf/reg-event-fx
+ :navigate-saga-page
+ (fn [{:keys [db]} _]
+   {:db db
+    :set-hash "#/saga"}))
+
+(rf/reg-event-fx
+ :navigate-characters-page
+ (fn [{:keys [db]} _]
+   {:db db
+    :set-hash "#/characters"}))
 
 (rf/reg-event-fx
  :navigate-relative-frame
