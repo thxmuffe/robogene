@@ -4,6 +4,7 @@
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
+(rf/reg-sub :saga-meta (fn [db _] (:saga-meta db)))
 (rf/reg-sub :saga (fn [db _] (:saga db)))
 (rf/reg-sub :roster (fn [db _] (:roster db)))
 (rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
@@ -26,6 +27,9 @@
 (rf/reg-sub :new-character-description (fn [db _] (get-in db [:view-state :roster :new-description])))
 (rf/reg-sub :new-character-panel-open? (fn [db _] (get-in db [:view-state :roster :new-panel-open?])))
 (rf/reg-sub :show-chapter-celebration? (fn [db _] (get-in db [:view-state :saga :show-celebration?])))
+(rf/reg-sub :saga-meta-editing? (fn [db _] (true? (get-in db [:view-state :saga :meta-editing?]))))
+(rf/reg-sub :saga-meta-name (fn [db _] (get-in db [:view-state :saga :meta-name])))
+(rf/reg-sub :saga-meta-description (fn [db _] (get-in db [:view-state :saga :meta-description])))
 (rf/reg-sub :route (fn [db _] (:route db)))
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
 (rf/reg-sub :frames-for-chapter
@@ -37,3 +41,4 @@
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
+(rf/reg-sub :cancel-ui-token (fn [db _] (:cancel-ui-token db)))

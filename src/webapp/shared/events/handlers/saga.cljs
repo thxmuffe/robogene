@@ -118,3 +118,41 @@
                 (assoc :status "Add a character name first."))}
      {:db db
       :dispatch [:enqueue-add-character name description]}))))
+
+(rf/reg-event-db
+ :start-saga-meta-edit
+ (fn [db _]
+   (let [meta* (or (:saga-meta db) {})
+         name (or (some-> (:name meta*) str) "")
+         description (or (some-> (:description meta*) str) "")]
+     (-> db
+         (assoc-in [:view-state :saga :meta-editing?] true)
+         (assoc-in [:view-state :saga :meta-name] name)
+         (assoc-in [:view-state :saga :meta-description] description)))))
+
+(rf/reg-event-db
+ :saga-meta-name-changed
+ (fn [db [_ value]]
+   (assoc-in db [:view-state :saga :meta-name] value)))
+
+(rf/reg-event-db
+ :saga-meta-description-changed
+ (fn [db [_ value]]
+   (assoc-in db [:view-state :saga :meta-description] value)))
+
+(rf/reg-event-db
+ :cancel-saga-meta-edit
+ (fn [db _]
+   (assoc db :view-state
+          (-> (:view-state db)
+              (assoc-in [:saga :meta-editing?] false)))))
+
+(rf/reg-event-fx
+ :save-saga-meta
+ (fn [{:keys [db]} _]
+   (let [name (some-> (get-in db [:view-state :saga :meta-name]) str str/trim)
+         description (some-> (get-in db [:view-state :saga :meta-description]) str)]
+     (if (str/blank? (or name ""))
+       {:db db}
+       {:db (assoc-in db [:view-state :saga :meta-editing?] false)
+        :dispatch [:update-saga name description]}))))

@@ -97,6 +97,7 @@
               (assoc :latest-state state
                      :status (model/status-line state saga roster frames)
                      :last-rendered-revision (:revision state)
+                     :saga-meta (or (:sagaMeta state) (:saga-meta db))
                      :saga saga
                      :roster roster
                      :gallery-items frames
@@ -140,3 +141,32 @@
  (fn [{:keys [db]} _]
    {:db db
     :dispatch [:fetch-state]}))
+
+(defn cancel-open-edit-db-items [db]
+  (let [open-frame-ids (->> (or (:open-frame-actions db) {})
+                            (keep (fn [[frame-id open?]]
+                                    (when (true? open?) frame-id)))
+                            vec)
+        frame-desc-by-id (into {}
+                               (map (fn [frame]
+                                      [(:frameId frame) (or (:description frame) "")])
+                                    (or (:gallery-items db) [])))]
+    (-> db
+        (update :cancel-ui-token (fnil inc 0))
+        (assoc :open-frame-actions {})
+        (assoc-in [:view-state :saga :editing-id] nil)
+        (assoc-in [:view-state :roster :editing-id] nil)
+        (assoc-in [:view-state :saga :new-panel-open?] false)
+        (assoc-in [:view-state :roster :new-panel-open?] false)
+        (assoc-in [:view-state :saga :meta-editing?] false)
+        (update :frame-inputs
+                (fn [inputs]
+                  (reduce (fn [acc frame-id]
+                            (assoc acc frame-id (get frame-desc-by-id frame-id "")))
+                          (or inputs {})
+                          open-frame-ids))))))
+
+(rf/reg-event-fx
+ :cancel-open-edit-db-items
+ (fn [{:keys [db]} _]
+   {:db (cancel-open-edit-db-items db)}))

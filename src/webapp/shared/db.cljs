@@ -5,6 +5,7 @@
    :pending-api-requests 0
    :wait-lights-visible? true
    :wait-lights-events []
+   :cancel-ui-token 0
    :frame-inputs {}
    :open-frame-actions {}
    :view-state {:saga {:name-inputs {}
@@ -23,6 +24,8 @@
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil
+   :saga-meta {:name "Robot Emperor"
+               :description ""}
    :saga []
    :roster []
    :gallery-items []

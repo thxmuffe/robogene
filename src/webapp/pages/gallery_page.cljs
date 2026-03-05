@@ -3,12 +3,14 @@
             [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.shared.controls :as controls]
+            [webapp.shared.ui.back-button :as back-button]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.components.chapter :as chapter-component]
+            [webapp.components.edit-db-item :as edit-db-item]
+            [webapp.components.chapter-menu :as chapter-menu]
             [webapp.components.chapter-actions :as chapter-actions]
-            ["@mantine/core" :refer [ActionIcon Box Button Group Stack TextInput Textarea]]
-            ["react-icons/fa6" :refer [FaArrowLeft FaCheck FaXmark]]))
+            ["@mantine/core" :refer [Box Button Group Stack]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
   (case key
@@ -18,12 +20,25 @@
     "ArrowDown" (frame-nav/nearest-vertical-frame-id active-frame-id :down)
     nil))
 
-(defn on-gallery-key-down [active-frame-id e]
+(defn on-gallery-key-down [{:keys [active-frame-id view-id any-edit-open?]} e]
   (let [key (or (.-key e) "")
         lower-key (str/lower-case key)]
-    (when-not (or (interaction/modal-open?)
-                  (interaction/menu-open?)
-                  (interaction/editable-target? (.-target e)))
+    (cond
+      (= "Escape" key)
+      (do
+        (interaction/halt! e)
+        (cond
+          (or any-edit-open?
+              (interaction/modal-open?))
+          (rf/dispatch [:cancel-open-edit-db-items])
+
+          (= :roster view-id)
+          (rf/dispatch [:navigate-saga-page])
+
+          :else
+          (rf/dispatch [:cancel-open-edit-db-items])))
+
+      (not (interaction/ignore-global-keydown? e))
       (cond
         (= "f" lower-key)
         (do
@@ -37,7 +52,9 @@
             (rf/dispatch [:set-active-frame next-id])
             (frame-nav/focus-subtitle! next-id)))
 
-        :else nil))))
+        :else nil)
+
+      :else nil)))
 
 (defn on-name-keydown [entity-label entity-id]
   (fn [e]
@@ -45,11 +62,12 @@
       (interaction/prevent! e)
       (rf/dispatch [:save-entity entity-label entity-id]))))
 
-(defn on-new-item-submit [add-event set-open-event]
+(defn on-new-item-name-keydown [add-event set-open-event]
   (fn [e]
-    (interaction/prevent! e)
-    (rf/dispatch [set-open-event false])
-    (rf/dispatch [add-event])))
+    (when (= "Enter" (.-key e))
+      (interaction/prevent! e)
+      (rf/dispatch [set-open-event false])
+      (rf/dispatch [add-event]))))
 
 (defn on-new-item-teaser-click [set-open-event]
   (fn [_]
@@ -83,34 +101,23 @@
                 :align "center"
                 :wrap "wrap"}
       (if (= editing-entity-id entity-id)
-        [:<>
-         [:> TextInput
-          {:size "sm"
-           :value (get entity-name-inputs entity-id "")
-           :onKeyDown (on-name-keydown entity-label entity-id)
-           :onChange #(rf/dispatch [:entity-name-input-changed entity-label entity-id (.. % -target -value)])}]
-         [:> Textarea
-          {:autosize true
-           :minRows 2
-           :maxRows 6
-           :className "chapter-description-input"
-           :value (get entity-description-inputs entity-id "")
-           :onChange #(rf/dispatch [:entity-description-input-changed entity-label entity-id (.. % -target -value)])}]
-         [:div.chapter-edit-actions
-          [:> ActionIcon
-           {:aria-label "Save name"
-            :title "Save name"
-            :variant "filled"
-            :radius "xl"
-            :onClick #(rf/dispatch [:save-entity entity-label entity-id])}
-           [:> FaCheck]]
-          [:> ActionIcon
-           {:aria-label "Cancel name editing"
-            :title "Cancel name editing"
-            :variant "subtle"
-            :radius "xl"
-            :onClick #(rf/dispatch [:cancel-entity-name-edit entity-label])}
-           [:> FaXmark]]]]
+        [edit-db-item/edit-db-item
+         {:class-name "chapter-edit-db-item"
+          :show-name? true
+          :name-value (get entity-name-inputs entity-id "")
+          :on-name-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
+          :name-props {:size "sm"
+                       :className "chapter-name-input"
+                       :onKeyDown (on-name-keydown entity-label entity-id)}
+          :description-value (get entity-description-inputs entity-id "")
+          :on-description-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
+          :description-props {:autosize true
+                              :minRows 2
+                              :maxRows 6
+                              :className "chapter-description-input"}
+          :on-submit #(rf/dispatch [:save-entity entity-label entity-id])
+          :on-cancel #(rf/dispatch [:cancel-entity-name-edit entity-label])
+          :actions-class "chapter-edit-actions"}]
         [:<>
          [:p.chapter-name entity-name]
          (when (seq (str/trim entity-description))
@@ -124,40 +131,31 @@
      [chapter-component/chapter entity-id owner-type frame-inputs open-frame-actions active-frame-id]]))
 
 (defn new-entity-form [cfg name description]
-  (let [{:keys [add-event set-open-event add-title name-input-id name-input-label name-input-placeholder description-input-id description-input-label description-input-placeholder name-changed-event description-changed-event add-submit-label]} cfg]
-    [:> Box {:component "form"
-             :className "new-chapter-panel"
-             :onSubmit (on-new-item-submit add-event set-open-event)}
+  (let [{:keys [add-event set-open-event add-title name-input-placeholder description-input-placeholder name-changed-event description-changed-event]} cfg]
+    [:> Box {:component "section"
+             :className "new-chapter-panel"}
      [:h3 add-title]
-   [:> ActionIcon
-    {:className "new-chapter-close"
-     :aria-label "Close"
-     :variant "transparent"
-     :onClick #(rf/dispatch [set-open-event false])}
-    [:> FaXmark]]
-     [:label.dir-label {:for name-input-id} name-input-label]
-     [:> TextInput
-      {:id name-input-id
-       :className "new-chapter-input"
-       :value (or name "")
-       :placeholder name-input-placeholder
-       :onChange #(rf/dispatch [name-changed-event (.. % -target -value)])}]
-     [:label.dir-label {:for description-input-id} description-input-label]
-     [:> Textarea
-      {:id description-input-id
-       :autosize true
-       :minRows 3
-       :maxRows 10
-       :className "new-chapter-input"
-       :value (or description "")
-       :placeholder description-input-placeholder
-       :onChange #(rf/dispatch [description-changed-event (.. % -target -value)])}]
-     [:> Button
-      {:className "new-chapter-submit"
-       :type "submit"
-       :variant "filled"
-       :color "orange"}
-      add-submit-label]]))
+     [edit-db-item/edit-db-item
+      {:class-name "new-entity-edit-db-item"
+       :show-name? true
+       :name-value (or name "")
+       :on-name-change #(rf/dispatch [name-changed-event %])
+       :name-props {:size "sm"
+                    :className "new-chapter-input"
+                    :placeholder name-input-placeholder
+                    :onKeyDown (on-new-item-name-keydown add-event set-open-event)}
+       :description-value (or description "")
+       :on-description-change #(rf/dispatch [description-changed-event %])
+       :description-props {:autosize true
+                           :minRows 3
+                           :maxRows 10
+                           :className "new-chapter-input"
+                           :placeholder description-input-placeholder}
+       :on-submit #(do
+                     (rf/dispatch [set-open-event false])
+                     (rf/dispatch [add-event]))
+       :on-cancel #(rf/dispatch [set-open-event false])
+       :actions-class "chapter-edit-actions"}]]))
 
 (defn new-entity-teaser [cfg active-frame-id]
   (let [{:keys [set-open-event teaser-title teaser-sub]} cfg]
@@ -183,54 +181,107 @@
       :title "Open roster"
       :variant "default"
       :size "sm"
+      :className "roster-nav-btn"
       :onClick #(rf/dispatch [:navigate-roster-page])}
      "Roster"]
 
     :roster
     (when-let [back-label (:saga-back-label cfg)]
-      [:> Button
-       {:variant "default"
-        :size "sm"
-        :leftSection (r/as-element [:> FaArrowLeft])
-        :onClick #(rf/dispatch [:navigate-saga-page])}
-       back-label])
+      [back-button/back-button
+       {:label back-label
+        :on-click #(rf/dispatch [:navigate-saga-page])}])
 
     nil))
 
+(defn saga-header-content [page-title]
+  (let [saga-meta @(rf/subscribe [:saga-meta])
+        saga-meta-editing? @(rf/subscribe [:saga-meta-editing?])
+        saga-meta-name @(rf/subscribe [:saga-meta-name])
+        saga-meta-description @(rf/subscribe [:saga-meta-description])
+        current-name (or (some-> (:name saga-meta) str/trim not-empty) page-title "Saga")
+        current-description (or (:description saga-meta) "")]
+    (if saga-meta-editing?
+      [edit-db-item/edit-db-item
+       {:class-name "chapter-edit-db-item saga-meta-edit-db-item"
+        :show-name? true
+        :name-value (or saga-meta-name "")
+        :on-name-change #(rf/dispatch [:saga-meta-name-changed %])
+        :name-props {:size "sm"
+                     :className "chapter-name-input"}
+        :description-value (or saga-meta-description "")
+        :on-description-change #(rf/dispatch [:saga-meta-description-changed %])
+        :description-props {:autosize true
+                            :minRows 2
+                            :maxRows 6
+                            :className "chapter-description-input"}
+        :on-submit #(rf/dispatch [:save-saga-meta])
+        :on-cancel #(rf/dispatch [:cancel-saga-meta-edit])
+        :actions-class "chapter-edit-actions"}]
+      [:div.saga-meta-header
+       [:div
+        [:h2 current-name]
+        (when (seq (str/trim current-description))
+          [:p.chapter-description current-description])]])))
+
+(defn saga-header-menu []
+  [chapter-menu/chapter-menu
+   {:title "Saga actions"
+    :aria-label "Saga actions"
+    :button-class "chapter-menu-trigger"
+    :items [{:id :edit-saga
+             :label "Edit saga"}]
+    :on-select (fn [_]
+                 (rf/dispatch [:start-saga-meta-edit]))}])
+
 (defn collection-page [cfg entities frame-inputs open-frame-actions active-frame-id form-description panel-open? show-celebration?]
-  (r/with-let [context* (r/atom {:active-frame-id nil})
+  (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})
                focused-active-id* (r/atom nil)
                key-handler (fn [e]
-                             (on-gallery-key-down (:active-frame-id @context*) e))]
+                             (on-gallery-key-down @context* e))]
     (.addEventListener js/window "keydown" key-handler)
-    (reset! context* {:active-frame-id active-frame-id})
     (when (not= active-frame-id @focused-active-id*)
       (reset! focused-active-id* active-frame-id)
       (when active-frame-id
         (.requestAnimationFrame js/window
                                 (fn []
                                   (frame-nav/focus-subtitle! active-frame-id)))))
-    (let [{:keys [view-id page-title page-class editing-id-sub name-inputs-sub description-inputs-sub entity-id-key]} cfg
+      (let [{:keys [view-id page-title page-class editing-id-sub name-inputs-sub description-inputs-sub entity-id-key]} cfg
           editing-entity-id @(rf/subscribe editing-id-sub)
           entity-name-inputs @(rf/subscribe name-inputs-sub)
-          entity-description-inputs @(rf/subscribe description-inputs-sub)]
+          entity-description-inputs @(rf/subscribe description-inputs-sub)
+          any-frame-actions-open? (boolean (some true? (vals (or open-frame-actions {}))))
+          any-edit-open? (or panel-open?
+                             (some? editing-entity-id)
+                             any-frame-actions-open?)]
+      (reset! context* {:active-frame-id active-frame-id
+                        :view-id view-id
+                        :any-edit-open? any-edit-open?})
       [:> Stack {:component "section"
                  :className page-class
                  :gap "md"}
-       [:> Group {:className "collection-header"
+      [:> Group {:className "collection-header"
                   :justify "space-between"
                   :align "center"}
-        [:h2 page-title]
-        [page-header-action cfg]]
+        (if (= :saga view-id)
+          [:<>
+           [saga-header-content page-title]
+           [:div.collection-header-actions
+            [page-header-action cfg]
+            [saga-header-menu]]]
+          [:<>
+           [:h2 page-title]
+           [page-header-action cfg]])]
        (map-indexed (fn [idx entity]
                       ^{:key (or (entity-id-key entity) (str "entity-" idx))}
                       [collection-section cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs entity-description-inputs])
                     entities)
        (when (and show-celebration? (= :saga view-id))
          [chapter-celebration])
-       (if panel-open?
-         [new-entity-form cfg (:name form-description) (:description form-description)]
-         [new-entity-teaser cfg active-frame-id])])
+       [:section.collection-add-region
+        [:div.chapter-separator]
+        (if panel-open?
+          [new-entity-form cfg (:name form-description) (:description form-description)]
+          [new-entity-teaser cfg active-frame-id])]])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 
@@ -250,14 +301,9 @@
    :description-changed-event :new-chapter-description-changed
    :set-open-event :set-new-chapter-panel-open
    :add-event :add-chapter
-   :name-input-id "new-chapter-name"
-   :name-input-label "Chapter Name"
    :name-input-placeholder "Name this chapter..."
-   :description-input-id "new-chapter-description"
-   :description-input-label "Chapter Description"
    :description-input-placeholder "Describe aliases, context, or chapter style..."
    :add-title "Add New Chapter"
-   :add-submit-label "Add New Chapter"
    :teaser-title "Add New Chapter"
    :teaser-sub "Click to start a new adventure"})
 

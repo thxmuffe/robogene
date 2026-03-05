@@ -277,6 +277,16 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-update-frame-description
+ (fn [{:keys [frame-id description on-success on-failure]}]
+   (post-json "/api/update-frame-description"
+              {:frameId frame-id
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
  :post-update-chapter
  (fn [{:keys [chapter-id name description on-success on-failure]}]
    (post-json "/api/update-chapter"
@@ -293,6 +303,16 @@
    (post-json "/api/update-character"
               {:characterId character-id
                :name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-saga
+ (fn [{:keys [name description on-success on-failure]}]
+   (post-json "/api/update-saga"
+              {:name name
                :description description}
               on-success
               on-failure

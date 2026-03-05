@@ -6,8 +6,10 @@
             [webapp.components.confirm-dialog :as confirm-dialog]))
 
 (defn chapter-actions [{:keys [entity-id entity-name entity-description entity-label singular-label]}]
-  (r/with-let [confirm* (r/atom nil)]
+  (r/with-let [confirm* (r/atom nil)
+               seen-cancel-token* (r/atom nil)]
     (let [label (or singular-label "chapter")
+          cancel-ui-token @(rf/subscribe [:cancel-ui-token])
           display-name (or entity-name "")
           entity-label (or entity-label "chapter")
           title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
@@ -24,16 +26,20 @@
                                      :delete-chapter)
                                    entity-id]}]
           selected-item @confirm*]
+      (when (not= cancel-ui-token @seen-cancel-token*)
+        (reset! seen-cancel-token* cancel-ui-token)
+        (reset! confirm* nil))
       [:<>
-       [chapter-menu/chapter-menu
-        {:title (str title-case-label " actions")
-         :aria-label (str title-case-label " actions")
-         :button-class "chapter-menu-trigger"
-         :items items
-         :on-select (fn [item]
-                      (if (= :rename-entity (:id item))
-                        (rf/dispatch [:start-entity-edit entity-label entity-id display-name (or entity-description "")])
-                        (reset! confirm* item)))}]
+       [:div.chapter-header-actions
+        [chapter-menu/chapter-menu
+         {:title (str title-case-label " actions")
+          :aria-label (str title-case-label " actions")
+          :button-class "chapter-menu-trigger"
+          :items items
+          :on-select (fn [item]
+                       (if (= :rename-entity (:id item))
+                         (rf/dispatch [:start-entity-edit entity-label entity-id display-name (or entity-description "")])
+                         (reset! confirm* item)))}]]
        [confirm-dialog/confirm-dialog
         {:item selected-item
          :on-cancel #(reset! confirm* nil)

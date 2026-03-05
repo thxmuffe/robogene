@@ -16,14 +16,9 @@
    :description-changed-event :new-character-description-changed
    :set-open-event :set-new-character-panel-open
    :add-event :add-character
-   :name-input-id "new-character-name"
-   :name-input-label "Character Name"
    :name-input-placeholder "Name this character..."
-   :description-input-id "new-character-description"
-   :description-input-label "Character Description"
    :description-input-placeholder "Describe aliases, style, and references..."
    :add-title "Add New Character"
-   :add-submit-label "Add New Character"
    :teaser-title "Add New Character"
    :teaser-sub "Create a character profile with image frames"
    :saga-back-label nil})

@@ -83,6 +83,8 @@
     (atom {:chapterId nil
            :descriptions []
            :visual {:globalStyle "" :pagePrompts {}}
+           :sagaMeta {:name "Robot Emperor"
+                      :description ""}
            :saga []
            :roster []
            :frames []
@@ -274,6 +276,19 @@
 (defn update-character-details! [character-id name description]
   (update-entity-details! "character" character-id name description))
 
+(defn update-saga-meta! [name description]
+  (let [normalized-name (some-> (or name "") str str/trim)
+        normalized-description (or (some-> (or description "") str str/trim) "")]
+    (when (str/blank? normalized-name)
+      (throw (js/Error. "Missing saga name.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc :sagaMeta {:name normalized-name
+                                   :description normalized-description})
+                 (update :revision inc))))
+    (:sagaMeta @state)))
+
 (defn normalize-entity [entity-label entity]
   (let [name (some-> (or (:name entity) (:description entity)) str str/trim)
         description (if (contains? entity :name)
@@ -331,6 +346,21 @@
                  (update :revision inc))))
     frame))
 
+(defn update-frame-description! [frame-id description]
+  (let [snapshot @state
+        frames (:frames snapshot)
+        idx (find-frame-index frames frame-id)
+        normalized-description (or (some-> (or description "") str str/trim) "")
+        frame (when (number? idx) (get frames idx))]
+    (when (nil? idx)
+      (throw (js/Error. "Frame not found.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc-in [:frames idx :description] normalized-description)
+                 (update :revision inc))))
+    (assoc frame :description normalized-description)))
+
 (defn initialize-state! []
   (let [openai-options (settings/image-settings)
         chapter-script-text (read-text default-chapter-script)
@@ -359,6 +389,8 @@
             {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
+             :sagaMeta {:name "Robot Emperor"
+                        :description ""}
              :saga [chapter1]
              :roster []
              :frames frames
@@ -385,6 +417,11 @@
                  (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
+                 (assoc :sagaMeta (let [meta* (:sagaMeta persisted)
+                                        name (some-> (or (:name meta*) "Robot Emperor") str str/trim not-empty)
+                                        description (some-> (or (:description meta*) "") str str/trim)]
+                                    {:name (or name "Robot Emperor")
+                                     :description (or description "")}))
                  (assoc :saga (->> (or (:saga persisted) [])
                                    (map #(normalize-entity "chapter" %))
                                    vec))
@@ -402,7 +439,7 @@
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
                              [:chapterId :revision :failedJobs :saga :roster :frames
-                              :descriptions :visual])))
+                              :sagaMeta :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -411,7 +448,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :roster :frames])))
+                             [:chapterId :revision :failedJobs :sagaMeta :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)

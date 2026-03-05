@@ -47,6 +47,20 @@
 (defn menu-open? []
   (some? (.querySelector js/document "[role='menu'], .mantine-Menu-dropdown")))
 
+(defn active-editable? []
+  (editable-target? (.-activeElement js/document)))
+
+(defn composing-key-event? [e]
+  (or (true? (.-isComposing e))
+      (= "Process" (or (.-key e) ""))))
+
+(defn ignore-global-keydown? [e]
+  (or (modal-open?)
+      (menu-open?)
+      (editable-target? (.-target e))
+      (active-editable?)
+      (composing-key-event? e)))
+
 (defn stop! [e]
   (.stopPropagation e))
 

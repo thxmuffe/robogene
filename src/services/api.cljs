@@ -276,12 +276,13 @@
                      pending-count (chapter/active-queue-count frames)]
                  (json-response 200
                                 {:chapterId (:chapterId snapshot)
-                                 :revision (:revision snapshot)
-                                 :processing (:processing snapshot)
-                                 :pendingCount pending-count
-                                 :saga (:saga snapshot)
-                                 :roster (:roster snapshot)
-                                 :frames frames
+                 :revision (:revision snapshot)
+                 :processing (:processing snapshot)
+                 :pendingCount pending-count
+                 :sagaMeta (:sagaMeta snapshot)
+                 :saga (:saga snapshot)
+                 :roster (:roster snapshot)
+                 :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
 
@@ -483,6 +484,27 @@
                                                        snapshot)
                                         request))}))))))
 
+(defn handle-update-saga [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (if (str/blank? name)
+         (json-response 400 {:error "Missing saga name."} request)
+         (run-command
+          request
+          {:run! #(chapter/update-saga-meta! name description)
+           :reason "saga-updated"
+           :default-error "Update saga failed."
+           :status-by-message {"Missing saga name." 400}
+           :on-success (fn [saga-meta snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :sagaMeta saga-meta}
+                                                       snapshot)
+                                        request))}))))))
+
 (def handle-delete-frame
   (make-required-mutation-handler
    {:field-key "frameId"
@@ -544,6 +566,27 @@
                                                        snapshot)
                                         request))}))))))
 
+(defn handle-update-frame-description [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+           description (some-> (gobj/get body "description") str)]
+       (if (str/blank? frame-id)
+         (json-response 400 {:error "Missing frameId."} request)
+         (run-command
+          request
+          {:run! #(chapter/update-frame-description! frame-id description)
+           :reason "frame-description-updated"
+           :default-error "Update frame description failed."
+           :status-by-message {"Frame not found." 404}
+           :on-success (fn [frame snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
+
 (def handle-delete-chapter
   (make-required-mutation-handler
    {:field-key "chapterId"
@@ -592,9 +635,11 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
+   {:method :post :name "post-update-frame-description" :route "update-frame-description" :handler handle-update-frame-description}
    {:method :post :name "post-replace-frame-image" :route "replace-frame-image" :handler handle-replace-frame-image}
    {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
    {:method :post :name "post-update-character" :route "update-character" :handler handle-update-character}
+   {:method :post :name "post-update-saga" :route "update-saga" :handler handle-update-saga}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
    {:method :post :name "post-add-character" :route "add-character" :handler handle-add-character}
    {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}

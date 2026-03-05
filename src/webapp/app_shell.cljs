@@ -12,24 +12,26 @@
 (def app-name
   "robogene")
 
-(defn saga-name [_]
-  "Robot Emperor")
+(defn saga-name [saga-meta]
+  (or (some-> (:name saga-meta) str/trim not-empty)
+      "Robot Emperor"))
 
-(defn frame-page-title [route saga]
+(defn frame-page-title [route saga saga-meta]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
         chapter-name (or (some-> chapter :name str/trim not-empty)
                          (some-> chapter :description str/trim not-empty)
                          "Chapter")]
-    (str "Frame Page · " chapter-name " · " (saga-name saga))))
+    (str "Frame Page · " chapter-name " · " (saga-name saga-meta))))
 
-(defn main-page-title [route]
+(defn main-page-title [route saga-meta]
   (let [page-title (if (= :roster (:view route))
                      (:page-title roster-page/roster-config)
-                     (:page-title gallery-page/saga-config))]
+                     (saga-name saga-meta))]
     (str app-name " · " page-title)))
 
 (defn main-view []
   (let [saga @(rf/subscribe [:saga])
+        saga-meta @(rf/subscribe [:saga-meta])
         roster @(rf/subscribe [:roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
@@ -47,11 +49,11 @@
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])
-        saga-name* (saga-name saga)]
+        saga-name* (saga-name saga-meta)]
     (set! (.-title js/document)
           (if (= :frame (:view route))
-            (frame-page-title route saga)
-            (main-page-title route)))
+            (frame-page-title route saga saga-meta)
+            (main-page-title route saga-meta)))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true}
       [:main.app

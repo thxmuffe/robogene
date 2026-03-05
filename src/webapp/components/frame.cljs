@@ -5,9 +5,8 @@
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            [webapp.components.prompt :as prompt]
-            ["@mantine/core" :refer [ActionIcon Badge Box Card Image]]
-            ["react-icons/fa6" :refer [FaXmark]]))
+            [webapp.components.frame-description-editor :as description-editor]
+            ["@mantine/core" :refer [Badge Box Card Image]]))
 
 (defn on-editor-enable [frame-id]
   (fn [e]
@@ -21,14 +20,6 @@
               (= " " (.-key e)))
       (interaction/prevent! e)
       ((on-editor-enable frame-id) e))))
-
-(defn on-editor-close [frame-id]
-  (fn [e]
-    (interaction/stop! e)
-    (rf/dispatch [:set-frame-actions-open frame-id false])
-    (.requestAnimationFrame js/window
-                            (fn []
-                              (frame-nav/focus-subtitle! frame-id)))))
 
 (defn frame-owner-page [owner-type]
   (if (= "character" (str owner-type))
@@ -59,7 +50,7 @@
              :data-frame-id frameId
              :role "button"
              :tabIndex 0
-             :title "Click subtitle to edit prompt"
+             :title "Click subtitle to edit description"
              :onFocus #(rf/dispatch [:set-active-frame frameId])
              :onClick (on-editor-enable frameId)
              :onDoubleClick (on-editor-enable frameId)
@@ -67,7 +58,7 @@
      [:span {:className "subtitle-display-text"}
       (if (seq subtitle)
         subtitle
-        "Click subtitle to add prompt")]]))
+        "Click subtitle to add description")]]))
 
 (defn frame-placeholder [{:keys [status]}]
   (let [label (case status
@@ -84,7 +75,7 @@
   ([frame frame-input]
    [frame frame-input {:clickable? true}])
   ([frame frame-input {:keys [clickable? active? actions-open? media-nav? image-fit]
-                       :or {clickable? true active? false actions-open? false media-nav? false image-fit "cover"}}]
+                       :or {clickable? true active? false actions-open? false media-nav? false image-fit "contain"}}]
    (r/with-let [was-editable* (r/atom false)]
      (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
            busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
@@ -125,18 +116,8 @@
                 [:div.placeholder-text "Image failed to load"]])]
             [frame-placeholder frame])]
          (if editable?
-           [prompt/prompt-panel frame* frame-input]
+           [description-editor/frame-description-editor frame* frame-input]
            [subtitle-display frame* frame-input])
-         (when editable?
-           [:> ActionIcon
-            {:className "frame-prompt-close"
-             :aria-label "Close prompt"
-             :title "Close prompt"
-             :variant "filled"
-             :color "gray"
-             :radius "xl"
-             :onClick (on-editor-close (:frameId frame))}
-            [:> FaXmark]])
          (when (and media-nav? (not editable?))
            [:div.media-nav-zones
             [:button

@@ -5,7 +5,11 @@
 
 (defn chapter [owner-id owner-type frame-inputs open-frame-actions active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
-        frame-subtitle (if (= "character" (str owner-type))
+        character-owner? (= "character" (str owner-type))
+        add-tile-title (if character-owner?
+                         "Add image"
+                         "Add New Frame")
+        frame-subtitle (if character-owner?
                          "Create the next image for this character"
                          "Create the next frame in this chapter")]
     [:> Box {:className "gallery"}
@@ -20,12 +24,12 @@
       {:className "frame frame-clickable add-frame-tile"
        :role "button"
        :tabIndex 0
-       :aria-label "Add new frame"
+       :aria-label add-tile-title
        :onClick #(rf/dispatch [:add-frame owner-id owner-type])
        :onKeyDown (fn [e]
                     (when (or (= "Enter" (.-key e))
                               (= " " (.-key e)))
                       (.preventDefault e)
                       (rf/dispatch [:add-frame owner-id owner-type])))}
-      [:div.add-frame-tile-title "Add New Frame"]
+      [:div.add-frame-tile-title add-tile-title]
       [:div.add-frame-tile-sub frame-subtitle]]]))

@@ -87,6 +87,18 @@
                    (fn [frames] (mapv replace-image (or frames []))))
         (assoc-in [:image-ui-by-frame-id frame-id] :loading))))
 
+(defn update-frame-description [db frame-id description]
+  (let [normalized (or (some-> (or description "") str str/trim) "")
+        set-description (fn [frame]
+                          (if (= (:frameId frame) frame-id)
+                            (assoc frame :description normalized)
+                            frame))]
+    (-> db
+        (assoc-in [:frame-inputs frame-id] normalized)
+        (update :gallery-items (fn [frames] (mapv set-description (or frames []))))
+        (update-in [:latest-state :frames]
+                   (fn [frames] (mapv set-description (or frames [])))))))
+
 (defn entity-meta [entity-label]
   (if (= "character" (str entity-label))
     {:list-key :roster
@@ -172,6 +184,9 @@
       :replace-frame-image
       {:post-replace-frame-image (merge payload callbacks)}
 
+      :update-frame-description
+      {:post-update-frame-description (merge payload callbacks)}
+
       :add-chapter
       {:post-add-chapter (merge payload callbacks)}
 
@@ -183,6 +198,9 @@
 
       :update-character
       {:post-update-character (merge payload callbacks)}
+
+      :update-saga
+      {:post-update-saga (merge payload callbacks)}
 
       :delete-chapter
       {:post-delete-chapter (merge payload callbacks)}
@@ -298,6 +316,18 @@
                          command))))
 
 (rf/reg-event-fx
+ :save-frame-description
+ (fn [{:keys [db]} [_ frame-id description]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :update-frame-description
+                  :payload {:frame-id frame-id
+                            :description description}
+                  :success-status "Description saved."}]
+     (sync/queue-command (update-frame-description db frame-id description)
+                         "Saving description..."
+                         command))))
+
+(rf/reg-event-fx
 :enqueue-add-chapter
   (fn [{:keys [db]} [_ name description]]
    (let [command {:id (sync/next-command-id)
@@ -344,6 +374,23 @@
      (sync/queue-command (update-entity db "character" character-id name description)
                          "Updating character..."
                          command))))
+
+(rf/reg-event-fx
+ :update-saga
+ (fn [{:keys [db]} [_ name description]]
+   (let [normalized-name (some-> (or name "") str str/trim)
+         normalized-description (some-> (or description "") str)
+         command {:id (sync/next-command-id)
+                  :kind :update-saga
+                  :payload {:name normalized-name
+                            :description normalized-description}
+                  :success-status "Saga updated."}]
+     (if (str/blank? (or normalized-name ""))
+       {:db db}
+       (sync/queue-command (assoc db :saga-meta {:name normalized-name
+                                                  :description (or normalized-description "")})
+                           "Updating saga..."
+                           command)))))
 
 (rf/reg-event-fx
  :delete-chapter

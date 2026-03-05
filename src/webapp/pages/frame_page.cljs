@@ -3,6 +3,7 @@
             [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.frame :as frame]
+            [webapp.shared.ui.back-button :as back-button]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [ActionIcon Box Button Group Tooltip]]
@@ -94,11 +95,9 @@
                :gap "xs"
                :wrap "wrap"}
      (when show-back?
-       [:> Button
-        {:variant "default"
-         :size "sm"
-         :onClick #(rf/dispatch [:navigate-from-page])}
-        "Back"])
+       [back-button/back-button
+        {:label "Back"
+         :on-click #(rf/dispatch [:navigate-from-page])}])
      [:> Button
       {:variant "default"
        :size "sm"
@@ -133,12 +132,18 @@
        :onClick #(rf/dispatch [:toggle-frame-fullscreen])}
       "Fullscreen (F)"]]))
 
-(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id prompt-open? from-page]} e]
+(defn handle-frame-page-key-down! [{:keys [fullscreen? active-frame-id description-editor-open? from-page]} e]
   (let [key (or (.-key e) "")
         lower-key (str/lower-case key)]
-    (when-not (or (interaction/modal-open?)
-                  (interaction/menu-open?)
-                  (interaction/editable-target? (.-target e)))
+    (cond
+      (and (= "Escape" key)
+           (or description-editor-open?
+               (interaction/modal-open?)))
+      (do
+        (interaction/halt! e)
+        (rf/dispatch [:cancel-open-edit-db-items]))
+
+      (not (interaction/ignore-global-keydown? e))
       (cond
         (= "Enter" key)
         (when active-frame-id
@@ -149,13 +154,6 @@
         (do
           (interaction/halt! e)
           (cond
-            prompt-open?
-            (do
-              (rf/dispatch [:set-frame-actions-open active-frame-id false])
-              (.requestAnimationFrame js/window
-                                      (fn []
-                                        (frame-nav/focus-subtitle! active-frame-id))))
-
             fullscreen?
             (rf/dispatch [:set-frame-fullscreen false])
 
@@ -181,7 +179,9 @@
           (interaction/halt! e)
           (rf/dispatch [:navigate-relative-frame 1]))
 
-        :else nil))))
+        :else nil)
+
+      :else nil)))
 
 (defn frame-page [route frame-inputs open-frame-actions saga-name]
   (r/with-let [key-context* (r/atom nil)
@@ -198,16 +198,16 @@
           ordered @(rf/subscribe [:frames-for-owner owner-type chapter-id])
           owner-name (owner-display-name from-page chapter-id saga roster)
           fullscreen? (true? (:fullscreen? route))
-          prompt-open? (true? (get open-frame-actions frame-id))
+          description-editor-open? (true? (get open-frame-actions frame-id))
           frame-neighbors (prev-next-by-id ordered frame-id)
           active-frame (:active frame-neighbors)]
       (reset! key-context* {:fullscreen? fullscreen?
                             :active-frame-id frame-id
-                            :prompt-open? prompt-open?
+                            :description-editor-open? description-editor-open?
                             :from-page from-page})
-      (let [focus-key [frame-id fullscreen? prompt-open?]]
+      (let [focus-key [frame-id fullscreen? description-editor-open?]]
         (when (and active-frame
-                   (not prompt-open?)
+                   (not description-editor-open?)
                    (not= focus-key @focused-subtitle-key*))
           (reset! focused-subtitle-key* focus-key)
           (.requestAnimationFrame js/window
@@ -240,10 +240,8 @@
          [:> Box {:className "detail-missing"}
           [:p "Frame not found in this chapter."]
           (when from-page
-            [:> Button
-             {:variant "default"
-              :size "sm"
-              :onClick #(rf/dispatch [:navigate-from-page])}
-             "Back"])])])
+            [back-button/back-button
+             {:label "Back"
+              :on-click #(rf/dispatch [:navigate-from-page])}])])])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
