@@ -1,15 +1,15 @@
 ## Working Defaults (Mandatory)
 
 1. No commit or push unless user explicitly says: "commit" or "push".
-2. For non-trivial changes: discuss first, propose design, wait for approval, then implement.
-3. Default mode is `DISCUSS ONLY` unless user explicitly asks to `IMPLEMENT`.
+2. Implement by default when the user asks for a change; do not pause for approval on normal edits.
+3. Ask for confirmation only before high-risk/destructive actions (e.g., irreversible data deletion, large refactors with broad impact, production-impacting operations) or when requirements are ambiguous enough to risk wrong implementation.
 4. Prefer standard/library solutions first; if no standard option exists, say so before custom code.
 5. No defensive coding and no legacy fallback logic unless explicitly requested.
 6. Fail fast by default.
 7. Keep data flow raw and direct; avoid unnecessary transformation layers.
 8. Minimize code size and complexity; justify any net increase before editing.
 9. Max two implementation attempts per issue; if unresolved, stop and propose a minimal reproducible example.
-10. After each implementation step: list changed files and rationale, then stop for confirmation.
+10. After each implementation step: list changed files and rationale, then continue unless user asks to pause.
 11. Do not run exploratory benchmarks/experiments for curiosity questions unless explicitly requested by the user.
 
 ## Optimal Change (Preferred, Non-Mandatory)
