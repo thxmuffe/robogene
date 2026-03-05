@@ -1,21 +1,35 @@
 (ns webapp.shared.db)
 
 (def default-db
-  {:status "Loading chapters..."
+  {:status "Loading saga..."
    :pending-api-requests 0
    :wait-lights-visible? true
    :wait-lights-events []
+   :cancel-ui-token 0
    :frame-inputs {}
    :open-frame-actions {}
+   :view-state {:saga {:name-inputs {}
+                       :description-inputs {}
+                       :editing-id nil
+                       :new-name ""
+                       :new-description ""
+                       :new-panel-open? false
+                       :show-celebration? false}
+                :roster {:name-inputs {}
+                         :description-inputs {}
+                         :editing-id nil
+                         :new-name ""
+                         :new-description ""
+                         :new-panel-open? false}}
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil
-   :chapters []
+   :saga-meta {:name "Robot Emperor"
+               :description ""}
+   :saga []
+   :roster []
    :gallery-items []
-   :new-chapter-description ""
-   :new-chapter-panel-open? false
-   :show-chapter-celebration? false
    :sync-outbox []
    :sync-inflight nil
    :latest-state nil
-   :route {:view :index}})
+   :route {:view :saga}})

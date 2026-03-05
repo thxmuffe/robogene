@@ -1,28 +1,9 @@
-(ns webapp.shared.theme
-  (:require ["@mui/material/styles" :refer [createTheme]]))
+(ns webapp.shared.theme)
 
 (def app-theme
-  (createTheme
-   #js {:palette
-        #js {:mode "light"
-             :primary #js {:main "#20639b"}
-             :secondary #js {:main "#ff7a18"}
-             :error #js {:main "#8b1e3f"}
-             :background #js {:default "#ffe8c2"}}
-        :shape #js {:borderRadius 12}
-        :typography
-        #js {:fontFamily "\"Avenir Next\",\"Trebuchet MS\",sans-serif"}
-        :components
-        #js {:MuiButton
-             #js {:styleOverrides
-                  #js {:root #js {:borderRadius 999
-                                  :fontWeight 800
-                                  :textTransform "none"}}}
-             :MuiIconButton
-             #js {:styleOverrides
-                  #js {:root #js {:borderRadius 999}}}
-             :MuiFilledInput
-             #js {:styleOverrides
-                  #js {:root #js {:borderRadius 12
-                                  :backgroundColor "#f5f8fc"}
-                       :input #js {:fontFamily "inherit"}}}}}))
+  #js {:fontFamily "\"Avenir Next\",\"Trebuchet MS\",sans-serif"
+       :primaryColor "blue"
+       :defaultRadius "md"
+       :colors
+       #js {:blue #js ["#eef5fb" "#dbeaf8" "#c7def3" "#accceb" "#8db8df" "#6ca2d2" "#4c8cc4" "#3577af" "#286490" "#20639b"]
+            :orange #js ["#fff3e8" "#ffe7d1" "#ffd8b5" "#ffc394" "#ffad70" "#ff984f" "#ff8838" "#ff7a18" "#df6710" "#bb550b"]}})

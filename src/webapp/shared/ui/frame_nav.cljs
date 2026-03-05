@@ -12,24 +12,24 @@
      :y (+ (.-top r) (/ (.-height r) 2))
      :el el}))
 
-(defn adjacent-frame-id [current-id delta]
+(defn adjacent-frame-id [active-frame-id delta]
   (let [nodes (vec (frame-node-list))
         n (count nodes)]
     (when (pos? n)
       (let [idx (or (some (fn [[i el]]
-                            (when (= current-id (frame-id-of el)) i))
+                            (when (= active-frame-id (frame-id-of el)) i))
                           (map-indexed vector nodes))
                     (if (neg? delta) 0 (dec n)))
             step (if (neg? delta) -1 1)
-            next-idx (mod (+ idx step) n)
+            next-idx (+ idx step)
             next-el (nth nodes next-idx nil)]
         (some-> next-el frame-id-of)))))
 
-(defn nearest-vertical-frame-id [current-id direction]
+(defn nearest-vertical-frame-id [active-frame-id direction]
   (let [nodes (frame-node-list)
-        current-el (some (fn [el] (when (= current-id (frame-id-of el)) el)) nodes)]
-    (when current-el
-      (let [{cx :x cy :y} (frame-centers current-el)
+        active-el (some (fn [el] (when (= active-frame-id (frame-id-of el)) el)) nodes)]
+    (when active-el
+      (let [{cx :x cy :y} (frame-centers active-el)
             candidates (->> nodes
                             (filter (fn [el]
                                       (let [{y :y} (frame-centers el)]
@@ -43,8 +43,19 @@
                                       :dy (js/Math.abs (- y cy))
                                       :dx (js/Math.abs (- x cx))})))
                             (sort-by (fn [{:keys [dy dx]}] [dy dx])))]
-        (or (:id (first candidates))
-            (case direction
-              :up (some-> nodes last frame-id-of)
-              :down (some-> nodes first frame-id-of)
-              nil))))))
+        (:id (first candidates))))))
+
+(defn subtitle-nodes []
+  (array-seq (.querySelectorAll js/document ".subtitle-display[data-frame-id]")))
+
+(defn subtitle-node-by-frame-id [frame-id]
+  (some (fn [el]
+          (when (= frame-id (.getAttribute el "data-frame-id"))
+            el))
+        (subtitle-nodes)))
+
+(defn focus-subtitle! [frame-id]
+  (when-let [el (subtitle-node-by-frame-id frame-id)]
+    (.focus el)
+    (.scrollIntoView el #js {:block "nearest" :inline "nearest"})
+    true))

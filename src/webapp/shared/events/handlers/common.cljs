@@ -8,7 +8,7 @@
             [webapp.shared.events.effects]
             [webapp.shared.events.transport]
             [webapp.shared.events.handlers.frame-page]
-            [webapp.shared.events.handlers.chapters]
+            [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.frames]
             [webapp.shared.model :as model]))
 
@@ -73,7 +73,7 @@
  :state-loaded
  (fn [{:keys [db]} [_ state]]
    (let [previous-frames (:gallery-items db)
-         {:keys [chapters frames]} (model/derived-state state)
+         {:keys [saga roster frames]} (model/derived-state state)
          existing-active-id (:active-frame-id db)
          frame-ids (set (map :frameId frames))
          old-open-map (:open-frame-actions db)
@@ -95,9 +95,11 @@
                                frames)]
      {:db (-> db
               (assoc :latest-state state
-                     :status (model/status-line state chapters frames)
+                     :status (model/status-line state saga roster frames)
                      :last-rendered-revision (:revision state)
-                     :chapters chapters
+                     :saga-meta (or (:sagaMeta state) (:saga-meta db))
+                     :saga saga
+                     :roster roster
                      :gallery-items frames
                      :image-ui-by-frame-id image-ui-by-frame-id
                      :open-frame-actions open-frame-actions
@@ -122,8 +124,7 @@
  (fn [{:keys [db]} [_ frame-id]]
    (if (= frame-id (:active-frame-id db))
      {:db db}
-     {:db (assoc db :active-frame-id frame-id)
-      :scroll-frame-into-view frame-id})))
+     {:db (assoc db :active-frame-id frame-id)})))
 
 (rf/reg-event-db
  :set-frame-actions-open
@@ -140,3 +141,32 @@
  (fn [{:keys [db]} _]
    {:db db
     :dispatch [:fetch-state]}))
+
+(defn cancel-open-edit-db-items [db]
+  (let [open-frame-ids (->> (or (:open-frame-actions db) {})
+                            (keep (fn [[frame-id open?]]
+                                    (when (true? open?) frame-id)))
+                            vec)
+        frame-desc-by-id (into {}
+                               (map (fn [frame]
+                                      [(:frameId frame) (or (:description frame) "")])
+                                    (or (:gallery-items db) [])))]
+    (-> db
+        (update :cancel-ui-token (fnil inc 0))
+        (assoc :open-frame-actions {})
+        (assoc-in [:view-state :saga :editing-id] nil)
+        (assoc-in [:view-state :roster :editing-id] nil)
+        (assoc-in [:view-state :saga :new-panel-open?] false)
+        (assoc-in [:view-state :roster :new-panel-open?] false)
+        (assoc-in [:view-state :saga :meta-editing?] false)
+        (update :frame-inputs
+                (fn [inputs]
+                  (reduce (fn [acc frame-id]
+                            (assoc acc frame-id (get frame-desc-by-id frame-id "")))
+                          (or inputs {})
+                          open-frame-ids))))))
+
+(rf/reg-event-fx
+ :cancel-open-edit-db-items
+ (fn [{:keys [db]} _]
+   {:db (cancel-open-edit-db-items db)}))

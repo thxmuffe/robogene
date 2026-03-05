@@ -2,6 +2,8 @@
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [services.chapter :as chapter]
+            [services.character :as character]
+            [services.image-handler :as image-handler]
             [services.realtime :as realtime]
             [host.settings :as settings]
             ["@azure/functions" :as azf]))
@@ -227,13 +229,16 @@
 (defn queueable-frame-outcome [frame-id]
   (let [snapshot @chapter/state
         frames (:frames snapshot)
-        idx (chapter/find-frame-index frames frame-id)]
+        idx (chapter/find-frame-index frames frame-id)
+        frame (when (number? idx) (get frames idx))
+        processing? (true? (:processing snapshot))
+        queued? (= "queued" (:status frame))
+        actively-processing? (and processing? (= "processing" (:status frame)))]
     (cond
       (nil? idx)
       {:ok false :status 404 :error "Frame not found."}
 
-      (or (= "queued" (:status (get frames idx)))
-          (= "processing" (:status (get frames idx))))
+      (or queued? actively-processing?)
       {:ok false :status 409 :error "Frame already in queue."}
 
       :else
@@ -271,11 +276,13 @@
                      pending-count (chapter/active-queue-count frames)]
                  (json-response 200
                                 {:chapterId (:chapterId snapshot)
-                                 :revision (:revision snapshot)
-                                 :processing (:processing snapshot)
-                                 :pendingCount pending-count
-                                 :chapters (:chapters snapshot)
-                                 :frames frames
+                 :revision (:revision snapshot)
+                 :processing (:processing snapshot)
+                 :pendingCount pending-count
+                 :sagaMeta (:sagaMeta snapshot)
+                 :saga (:saga snapshot)
+                 :roster (:roster snapshot)
+                 :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
 
@@ -312,17 +319,27 @@
       (.catch (fn [err]
                 (command-error-response request default-error status-by-message err)))))
 
+(defn log-image-db-change! [kind frame snapshot]
+  (js/console.info
+   (str "[robogene] image db modified"
+        " kind=" kind
+        " frameId=" (:frameId frame)
+        " status=" (:status frame)
+        " revision=" (:revision snapshot)
+        " ownerType=" (or (:ownerType frame) "saga")
+        " ownerId=" (:chapterId frame))))
+
 (defn handle-add-chapter [request]
   (with-synced-body
    request
    (fn [body]
-     (let [raw-description (gobj/get body "description")
-           description (if (some? raw-description)
-                         (some-> raw-description str str/trim)
-                         nil)]
+     (let [raw-name (or (gobj/get body "name") (gobj/get body "description"))
+           raw-description (gobj/get body "description")
+           name (if (some? raw-name) (some-> raw-name str str/trim) nil)
+           description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
        (run-command
         request
-        {:run! #(chapter/add-chapter! description)
+        {:run! #(chapter/add-chapter-with-details! name description)
          :reason "chapter-added"
          :default-error "Create chapter failed."
          :status-by-message {}
@@ -331,6 +348,29 @@
                          (json-response 201
                                         (with-revision {:created true
                                                         :chapter chapter
+                                                        :frame frame}
+                                                       snapshot)
+                                        request)))})))))
+
+(defn handle-add-character [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [raw-name (or (gobj/get body "name") (gobj/get body "description"))
+           raw-description (gobj/get body "description")
+           name (if (some? raw-name) (some-> raw-name str str/trim) nil)
+           description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
+       (run-command
+        request
+        {:run! #(character/add-character-with-details! name description)
+         :reason "character-added"
+         :default-error "Create character failed."
+         :status-by-message {}
+         :on-success (fn [result snapshot]
+                       (let [{:keys [character frame]} result]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :character character
                                                         :frame frame}
                                                        snapshot)
                                         request)))})))))
@@ -357,23 +397,113 @@
                                       request))})))))
 
 (defn handle-add-frame [request]
-  (with-synced-required-string
+  (with-synced-body
    request
-   "chapterId"
-   "Missing chapterId."
-   (fn [chapter-id]
-     (run-command
-      request
-      {:run! #(chapter/add-frame! chapter-id)
-       :reason "frame-added"
-       :default-error "Chapter not found."
-       :status-by-message {"Chapter not found." 404}
-       :on-success (fn [frame snapshot]
-                     (json-response 201
-                                    (with-revision {:created true
-                                                    :frame frame}
-                                                   snapshot)
-                                    request))}))))
+   (fn [body]
+     (let [owner-type (some-> (gobj/get body "ownerType") str str/lower-case)
+           chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           character-id (some-> (gobj/get body "characterId") str str/trim)
+           target-owner-type (if (= owner-type "character") "character" "saga")
+           owner-id (if (= target-owner-type "character") character-id chapter-id)]
+       (if (str/blank? owner-id)
+         (json-response 400 {:error (if (= target-owner-type "character")
+                                      "Missing characterId."
+                                      "Missing chapterId.")}
+                        request)
+         (run-command
+          request
+          {:run! #(if (= target-owner-type "character")
+                    (character/add-frame! owner-id)
+                    (chapter/add-frame! owner-id target-owner-type))
+           :reason "frame-added"
+           :default-error (if (= target-owner-type "character") "Character not found." "Chapter not found.")
+           :status-by-message {"Chapter not found." 404
+                               "Character not found." 404}
+           :on-success (fn [frame snapshot]
+                         (json-response 201
+                                        (with-revision {:created true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-chapter [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (cond
+         (str/blank? chapter-id)
+         (json-response 400 {:error "Missing chapterId."} request)
+
+         (str/blank? name)
+         (json-response 400 {:error "Missing chapter name."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(chapter/update-chapter-details! chapter-id name description)
+           :reason "chapter-updated"
+           :default-error "Update chapter failed."
+           :status-by-message {"Chapter not found." 404
+                               "Missing chapter name." 400}
+           :on-success (fn [chapter snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :chapter chapter}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-character [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [character-id (some-> (gobj/get body "characterId") str str/trim)
+           name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (cond
+         (str/blank? character-id)
+         (json-response 400 {:error "Missing characterId."} request)
+
+         (str/blank? name)
+         (json-response 400 {:error "Missing character name."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(character/update-details! character-id name description)
+           :reason "character-updated"
+           :default-error "Update character failed."
+           :status-by-message {"Character not found." 404
+                               "Missing character name." 400}
+           :on-success (fn [character snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :character character}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-saga [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
+           description (some-> (gobj/get body "description") str str/trim)]
+       (if (str/blank? name)
+         (json-response 400 {:error "Missing saga name."} request)
+         (run-command
+          request
+          {:run! #(chapter/update-saga-meta! name description)
+           :reason "saga-updated"
+           :default-error "Update saga failed."
+           :status-by-message {"Missing saga name." 400}
+           :on-success (fn [saga-meta snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :sagaMeta saga-meta}
+                                                       snapshot)
+                                        request))}))))))
 
 (def handle-delete-frame
   (make-required-mutation-handler
@@ -393,7 +523,7 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! chapter/clear-frame-image!
+    :mutate! #(image-handler/clear-frame-image! chapter/state %)
     :default-error "Clear image failed."
     :status-by-message (messages->status-map #{"Frame not found."
                                                "Cannot clear image while queued or processing."}
@@ -401,8 +531,88 @@
     :emit-reason "frame-image-cleared"
     :success-status 200
     :success-body (fn [frame snapshot]
+                    (log-image-db-change! "cleared" frame snapshot)
                     (with-revision {:cleared true
                                     :frame frame}
+                                   snapshot))}))
+
+(defn handle-replace-frame-image [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+           image-data-url (some-> (gobj/get body "imageDataUrl") str str/trim)]
+       (cond
+         (str/blank? frame-id)
+         (json-response 400 {:error "Missing frameId."} request)
+
+         (str/blank? image-data-url)
+         (json-response 400 {:error "Missing imageDataUrl."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(image-handler/replace-frame-image! chapter/state frame-id image-data-url)
+           :reason "frame-image-replaced"
+           :default-error "Replace image failed."
+           :status-by-message {"Frame not found." 404
+                               "Cannot replace image while queued or processing." 409
+                               "Invalid imageDataUrl." 400}
+           :on-success (fn [frame snapshot]
+                         (log-image-db-change! "replaced" frame snapshot)
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-frame-description [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+           description (some-> (gobj/get body "description") str)]
+       (if (str/blank? frame-id)
+         (json-response 400 {:error "Missing frameId."} request)
+         (run-command
+          request
+          {:run! #(chapter/update-frame-description! frame-id description)
+           :reason "frame-description-updated"
+           :default-error "Update frame description failed."
+           :status-by-message {"Frame not found." 404}
+           :on-success (fn [frame snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
+
+(def handle-delete-chapter
+  (make-required-mutation-handler
+   {:field-key "chapterId"
+    :missing-msg "Missing chapterId."
+    :mutate! chapter/delete-chapter!
+    :default-error "Delete chapter failed."
+    :status-by-message (messages->status-map #{"Chapter not found."} 404)
+    :emit-reason "chapter-deleted"
+    :success-status 200
+    :success-body (fn [chapter snapshot]
+                    (with-revision {:deleted true
+                                    :chapter chapter}
+                                   snapshot))}))
+
+(def handle-delete-character
+  (make-required-mutation-handler
+   {:field-key "characterId"
+    :missing-msg "Missing characterId."
+    :mutate! character/delete-character!
+    :default-error "Delete character failed."
+    :status-by-message (messages->status-map #{"Character not found."} 404)
+    :emit-reason "character-deleted"
+    :success-status 200
+    :success-body (fn [character snapshot]
+                    (with-revision {:deleted true
+                                    :character character}
                                    snapshot))}))
 
 (defn handle-signalr-negotiate [request]
@@ -425,7 +635,15 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
+   {:method :post :name "post-update-frame-description" :route "update-frame-description" :handler handle-update-frame-description}
+   {:method :post :name "post-replace-frame-image" :route "replace-frame-image" :handler handle-replace-frame-image}
+   {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
+   {:method :post :name "post-update-character" :route "update-character" :handler handle-update-character}
+   {:method :post :name "post-update-saga" :route "update-saga" :handler handle-update-saga}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
+   {:method :post :name "post-add-character" :route "add-character" :handler handle-add-character}
+   {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
+   {:method :post :name "post-delete-character" :route "delete-character" :handler handle-delete-character}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}

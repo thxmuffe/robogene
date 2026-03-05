@@ -219,18 +219,31 @@
 
 (rf/reg-fx
  :post-add-chapter
- (fn [{:keys [description on-success on-failure]}]
+ (fn [{:keys [name description on-success on-failure]}]
    (post-json "/api/add-chapter"
-              {:description description}
+              {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-character
+ (fn [{:keys [name description on-success on-failure]}]
+   (post-json "/api/add-character"
+              {:name name
+               :description description}
               on-success
               on-failure
               (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-add-frame
- (fn [{:keys [chapter-id on-success on-failure]}]
+ (fn [{:keys [owner-id owner-type on-success on-failure]}]
    (post-json "/api/add-frame"
-              {:chapterId chapter-id}
+              {:ownerType (or owner-type "saga")
+               :chapterId (when (not= "character" (str owner-type)) owner-id)
+               :characterId (when (= "character" (str owner-type)) owner-id)}
               on-success
               on-failure
               (fn [ok _] ok))))
@@ -249,6 +262,76 @@
  (fn [{:keys [frame-id on-success on-failure]}]
    (post-json "/api/clear-frame-image"
               {:frameId frame-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-replace-frame-image
+ (fn [{:keys [frame-id image-data-url on-success on-failure]}]
+   (post-json "/api/replace-frame-image"
+              {:frameId frame-id
+               :imageDataUrl image-data-url}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-frame-description
+ (fn [{:keys [frame-id description on-success on-failure]}]
+   (post-json "/api/update-frame-description"
+              {:frameId frame-id
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-chapter
+ (fn [{:keys [chapter-id name description on-success on-failure]}]
+   (post-json "/api/update-chapter"
+              {:chapterId chapter-id
+               :name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-character
+ (fn [{:keys [character-id name description on-success on-failure]}]
+   (post-json "/api/update-character"
+              {:characterId character-id
+               :name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-saga
+ (fn [{:keys [name description on-success on-failure]}]
+   (post-json "/api/update-saga"
+              {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-chapter
+ (fn [{:keys [chapter-id on-success on-failure]}]
+   (post-json "/api/delete-chapter"
+              {:chapterId chapter-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-character
+ (fn [{:keys [character-id on-success on-failure]}]
+   (post-json "/api/delete-character"
+              {:characterId character-id}
               on-success
               on-failure
               (fn [ok _] ok))))
