@@ -80,7 +80,7 @@ body {
     rgba(116, 126, 138, 0.68) 78%,
     rgba(59, 66, 76, 0.74) 100%
   );
-  background-size: 220% 100%;
+  background-size: 240% 240%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -939,6 +939,13 @@ h2 { margin: 24px 0 10px; }
 }
 
 @keyframes metallic-shimmer {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 220% 50%; }
+  0% { background-position: 50% 10%; }
+  12.5% { background-position: 78% 18%; }
+  25% { background-position: 90% 50%; }
+  37.5% { background-position: 78% 82%; }
+  50% { background-position: 50% 90%; }
+  62.5% { background-position: 22% 82%; }
+  75% { background-position: 10% 50%; }
+  87.5% { background-position: 22% 18%; }
+  100% { background-position: 50% 10%; }
 }

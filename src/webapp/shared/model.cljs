@@ -108,8 +108,22 @@
       (assoc normalized :description description)
       normalized)))
 
+(defn dedupe-by-id [id-key rows]
+  (->> (or rows [])
+       (reduce (fn [acc row]
+                 (let [id (get row id-key)
+                       map-key (if (and (string? id) (not (str/blank? id)))
+                                 id
+                                 (str "__idx__" (count acc)))]
+                   (if (contains? acc map-key)
+                     acc
+                     (assoc acc map-key row))))
+               {})
+       vals))
+
 (defn derived-saga [state]
   (->> (or (:saga state) [])
+       (dedupe-by-id :chapterId)
        (sort-by (fn [chapter]
                   [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
                    (or (:createdAt chapter) "")
@@ -118,6 +132,7 @@
 
 (defn derived-roster [state]
   (->> (or (:roster state) [])
+       (dedupe-by-id :characterId)
        (sort-by (fn [character]
                   [(or (:characterNumber character) js/Number.MAX_SAFE_INTEGER)
                    (or (:createdAt character) "")
