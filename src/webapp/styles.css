@@ -44,25 +44,6 @@ body {
   font-weight: 700;
 }
 
-.btn-icon {
-  font-weight: 900;
-  font-size: 1.32rem;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  text-align: center;
-}
-
-.btn-hint {
-  font-weight: 800;
-  font-size: 0.76rem;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  text-transform: none;
-}
-
 .status {
   margin-top: 10px;
   font-weight: 700;
@@ -447,26 +428,6 @@ h2 { margin: 24px 0 10px; }
   font-weight: 700;
 }
 
-.placeholder-clue {
-  margin-top: 4px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  opacity: 0.9;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.placeholder-action-inline {
-  margin-top: 4px;
-}
-
-.placeholder-arrow {
-  display: inline-block;
-  font-size: 1rem;
-  animation: nudge-arrow 900ms ease-in-out infinite;
-}
-
 .prompt-panel {
   position: absolute;
   left: 0;
@@ -806,11 +767,6 @@ h2 { margin: 24px 0 10px; }
   max-width: 840px;
 }
 
-.share-label {
-  font-weight: 800;
-  color: #1f2a44;
-}
-
 .share-actions {
   display: inline-flex;
   gap: 8px;
@@ -885,11 +841,6 @@ h2 { margin: 24px 0 10px; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-@keyframes nudge-arrow {
-  0%, 100% { transform: translate(0, 0); opacity: 0.65; }
-  50% { transform: translate(4px, 3px); opacity: 1; }
 }
 
 @keyframes sparkle-drift {
