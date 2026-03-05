@@ -17,7 +17,8 @@
 
 (defn frame-page-title [route saga]
   (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
-        chapter-name (or (some-> chapter :description str/trim not-empty)
+        chapter-name (or (some-> chapter :name str/trim not-empty)
+                         (some-> chapter :description str/trim not-empty)
                          "Chapter")]
     (str "Frame Page · " chapter-name " · " (saga-name saga))))
 
@@ -35,8 +36,10 @@
         frame-inputs @(rf/subscribe [:frame-inputs])
         open-frame-actions @(rf/subscribe [:open-frame-actions])
         active-frame-id @(rf/subscribe [:active-frame-id])
+        new-chapter-name @(rf/subscribe [:new-chapter-name])
         new-chapter-description @(rf/subscribe [:new-chapter-description])
         new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
+        new-character-name @(rf/subscribe [:new-character-name])
         new-character-description @(rf/subscribe [:new-character-description])
         new-character-panel-open? @(rf/subscribe [:new-character-panel-open?])
         show-chapter-celebration? @(rf/subscribe [:show-chapter-celebration?])
@@ -68,6 +71,7 @@
            frame-inputs
            open-frame-actions
            active-frame-id
+           new-character-name
            new-character-description
            new-character-panel-open?]
 
@@ -75,6 +79,7 @@
            frame-inputs
            open-frame-actions
            active-frame-id
+           new-chapter-name
            new-chapter-description
            new-chapter-panel-open?
            show-chapter-celebration?])

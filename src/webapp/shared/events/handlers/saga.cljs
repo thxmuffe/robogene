@@ -6,12 +6,26 @@
   (if (= "character" (str entity-label))
     {:editing-key [:view-state :roster :editing-id]
      :name-inputs-key [:view-state :roster :name-inputs]
+     :description-inputs-key [:view-state :roster :description-inputs]
+     :name-key [:view-state :roster :new-name]
      :description-key [:view-state :roster :new-description]
      :panel-open-key [:view-state :roster :new-panel-open?]}
     {:editing-key [:view-state :saga :editing-id]
      :name-inputs-key [:view-state :saga :name-inputs]
+     :description-inputs-key [:view-state :saga :description-inputs]
+     :name-key [:view-state :saga :new-name]
      :description-key [:view-state :saga :new-description]
      :panel-open-key [:view-state :saga :new-panel-open?]}))
+
+(rf/reg-event-db
+:new-chapter-name-changed
+(fn [db [_ value]]
+   (assoc-in db [:view-state :saga :new-name] value)))
+
+(rf/reg-event-db
+:new-character-name-changed
+(fn [db [_ value]]
+   (assoc-in db [:view-state :roster :new-name] value)))
 
 (rf/reg-event-db
 :new-chapter-description-changed
@@ -24,12 +38,13 @@
    (assoc-in db [:view-state :roster :new-description] value)))
 
 (rf/reg-event-db
- :start-entity-name-edit
- (fn [db [_ entity-label entity-id current-name]]
-   (let [{:keys [editing-key name-inputs-key]} (entity-label->keys entity-label)]
+ :start-entity-edit
+ (fn [db [_ entity-label entity-id current-name current-description]]
+   (let [{:keys [editing-key name-inputs-key description-inputs-key]} (entity-label->keys entity-label)]
      (-> db
          (assoc-in editing-key entity-id)
-         (assoc-in (conj name-inputs-key entity-id) (or current-name ""))))))
+         (assoc-in (conj name-inputs-key entity-id) (or current-name ""))
+         (assoc-in (conj description-inputs-key entity-id) (or current-description ""))))))
 
 (rf/reg-event-db
  :entity-name-input-changed
@@ -38,24 +53,32 @@
      (assoc-in db (conj name-inputs-key entity-id) value))))
 
 (rf/reg-event-db
+ :entity-description-input-changed
+ (fn [db [_ entity-label entity-id value]]
+   (let [{:keys [description-inputs-key]} (entity-label->keys entity-label)]
+     (assoc-in db (conj description-inputs-key entity-id) value))))
+
+(rf/reg-event-db
  :cancel-entity-name-edit
  (fn [db [_ entity-label]]
    (let [{:keys [editing-key]} (entity-label->keys entity-label)]
      (assoc-in db editing-key nil))))
 
 (rf/reg-event-fx
- :save-entity-name
+ :save-entity
  (fn [{:keys [db]} [_ entity-label entity-id]]
-   (let [{:keys [editing-key name-inputs-key]} (entity-label->keys entity-label)
-         value (some-> (get-in db (conj name-inputs-key entity-id)) str str/trim)]
-     (if (str/blank? (or value ""))
+   (let [{:keys [editing-key name-inputs-key description-inputs-key]} (entity-label->keys entity-label)
+         name (some-> (get-in db (conj name-inputs-key entity-id)) str str/trim)
+         description (some-> (get-in db (conj description-inputs-key entity-id)) str)]
+     (if (str/blank? (or name ""))
        {:db db}
        {:db (assoc-in db editing-key nil)
         :dispatch [(if (= "character" (str entity-label))
-                     :rename-character
-                     :rename-chapter)
+                     :update-character
+                     :update-chapter)
                    entity-id
-                   value]}))))
+                   name
+                   description]}))))
 
 (rf/reg-event-db
 :set-new-chapter-panel-open
@@ -75,21 +98,23 @@
 (rf/reg-event-fx
 :add-chapter
 (fn [{:keys [db]} _]
-   (let [description (get-in db [:view-state :saga :new-description])]
-     (if (str/blank? (or description ""))
+   (let [name (some-> (get-in db [:view-state :saga :new-name]) str str/trim)
+         description (get-in db [:view-state :saga :new-description])]
+     (if (str/blank? (or name ""))
        {:db (-> db
                 (assoc-in [:view-state :saga :new-panel-open?] true)
-                (assoc :status "Add a chapter theme first."))}
+                (assoc :status "Add a chapter name first."))}
      {:db db
-      :dispatch [:enqueue-add-chapter description]}))))
+      :dispatch [:enqueue-add-chapter name description]}))))
 
 (rf/reg-event-fx
 :add-character
 (fn [{:keys [db]} _]
-   (let [description (get-in db [:view-state :roster :new-description])]
-     (if (str/blank? (or description ""))
+   (let [name (some-> (get-in db [:view-state :roster :new-name]) str str/trim)
+         description (get-in db [:view-state :roster :new-description])]
+     (if (str/blank? (or name ""))
        {:db (-> db
                 (assoc-in [:view-state :roster :new-panel-open?] true)
-                (assoc :status "Add a character description first."))}
+                (assoc :status "Add a character name first."))}
      {:db db
-      :dispatch [:enqueue-add-character description]}))))
+      :dispatch [:enqueue-add-character name description]}))))

@@ -318,13 +318,13 @@
   (with-synced-body
    request
    (fn [body]
-     (let [raw-description (gobj/get body "description")
-           description (if (some? raw-description)
-                         (some-> raw-description str str/trim)
-                         nil)]
+     (let [raw-name (or (gobj/get body "name") (gobj/get body "description"))
+           raw-description (gobj/get body "description")
+           name (if (some? raw-name) (some-> raw-name str str/trim) nil)
+           description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
        (run-command
         request
-        {:run! #(chapter/add-chapter! description)
+        {:run! #(chapter/add-chapter-with-details! name description)
          :reason "chapter-added"
          :default-error "Create chapter failed."
          :status-by-message {}
@@ -341,13 +341,13 @@
   (with-synced-body
    request
    (fn [body]
-     (let [raw-description (gobj/get body "description")
-           description (if (some? raw-description)
-                         (some-> raw-description str str/trim)
-                         nil)]
+     (let [raw-name (or (gobj/get body "name") (gobj/get body "description"))
+           raw-description (gobj/get body "description")
+           name (if (some? raw-name) (some-> raw-name str str/trim) nil)
+           description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
        (run-command
         request
-        {:run! #(character/add-character! description)
+        {:run! #(character/add-character-with-details! name description)
          :reason "character-added"
          :default-error "Create character failed."
          :status-by-message {}
@@ -416,22 +416,23 @@
    request
    (fn [body]
      (let [chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
            description (some-> (gobj/get body "description") str str/trim)]
        (cond
          (str/blank? chapter-id)
          (json-response 400 {:error "Missing chapterId."} request)
 
-         (str/blank? description)
-         (json-response 400 {:error "Missing chapter description."} request)
+         (str/blank? name)
+         (json-response 400 {:error "Missing chapter name."} request)
 
          :else
          (run-command
           request
-          {:run! #(chapter/update-chapter-description! chapter-id description)
+          {:run! #(chapter/update-chapter-details! chapter-id name description)
            :reason "chapter-updated"
            :default-error "Update chapter failed."
            :status-by-message {"Chapter not found." 404
-                               "Missing chapter description." 400}
+                               "Missing chapter name." 400}
            :on-success (fn [chapter snapshot]
                          (json-response 200
                                         (with-revision {:updated true
@@ -444,22 +445,23 @@
    request
    (fn [body]
      (let [character-id (some-> (gobj/get body "characterId") str str/trim)
+           name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
            description (some-> (gobj/get body "description") str str/trim)]
        (cond
          (str/blank? character-id)
          (json-response 400 {:error "Missing characterId."} request)
 
-         (str/blank? description)
-         (json-response 400 {:error "Missing character description."} request)
+         (str/blank? name)
+         (json-response 400 {:error "Missing character name."} request)
 
          :else
          (run-command
           request
-          {:run! #(character/update-description! character-id description)
+          {:run! #(character/update-details! character-id name description)
            :reason "character-updated"
            :default-error "Update character failed."
            :status-by-message {"Character not found." 404
-                               "Missing character description." 400}
+                               "Missing character name." 400}
            :on-success (fn [character snapshot]
                          (json-response 200
                                         (with-revision {:updated true
@@ -496,6 +498,35 @@
                     (with-revision {:cleared true
                                     :frame frame}
                                    snapshot))}))
+
+(defn handle-replace-frame-image [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [frame-id (some-> (gobj/get body "frameId") str str/trim)
+           image-data-url (some-> (gobj/get body "imageDataUrl") str str/trim)]
+       (cond
+         (str/blank? frame-id)
+         (json-response 400 {:error "Missing frameId."} request)
+
+         (str/blank? image-data-url)
+         (json-response 400 {:error "Missing imageDataUrl."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(chapter/replace-frame-image! frame-id image-data-url)
+           :reason "frame-image-replaced"
+           :default-error "Replace image failed."
+           :status-by-message {"Frame not found." 404
+                               "Cannot replace image while queued or processing." 409
+                               "Invalid imageDataUrl." 400}
+           :on-success (fn [frame snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :frame frame}
+                                                       snapshot)
+                                        request))}))))))
 
 (def handle-delete-chapter
   (make-required-mutation-handler
@@ -545,6 +576,7 @@
   [{:method :get :name "get-state" :route "state" :handler handle-get-state}
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
+   {:method :post :name "post-replace-frame-image" :route "replace-frame-image" :handler handle-replace-frame-image}
    {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
    {:method :post :name "post-update-character" :route "update-character" :handler handle-update-character}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}

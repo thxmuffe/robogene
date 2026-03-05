@@ -4,7 +4,7 @@
 
 (defn- from-page->hash [from-page]
   (case from-page
-    :roster "#/roster"
+    :roster (model/roster-hash)
     :saga (model/saga-hash)
     nil))
 
@@ -39,9 +39,10 @@
 
 (rf/reg-event-fx
  :navigate-roster-page
- (fn [{:keys [db]} _]
+ (fn [{:keys [db]} [_ saga-name]]
+   (let [route-saga-name (or saga-name (get-in db [:route :saga-name]))]
    {:db db
-    :set-hash "#/roster"}))
+    :set-hash (model/roster-hash route-saga-name)})))
 
 (rf/reg-event-fx
  :navigate-relative-frame

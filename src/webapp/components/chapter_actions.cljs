@@ -5,14 +5,14 @@
             [webapp.components.chapter-menu :as chapter-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]))
 
-(defn chapter-actions [{:keys [entity-id entity-name entity-label singular-label]}]
+(defn chapter-actions [{:keys [entity-id entity-name entity-description entity-label singular-label]}]
   (r/with-let [confirm* (r/atom nil)]
     (let [label (or singular-label "chapter")
           display-name (or entity-name "")
           entity-label (or entity-label "chapter")
           title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
           items [{:id :rename-entity
-                  :label (str "Rename " label)}
+                  :label (str "Edit " label)}
                  {:id :delete-entity
                   :label (str "Delete " label)
                   :confirm {:title (str "Delete this " label "?")
@@ -32,7 +32,7 @@
          :items items
          :on-select (fn [item]
                       (if (= :rename-entity (:id item))
-                        (rf/dispatch [:start-entity-name-edit entity-label entity-id display-name])
+                        (rf/dispatch [:start-entity-edit entity-label entity-id display-name (or entity-description "")])
                         (reset! confirm* item)))}]
        [confirm-dialog/confirm-dialog
         {:item selected-item

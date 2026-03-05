@@ -5,6 +5,7 @@
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.components.frame-menu :as frame-menu]
             [webapp.components.confirm-dialog :as confirm-dialog]
+            [webapp.components.upload-dialog :as upload-dialog]
             ["@mantine/core" :refer [ActionIcon Box Stack Textarea Tooltip]]
             ["react-icons/fa6" :refer [FaPaperPlane]]))
 
@@ -16,7 +17,8 @@
     (rf/dispatch [:frame-direction-changed frame-id (.. e -target -value)])))
 
 (defn prompt-panel [{:keys [frameId error]} frame-input]
-  (r/with-let [confirm* (r/atom nil)]
+  (r/with-let [confirm* (r/atom nil)
+               upload-open?* (r/atom false)]
     (let [submit! (fn []
                     (rf/dispatch [:set-frame-actions-open frameId false])
                     (rf/dispatch [:generate-frame frameId]))
@@ -49,6 +51,8 @@
                                  :confirm-label "Remove image"
                                  :confirm-color "primary"}
                        :dispatch-event [:clear-frame-image frameId]}
+                      {:id :replace-image
+                       :label "Replace with own photo"}
                       {:id :delete-frame
                        :label "Delete frame"
                        :confirm {:title "Delete this frame?"
@@ -91,11 +95,19 @@
          {:title "Actions"
           :button-class "prompt-actions-trigger"
           :items menu-items
-          :on-select #(reset! confirm* %)}]
+          :on-select (fn [item]
+                       (if (= :replace-image (:id item))
+                         (reset! upload-open?* true)
+                         (reset! confirm* item)))}]
         [confirm-dialog/confirm-dialog
          {:item selected-item
           :on-cancel #(reset! confirm* nil)
           :on-confirm (fn []
                         (when-let [event (:dispatch-event selected-item)]
                           (rf/dispatch event))
-                        (reset! confirm* nil))}]]])))
+                        (reset! confirm* nil))}]
+        [upload-dialog/upload-dialog
+         {:open @upload-open?*
+          :on-close #(reset! upload-open?* false)
+          :on-submit (fn [image-data-url]
+                       (rf/dispatch [:replace-frame-image frameId image-data-url]))}]]])))

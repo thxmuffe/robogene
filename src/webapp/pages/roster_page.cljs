@@ -11,19 +11,24 @@
    :page-title "Roster"
    :editing-id-sub [:editing-character-id]
    :name-inputs-sub [:character-name-inputs]
+   :description-inputs-sub [:character-description-inputs]
+   :name-changed-event :new-character-name-changed
    :description-changed-event :new-character-description-changed
    :set-open-event :set-new-character-panel-open
    :add-event :add-character
-   :input-id "new-character-description"
-   :input-label "Character Description"
-   :input-placeholder "Describe this character and style..."
+   :name-input-id "new-character-name"
+   :name-input-label "Character Name"
+   :name-input-placeholder "Name this character..."
+   :description-input-id "new-character-description"
+   :description-input-label "Character Description"
+   :description-input-placeholder "Describe aliases, style, and references..."
    :add-title "Add New Character"
    :add-submit-label "Add New Character"
    :teaser-title "Add New Character"
    :teaser-sub "Create a character profile with image frames"
    :saga-back-label nil})
 
-(defn roster-page [saga-name roster frame-inputs open-frame-actions active-frame-id new-character-description new-character-panel-open?]
+(defn roster-page [saga-name roster frame-inputs open-frame-actions active-frame-id new-character-name new-character-description new-character-panel-open?]
   (let [safe-saga-name (or saga-name "Saga")
         title (str safe-saga-name " roster")]
     [gallery-page/collection-page (assoc roster-config
@@ -33,6 +38,7 @@
    frame-inputs
    open-frame-actions
    active-frame-id
-   new-character-description
+   {:name new-character-name
+    :description new-character-description}
    new-character-panel-open?
    false]))

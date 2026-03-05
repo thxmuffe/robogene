@@ -52,8 +52,15 @@
           :frame-id frame
           :fullscreen? fullscreen?
           :from-page from-page}))
-     (when (re-matches #"^#/roster/?$" raw)
-       {:view :roster})
+     (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
+       (let [query* (or query "")
+             saga-name (some-> (re-find #"(^|&)saga=([^&]+)" query*)
+                               (nth 2 nil)
+                               js/decodeURIComponent
+                               str/trim
+                               not-empty)]
+         {:view :roster
+          :saga-name (or saga-name (default-saga-route-name))}))
      (when-let [[_ saga-name] (re-matches #"^#/([^/?#][^?#]*)/?$" raw)]
        {:view :saga
         :saga-name (or (some-> saga-name js/decodeURIComponent str/trim not-empty)
@@ -69,6 +76,11 @@
   ([] (saga-hash (default-saga-route-name)))
   ([saga-name]
    (str "#/" (js/encodeURIComponent (or saga-name (default-saga-route-name))))))
+
+(defn roster-hash
+  ([] (roster-hash (default-saga-route-name)))
+  ([saga-name]
+   (str "#/roster?saga=" (js/encodeURIComponent (or saga-name (default-saga-route-name))))))
 
 (defn frame-hash
   ([chapter frame-id]

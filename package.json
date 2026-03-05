@@ -37,7 +37,7 @@
     "test:webapp": "node --test tests/webapp/*.test.mjs",
     "test:services": "node --test tests/services/*.test.mjs",
     "test:e2e": "npm run test:e2e:ui",
-    "test:e2e:ui": "ROBOGENE_RUN_E2E_UI=1 node --test tests/end-to-end/e2e-gallery-ui.test.mjs",
+    "test:e2e:ui": "ROBOGENE_RUN_E2E_UI=1 node --test tests/end-to-end/*.test.mjs",
     "test:e2e:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e",
     "test:e2e:ui:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e:ui",
     "test:all": "npm test && npm run test:e2e"

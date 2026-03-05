@@ -8,14 +8,18 @@
    :frame-inputs {}
    :open-frame-actions {}
    :view-state {:saga {:name-inputs {}
+                       :description-inputs {}
                        :editing-id nil
+                       :new-name ""
                        :new-description ""
                        :new-panel-open? false
                        :show-celebration? false}
                 :roster {:name-inputs {}
-                             :editing-id nil
-                             :new-description ""
-                             :new-panel-open? false}}
+                         :description-inputs {}
+                         :editing-id nil
+                         :new-name ""
+                         :new-description ""
+                         :new-panel-open? false}}
    :image-ui-by-frame-id {}
    :last-rendered-revision nil
    :active-frame-id nil

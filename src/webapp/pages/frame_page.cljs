@@ -85,7 +85,8 @@
     (some->> rows
              (some (fn [row]
                      (when (= (id-key row) chapter-id)
-                       (some-> (:description row) str/trim not-empty)))))))
+                       (or (some-> (:name row) str/trim not-empty)
+                           (some-> (:description row) str/trim not-empty))))))))
 
 (defn back-button-label [from-page owner-name saga-name]
   (case from-page
@@ -106,6 +107,11 @@
          :size "sm"
          :onClick #(rf/dispatch [:navigate-from-page])}
         back-text])
+     [:> Button
+      {:variant "default"
+       :size "sm"
+       :onClick #(rf/dispatch [:navigate-roster-page saga-name])}
+      "Roster"]
      [:> Button
       {:variant "default"
       :size "sm"

@@ -92,15 +92,17 @@
            :openaiOptions openai-options
            :referenceImageBytes nil})))
 
-(defn make-chapter [chapter-number description]
+(defn make-chapter [chapter-number name description]
   {:chapterId (new-uuid)
    :chapterNumber chapter-number
+   :name (str/trim (or name ""))
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
-(defn make-character [character-number description]
+(defn make-character [character-number name description]
   {:characterId (new-uuid)
    :characterNumber character-number
+   :name (str/trim (or name ""))
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
@@ -172,25 +174,28 @@
 (defn next-entity-number [entities number-key]
   (inc (reduce max 0 (map number-key entities))))
 
-(defn make-entity [entity-label number description]
+(defn make-entity [entity-label number name description]
   (if (= "character" (str entity-label))
-    (make-character number description)
-    (make-chapter number description)))
+    (make-character number name description)
+    (make-chapter number name description)))
 
-(defn add-entity! [entity-label description]
+(defn add-entity! [entity-label name description]
   (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
         entities (collection-key @state)
         number-key (if (= "character" (str entity-label)) :characterNumber :chapterNumber)
         entity-number (next-entity-number entities number-key)
+        normalized-name (str/trim (or name ""))
+        normalized-description (str/trim (or description ""))
         entity (make-entity entity-label
                             entity-number
-                            (if (str/blank? (or description ""))
+                            (if (str/blank? normalized-name)
                               (str default-name " " entity-number)
-                              description))
+                              normalized-name)
+                            normalized-description)
         entity-id (id-key entity)
         first-frame (assoc (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))
                            :description (str/trim
-                                         (or description
+                                         (or (not-empty normalized-description)
                                              (if (= "character" (str entity-label))
                                                "Character reference portrait."
                                                "Chapter opening scene."))))]
@@ -203,13 +208,23 @@
     {:entity entity
      :frame first-frame}))
 
-(defn add-chapter! [description]
-  (let [{:keys [entity frame]} (add-entity! "chapter" description)]
+(defn add-chapter! [name]
+  (let [{:keys [entity frame]} (add-entity! "chapter" name "")]
     {:chapter entity
      :frame frame}))
 
-(defn add-character! [description]
-  (let [{:keys [entity frame]} (add-entity! "character" description)]
+(defn add-character! [name]
+  (let [{:keys [entity frame]} (add-entity! "character" name "")]
+    {:character entity
+     :frame frame}))
+
+(defn add-chapter-with-details! [name description]
+  (let [{:keys [entity frame]} (add-entity! "chapter" name description)]
+    {:chapter entity
+     :frame frame}))
+
+(defn add-character-with-details! [name description]
+  (let [{:keys [entity frame]} (add-entity! "character" name description)]
     {:character entity
      :frame frame}))
 
@@ -231,31 +246,42 @@
                    (update :revision inc))))
       frame))))
 
-(defn update-entity-description! [entity-label entity-id description]
+(defn update-entity-details! [entity-label entity-id name description]
   (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
-        description (some-> (or description "") str str/trim)
+        normalized-name (some-> (or name "") str str/trim)
+        normalized-description (or (some-> (or description "") str str/trim) "")
         idx (first (keep-indexed (fn [i entity]
                                    (when (= (id-key entity) entity-id)
                                      i))
                                  (collection-key @state)))]
     (when-not (number? idx)
       (throw (js/Error. not-found-msg)))
-    (when (str/blank? description)
+    (when (str/blank? normalized-name)
       (throw (js/Error. (if (= "character" (str entity-label))
-                          "Missing character description."
-                          "Missing chapter description."))))
+                          "Missing character name."
+                          "Missing chapter name."))))
     (swap! state
            (fn [s]
              (-> s
-                 (assoc-in [collection-key idx :description] description)
+                 (assoc-in [collection-key idx :name] normalized-name)
+                 (assoc-in [collection-key idx :description] normalized-description)
                  (update :revision inc))))
     (get-in @state [collection-key idx])))
 
-(defn update-chapter-description! [chapter-id description]
-  (update-entity-description! "chapter" chapter-id description))
+(defn update-chapter-details! [chapter-id name description]
+  (update-entity-details! "chapter" chapter-id name description))
 
-(defn update-character-description! [character-id description]
-  (update-entity-description! "character" character-id description))
+(defn update-character-details! [character-id name description]
+  (update-entity-details! "character" character-id name description))
+
+(defn normalize-entity [entity-label entity]
+  (let [name (some-> (or (:name entity) (:description entity)) str str/trim)
+        description (if (contains? entity :name)
+                      (some-> (:description entity) str str/trim)
+                      "")]
+    (assoc entity
+           :name (or name "")
+           :description (or description ""))))
 
 (defn delete-entity! [entity-label entity-id]
   (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
@@ -325,6 +351,29 @@
                  (update :revision inc))))
     (get (:frames @state) idx)))
 
+(defn replace-frame-image! [frame-id image-data-url]
+  (let [snapshot @state
+        frames (:frames snapshot)
+        idx (find-frame-index frames frame-id)
+        frame (when (number? idx) (get frames idx))
+        normalized-image (some-> image-data-url str str/trim)]
+    (when (nil? idx)
+      (throw (js/Error. "Frame not found.")))
+    (when (or (= "queued" (:status frame))
+              (= "processing" (:status frame)))
+      (throw (js/Error. "Cannot replace image while queued or processing.")))
+    (when-not (str/starts-with? (or normalized-image "") "data:image/")
+      (throw (js/Error. "Invalid imageDataUrl.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (assoc-in [:frames idx :imageUrl] normalized-image)
+                 (assoc-in [:frames idx :status] "ready")
+                 (assoc-in [:frames idx :error] nil)
+                 (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                 (update :revision inc))))
+    (get (:frames @state) idx)))
+
 (defn initialize-state! []
   (let [openai-options (settings/image-settings)
         chapter-script-text (read-text default-chapter-script)
@@ -333,7 +382,7 @@
         visual (parse-visual-prompts prompts-text)
         ref-bytes (read-bytes default-reference-image)
         page1-bytes (read-bytes page1-reference-image)
-        chapter1 (make-chapter 1 "Chapter 1")
+        chapter1 (make-chapter 1 "Chapter 1" "")
         chapter-id (:chapterId chapter1)
         frame1 {:frameId (new-uuid)
                 :chapterId chapter-id
@@ -379,8 +428,12 @@
                  (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
-                 (assoc :saga (vec (:saga persisted)))
-                 (assoc :roster (vec (or (:roster persisted) [])))
+                 (assoc :saga (->> (or (:saga persisted) [])
+                                   (map #(normalize-entity "chapter" %))
+                                   vec))
+                 (assoc :roster (->> (or (:roster persisted) [])
+                                     (map #(normalize-entity "character" %))
+                                     vec))
                  (assoc :frames (vec (:frames persisted)))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
@@ -460,14 +513,19 @@
         character (character-by-id (:roster @state) (:chapterId frame))
         chapter-label (when chapter
                         (str "Chapter " (:chapterNumber chapter)
-                             " theme: " (:description chapter)))]
+                             " theme: " (or (:name chapter) "")
+                             (when (seq (or (:description chapter) ""))
+                               (str ". Details: " (:description chapter)))))]
     (str/join
      "\n\n"
      (filter seq
              ["Create ONE comic chapter image for the next frame."
               "Character lock: Robot Emperor must match the attached reference identity (powdered white wig with side curls, pale robotic face, cyan glowing eyes, red cape with blue underlayer)."
               (when character
-                (str "Character profile: " (:description character)))
+                (str "Character profile: "
+                     (or (:name character) "")
+                     (when (seq (or (:description character) ""))
+                       (str ". " (:description character)))))
               chapter-label
               (get-in @state [:visual :globalStyle] "")
               (str "Frame description for this chapter: " (:description frame))
