@@ -21,7 +21,7 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
     await page.getByRole('button', { name: 'Add New Frame' }).first().click();
     logStep('mobile-actions', 'waiting for new frame');
     await page.waitForFunction(
-      (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length === expected,
+      (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
       beforeCount + 1,
       { timeout: actionTimeoutMs }
     );

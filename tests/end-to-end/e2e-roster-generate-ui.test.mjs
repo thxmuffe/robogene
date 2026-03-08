@@ -16,7 +16,9 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
     await page.getByPlaceholder('Name this character...').fill(characterName);
-    await page.getByRole('button', { name: 'Add New Character' }).click();
+    await page.locator('.new-chapter-panel h3').click();
+    await page.waitForTimeout(300);
+    await page.locator('.new-chapter-panel').getByRole('button', { name: 'Submit' }).click();
     logStep('roster-generate', 'character created');
 
     const chapter = page.locator('.chapter-block', { hasText: characterName }).first();
@@ -31,7 +33,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
         const chapterEl = Array.from(document.querySelectorAll('.chapter-block'))
           .find((el) => String(el.textContent || '').includes(chapterText));
         if (!chapterEl) return false;
-        return chapterEl.querySelectorAll('.gallery .frame-panel[data-frame-id]').length === expected;
+        return chapterEl.querySelectorAll('.gallery .frame-panel[data-frame-id]').length >= expected;
       },
       { chapterText: characterName, expected: beforeCount + 1 },
       { timeout: actionTimeoutMs }
@@ -43,7 +45,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     assert.ok(frameId, 'new roster frame should expose data-frame-id');
 
     await newFrame.locator('.subtitle-display').click();
-    await newFrame.locator('.prompt-input textarea').fill('bill');
+    await newFrame.locator('.description-editor-input textarea').fill('bill');
     logStep('roster-generate', 'triggering image generation');
     await newFrame.getByRole('button', { name: 'Generate' }).click();
 

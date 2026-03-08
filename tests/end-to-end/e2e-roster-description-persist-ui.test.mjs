@@ -17,7 +17,9 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
     await page.getByPlaceholder('Name this character...').fill(characterName);
     await page.getByPlaceholder('Describe aliases, style, and references...').fill(initialDesc);
-    await page.getByRole('button', { name: 'Add New Character' }).click();
+    await page.locator('.new-chapter-panel h3').click();
+    await page.waitForTimeout(300);
+    await page.locator('.new-chapter-panel').getByRole('button', { name: 'Submit' }).click();
     logStep('roster-persist', 'character created');
 
     const characterBlock = page.locator('.chapter-block', { hasText: characterName }).first();
@@ -26,9 +28,13 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
 
     await characterBlock.locator('.chapter-menu-trigger').click();
     await page.getByRole('menuitem', { name: 'Edit character' }).click();
-    await characterBlock.locator('textarea.chapter-description-input').fill(updatedDesc);
-    await characterBlock.getByRole('button', { name: 'Submit' }).click();
-    await characterBlock.locator('.chapter-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
+    const editForm = page.locator('.chapter-edit-db-item').first();
+    await editForm.locator('.chapter-description-input textarea').fill(updatedDesc);
+    await editForm.getByRole('button', { name: 'Submit' }).click();
+
+    const updatedBlock = page.locator('.chapter-block', { hasText: updatedDesc }).first();
+    await updatedBlock.waitFor({ timeout: actionTimeoutMs });
+    await updatedBlock.locator('.chapter-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
 
     logStep('roster-persist', 'reloading page to verify persistence');
     await page.reload({ waitUntil: 'domcontentloaded' });
