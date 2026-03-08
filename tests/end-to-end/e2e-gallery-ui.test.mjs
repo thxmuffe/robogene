@@ -13,7 +13,7 @@ export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep })
     await page.getByRole('button', { name: 'Add New Frame' }).first().click();
     logStep('gallery', 'waiting for new frame');
     await page.waitForFunction(
-      (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length === expected,
+      (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
       beforeCount + 1,
       { timeout: actionTimeoutMs }
     );

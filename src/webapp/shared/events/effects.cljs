@@ -8,3 +8,12 @@
     (fn []
       (rf/dispatch [:chapter-celebration-ended]))
     2200)))
+
+(rf/reg-fx
+ :dispatch-after-burst
+ (fn [{:keys [delays event]}]
+   (doseq [ms (or delays [])]
+     (js/setTimeout
+      (fn []
+        (rf/dispatch event))
+      ms))))

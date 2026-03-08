@@ -9,6 +9,7 @@
 (defonce realtime-starting?* (atom false))
 (defonce realtime-epoch* (atom 0))
 (defonce coalesced-fetch-state!* (atom nil))
+ (defonce realtime-disabled?* (atom false))
 
 (defn create-coalesced-runner [task]
   (let [inflight?* (atom false)
@@ -180,14 +181,19 @@
     (let [epoch (swap! realtime-epoch* inc)]
       (-> (negotiate-realtime!)
           (.then (fn [info]
+                   (reset! realtime-disabled?* (true? (:disabled info)))
                    (connect-from-negotiate! info epoch)))
           (.catch (fn [err]
+                    (reset! realtime-disabled?* false)
                     (recover-with-fetch! epoch (str "Realtime negotiate failed: " (or (.-message err) err)))
                     (js/console.warn
                      (str "[robogene] SignalR negotiate failed: "
                           (or (.-message err) err)))))
           (.finally (fn []
                       (reset! realtime-starting?* false)))))))
+
+(defn realtime-disabled? []
+  (true? @realtime-disabled?*))
 
 (rf/reg-fx
  :realtime-connect

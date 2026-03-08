@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.events.sync :as sync]
+            [webapp.shared.events.transport :as transport]
             [webapp.shared.events.image-ui :as image-ui]))
 
 (defn deleted-frame-label [frame]
@@ -442,9 +443,13 @@
  (fn [{:keys [db]} [_ command-id data]]
    (let [inflight (:sync-inflight db)]
      (if (= command-id (:id inflight))
-       (merge (apply-sync-success db (assoc inflight :response data))
-              {:dispatch-n [[:sync-outbox/process]
-                            [:fetch-state]]})
+       (cond-> (merge (apply-sync-success db (assoc inflight :response data))
+                      {:dispatch-n [[:sync-outbox/process]
+                                    [:fetch-state]]})
+         (and (= :generate-frame (:kind inflight))
+              (transport/realtime-disabled?))
+         (assoc :dispatch-after-burst {:delays [250 1000 2500]
+                                       :event [:fetch-state]}))
        {:db db}))))
 
 (defn current-image-url [db frame-id]
