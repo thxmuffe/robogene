@@ -15,8 +15,8 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
-    await page.locator('#new-character-name').fill(characterName);
-    await page.locator('#new-character-description').fill(initialDesc);
+    await page.getByPlaceholder('Name this character...').fill(characterName);
+    await page.getByPlaceholder('Describe aliases, style, and references...').fill(initialDesc);
     await page.getByRole('button', { name: 'Add New Character' }).click();
     logStep('roster-persist', 'character created');
 

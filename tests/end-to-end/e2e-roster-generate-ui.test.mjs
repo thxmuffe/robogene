@@ -15,7 +15,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
-    await page.locator('#new-character-name').fill(characterName);
+    await page.getByPlaceholder('Name this character...').fill(characterName);
     await page.getByRole('button', { name: 'Add New Character' }).click();
     logStep('roster-generate', 'character created');
 

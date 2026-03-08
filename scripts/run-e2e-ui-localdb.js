@@ -2,10 +2,13 @@
 "use strict";
 
 const fs = require("fs");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const net = require("net");
+const path = require("path");
 
 const AZURITE_DIR = ".tmp/azurite";
+const AZURITE_STARTUP_TIMEOUT_MS = 20000;
+const AZURITE_PORTS = [10000, 10001, 10002];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,6 +43,48 @@ function killChild(child, signal) {
   } catch {}
 }
 
+function resolveAzuriteEntry() {
+  const packageJsonPath = require.resolve("azurite/package.json");
+  const packageDir = path.dirname(packageJsonPath);
+  const { bin } = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  return path.join(packageDir, bin.azurite);
+}
+
+function resolvePackageBin(pkgName, binName) {
+  const packageJsonPath = require.resolve(`${pkgName}/package.json`);
+  const packageDir = path.dirname(packageJsonPath);
+  const { bin } = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  return path.join(packageDir, typeof bin === "string" ? bin : bin[binName]);
+}
+
+function formatAzuriteExit(code, signal) {
+  if (signal) return `Azurite exited before startup (signal ${signal}).`;
+  return `Azurite exited before startup (code ${code ?? "unknown"}).`;
+}
+
+function waitForAzuriteReady(child) {
+  return Promise.race([
+    Promise.all([
+      ...AZURITE_PORTS.map((port) => waitForPort(port, AZURITE_STARTUP_TIMEOUT_MS)),
+    ]),
+    new Promise((_, reject) => {
+      child.once("error", (err) => reject(err));
+      child.once("exit", (code, signal) => reject(new Error(formatAzuriteExit(code, signal))));
+    }),
+  ]);
+}
+
+function stopProcessesOnPorts(ports) {
+  const killPortCli = resolvePackageBin("kill-port", "kill-port");
+  const result = spawnSync(process.execPath, [killPortCli, ...ports.map(String)], {
+    stdio: "inherit",
+    shell: false,
+  });
+  if (result.status !== 0) {
+    throw new Error(`Failed to clear Azurite ports (${ports.join(", ")}).`);
+  }
+}
+
 async function stopAzurite(child) {
   if (!child || child.exitCode !== null) return;
   killChild(child, "SIGINT");
@@ -52,10 +97,12 @@ async function stopAzurite(child) {
 }
 
 async function main() {
+  stopProcessesOnPorts(AZURITE_PORTS);
   fs.rmSync(AZURITE_DIR, { recursive: true, force: true });
+  const azuriteEntry = resolveAzuriteEntry();
   const azurite = spawn(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["azurite", "--silent", "--location", AZURITE_DIR, "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
+    process.execPath,
+    [azuriteEntry, "--silent", "--location", AZURITE_DIR, "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
     { stdio: "inherit", shell: false }
   );
 
@@ -76,9 +123,7 @@ async function main() {
   });
 
   try {
-    await waitForPort(10000, 10000);
-    await waitForPort(10001, 10000);
-    await waitForPort(10002, 10000);
+    await waitForAzuriteReady(azurite);
 
     const test = spawn(
       process.platform === "win32" ? "npm.cmd" : "npm",

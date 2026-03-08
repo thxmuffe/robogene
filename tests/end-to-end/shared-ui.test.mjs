@@ -14,7 +14,7 @@ import { runSmokeScenario } from './e2e-smoke-ui.test.mjs';
 
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = 90000;
-const actionTimeoutMs = 45000;
+const actionTimeoutMs = 5000;
 const mockSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#1496ff'/></svg>";
 const mockSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(mockSvg, 'utf8').toString('base64')}`;
 
@@ -42,6 +42,17 @@ function createAppLogger() {
       return logs;
     },
   };
+}
+
+function runNpmCommand(args, env) {
+  const result = spawnSync('npm', args, {
+    cwd: process.cwd(),
+    env,
+    stdio: 'inherit',
+  });
+  if (result.status !== 0) {
+    throw new Error(`npm ${args.join(' ')} failed with exit code ${result.status}.`);
+  }
 }
 
 async function stopAzureFunctionsHost() {
@@ -104,18 +115,24 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
   killByPattern('http-server dist/release/webapp -p');
 
   const appLogs = createAppLogger();
-  const app = spawn('npm', ['run', 'start:release'], {
+  const appEnv = {
+    ...process.env,
+    WEBAPP_PORT: String(webappPort),
+    WEBAPI_PORT: String(apiPort),
+    FUNCTIONS_WORKER_RUNTIME: 'node',
+    ROBOGENE_IMAGE_GENERATOR: 'mock',
+    ROBOGENE_IMAGE_GENERATOR_MOCK_DATA_URL: mockSvgDataUrl,
+    ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS: '10',
+    ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
+  };
+
+  runNpmCommand(['run', 'stop:dev'], appEnv);
+  runNpmCommand(['run', 'build:webapi:debug'], appEnv);
+  runNpmCommand(['run', 'build'], appEnv);
+
+  const app = spawn('npm', ['run', 'release:up'], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      WEBAPP_PORT: String(webappPort),
-      WEBAPI_PORT: String(apiPort),
-      FUNCTIONS_WORKER_RUNTIME: 'node',
-      ROBOGENE_IMAGE_GENERATOR: 'mock',
-      ROBOGENE_IMAGE_GENERATOR_MOCK_DATA_URL: mockSvgDataUrl,
-      ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS: '10',
-      ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
-    },
+    env: appEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
@@ -151,7 +168,11 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
         ...options,
         baseURL: `http://localhost:${webappPort}`,
       });
+      context.setDefaultTimeout(actionTimeoutMs);
+      context.setDefaultNavigationTimeout(actionTimeoutMs);
       const page = await context.newPage();
+      page.setDefaultTimeout(actionTimeoutMs);
+      page.setDefaultNavigationTimeout(actionTimeoutMs);
       const consoleGuard = attachConsoleFailureGuard(page, {
         ignore: ['Download the React DevTools for a better development experience'],
       });
