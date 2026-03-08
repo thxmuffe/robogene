@@ -11,51 +11,9 @@ permissions:
   pages: write
 
 jobs:
-  test:
-    name: Validate
-    runs-on: ubuntu-latest
-    env:
-      ROBOGENE_E2E_HEADLESS: "1"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Setup Clojure
-        uses: DeLaGuardo/setup-clojure@13.2
-        with:
-          cli: latest
-
-      - name: Install Azure Functions Core Tools
-        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run unit and service tests
-        run: npm test
-
-      - name: Run UI e2e tests
-        run: npm run test:e2e:ui:env
-
   build-webapi:
     name: Build webapi
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -116,7 +74,7 @@ jobs:
   deploy-webapi:
     name: Deploy webapi to Azure
     runs-on: ubuntu-latest
-    needs: build-webapi
+    needs: validate
     env:
       FUNCTION_APP_NAME: robogene-func-prod
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -225,7 +183,6 @@ jobs:
   build-webapp:
     name: Build webapp
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -258,10 +215,71 @@ jobs:
           name: robogen-webapp
           path: dist/release/webapp
 
+      - name: Upload webapp test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: robogen-webapp-dist
+          path: dist/release/webapp
+          retention-days: 7
+
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs:
+      - build-webapi
+      - build-webapp
+    env:
+      ROBOGENE_E2E_HEADLESS: "1"
+      ROBOGENE_E2E_USE_PREBUILT: "1"
+      ROBOGENE_E2E_WEBAPP_DIR: ${{ github.workspace }}/.artifacts/webapp
+      ROBOGENE_E2E_WEBAPI_SCRIPT_ROOT: ${{ github.workspace }}/.artifacts/webapi/app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Download webapi build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapi
+          path: .artifacts/webapi
+
+      - name: Download webapp build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapp-dist
+          path: .artifacts/webapp
+
+      - name: Unpack webapi artifact
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/webapi/app
+          unzip -q .artifacts/webapi/webapi_dist.zip -d .artifacts/webapi/app
+
+      - name: Run unit and service tests
+        run: npm test
+
+      - name: Run UI e2e tests from built artifacts
+        run: npm run test:e2e:ui
+
   deploy-pages:
     name: Deploy webapp to GitHub Pages
     runs-on: ubuntu-latest
-    needs: build-webapp
+    needs: validate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
