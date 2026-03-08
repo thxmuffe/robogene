@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 
+const generationTimeoutMs = 15000;
+
 export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, logStep }) {
   const { page, consoleGuard, close } = await openPage('roster-generate');
   try {
@@ -56,7 +58,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
         return !!el && src.length > 0;
       },
       frameId,
-      { timeout: actionTimeoutMs }
+      { timeout: generationTimeoutMs }
     );
 
     logStep('roster-generate', 'generation completed');
