@@ -4,6 +4,7 @@
 # Environment and secrets
 .env
 *.env
+!robogen.test.env
 
 # Node
 node_modules/

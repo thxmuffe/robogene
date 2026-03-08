@@ -20,7 +20,6 @@ Copy-paste:
 
 ```bash
 cp robogen.debug.env.example robogen.debug.env
-cp robogen.test.env.example robogen.test.env
 
 # Fill real secrets in robogen.debug.env:
 # - ROBOGENE_IMAGE_GENERATOR=openai (or mock)
@@ -54,7 +53,7 @@ npm run test:e2e:ui:env
 
 Notes:
 - `robogen.debug.env` holds real secrets.
-- `robogen.test.env` is an overlay (ports/timeouts) and can set `ROBOGENE_IMAGE_GENERATOR=mock`.
+- `robogen.test.env` is tracked in the repo and provides the test overlay (ports/timeouts/mock generator).
 - `local.settings.json` is not the source of truth in this project.
 
 ## CI/CD
