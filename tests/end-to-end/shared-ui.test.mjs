@@ -15,6 +15,7 @@ import { runSmokeScenario } from './e2e-smoke-ui.test.mjs';
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = 90000;
 const actionTimeoutMs = 5000;
+const shouldRunHeadless = process.env.ROBOGENE_E2E_HEADLESS === '1' || process.env.CI === 'true';
 const mockSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#1496ff'/></svg>";
 const mockSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(mockSvg, 'utf8').toString('base64')}`;
 
@@ -100,11 +101,6 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     t.skip('Azure Functions Core Tools (`func`) not found.');
     return;
   }
-  if (!fs.existsSync('robogen.debug.env')) {
-    t.skip('robogen.debug.env is required to run npm start:release.');
-    return;
-  }
-
   const playwright = await loadPlaywright(t);
   if (!playwright) return;
 
@@ -160,7 +156,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
       logStep,
     });
 
-    browser = await playwright.chromium.launch({ headless: false });
+    browser = await playwright.chromium.launch({ headless: shouldRunHeadless });
     logStep('suite', 'browser launched');
 
     const openPage = async (scope, options = {}) => {

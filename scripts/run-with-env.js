@@ -45,10 +45,6 @@ function main() {
   const baseEnvPath = path.join(root, "robogen.debug.env");
   const overlayEnvPath = path.resolve(root, overlayEnv);
 
-  if (!fs.existsSync(baseEnvPath)) {
-    console.error("Missing robogen.debug.env");
-    process.exit(1);
-  }
   if (!fs.existsSync(overlayEnvPath)) {
     console.error(`Missing ${overlayEnv}`);
     process.exit(1);
@@ -56,7 +52,7 @@ function main() {
 
   const env = {
     ...process.env,
-    ...parseEnvFile(baseEnvPath),
+    ...(fs.existsSync(baseEnvPath) ? parseEnvFile(baseEnvPath) : {}),
     ...parseEnvFile(overlayEnvPath),
   };
 

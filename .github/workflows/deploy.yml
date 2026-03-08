@@ -11,9 +11,51 @@ permissions:
   pages: write
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      ROBOGENE_E2E_HEADLESS: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@13.2
+        with:
+          cli: latest
+
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run unit and service tests
+        run: npm test
+
+      - name: Run UI e2e tests
+        run: npm run test:e2e:ui:env
+
   build-webapi:
     name: Build webapi
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -183,6 +225,7 @@ jobs:
   build-webapp:
     name: Build webapp
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
