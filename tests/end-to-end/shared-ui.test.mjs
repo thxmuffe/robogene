@@ -1,7 +1,8 @@
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { stopProcess, waitForHttpOk } from '../shared/async.mjs';
+import path from 'node:path';
+import { waitForHttpOk } from '../shared/async.mjs';
 import { attachConsoleFailureGuard } from '../shared/playwright.mjs';
 import { getFreePort } from '../shared/ports.mjs';
 import { commandAvailable, killByPattern } from '../shared/system.mjs';
@@ -41,9 +42,9 @@ function createAppLogger() {
 
 async function stopAzureFunctionsHost() {
   if (!commandAvailable('pkill')) return;
-  spawn('pkill', ['-INT', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
+  spawnSync('pkill', ['-INT', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  spawn('pkill', ['-KILL', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
+  spawnSync('pkill', ['-KILL', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
 }
 
 async function forceStopApp(app) {
@@ -59,6 +60,24 @@ async function forceStopApp(app) {
     app.once('exit', resolve);
     setTimeout(resolve, 1000);
   });
+}
+
+async function runSeedScript({ apiBase, fixturePath, logStep }) {
+  if (!fixturePath || !fs.existsSync(fixturePath)) return;
+  logStep('seed', `running ${fixturePath}`);
+  const script = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['httpyac', 'send', path.resolve(fixturePath), '--all'], {
+    cwd: process.cwd(),
+    env: { ...process.env, ROBOGENE_API_BASE: apiBase },
+    stdio: ['ignore', 'inherit', 'inherit'],
+  });
+  const exitCode = await new Promise((resolve, reject) => {
+    script.on('exit', resolve);
+    script.on('error', reject);
+  });
+  if (exitCode !== 0) {
+    throw new Error(`Seed script failed with exit code ${exitCode}.`);
+  }
+  logStep('seed', 'done');
 }
 
 test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
@@ -114,6 +133,11 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     logStep('suite', 'web app is reachable');
     await waitForHttpOk(`http://localhost:${apiPort}/api/state`, startupTimeoutMs);
     logStep('suite', 'api is reachable');
+    await runSeedScript({
+      apiBase: `http://localhost:${apiPort}`,
+      fixturePath: process.env.ROBOGENE_E2E_SEED_FILE,
+      logStep,
+    });
 
     browser = await playwright.chromium.launch({ headless: false });
     logStep('suite', 'browser launched');
@@ -164,11 +188,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     if (browser) {
       await browser.close();
     }
-    if (suiteFailed) {
-      await forceStopApp(app);
-    } else {
-      await stopProcess(app);
-    }
+    await forceStopApp(app);
     await stopAzureFunctionsHost();
     killByPattern('http-server dist/release/webapp -p');
     if (suiteFailed) {

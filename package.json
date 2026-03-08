@@ -36,10 +36,13 @@
     "test": "node --test --test-reporter=spec tests/webapp/*.test.mjs tests/services/*.test.mjs",
     "test:webapp": "node --test --test-reporter=spec tests/webapp/*.test.mjs",
     "test:services": "node --test --test-reporter=spec tests/services/*.test.mjs",
+    "test:db:start": "azurite --silent --location .tmp/azurite --blobHost 127.0.0.1 --queueHost 127.0.0.1 --tableHost 127.0.0.1",
     "test:e2e": "npm run test:e2e:ui",
-    "test:e2e:ui": "ROBOGENE_RUN_E2E_UI=1 node --test --test-reporter=spec tests/end-to-end/shared-ui.test.mjs",
-    "test:e2e:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e",
-    "test:e2e:ui:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e:ui",
+    "test:e2e:ui": "node scripts/run-e2e-ui-localdb.js",
+    "test:e2e:ui:direct": "ROBOGENE_RUN_E2E_UI=1 node --test --test-reporter=spec tests/end-to-end/shared-ui.test.mjs",
+    "test:e2e:env": "node scripts/run-with-env.js robogen.test.env -- npm run test:e2e:ui:direct",
+    "test:e2e:ui:env": "npm run test:e2e:env",
+    "test:e2e:ui:localdb": "npm run test:e2e:ui",
     "test:all": "npm test && npm run test:e2e"
   },
   "dependencies": {
@@ -54,9 +57,11 @@
     "react-icons": "^5.5.0"
   },
   "devDependencies": {
+    "azurite": "^3.35.0",
     "concurrently": "^9.2.1",
     "dotenv-cli": "^8.0.0",
     "http-server": "^14.1.1",
+    "httpyac": "^6.16.4",
     "kill-port": "^2.0.1",
     "playwright": "^1.54.2",
     "shadow-cljs": "^3.3.6"

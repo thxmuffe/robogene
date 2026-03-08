@@ -1,0 +1,19 @@
+@base = {{$processEnv ROBOGENE_API_BASE}}
+
+### Seed one chapter and its first frame
+# @name createChapter
+POST {{base}}/api/add-chapter
+Content-Type: application/json
+
+{
+  "name": "Smoke Chapter",
+  "description": "A deterministic chapter for local E2E runs."
+}
+
+### Seed a second frame for the created chapter
+POST {{base}}/api/add-frame
+Content-Type: application/json
+
+{
+  "chapterId": "{{createChapter.chapter.chapterId}}"
+}

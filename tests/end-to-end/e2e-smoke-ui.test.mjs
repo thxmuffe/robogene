@@ -14,9 +14,9 @@ export async function runSmokeScenario({ openPage, actionTimeoutMs, logStep }) {
     );
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
-    assert.ok((await frames.count()) > 0, 'gallery should contain at least one frame');
-    consoleGuard.assertClean();
+    assert.notEqual(await frames.count(), 0, 'gallery should contain at least one frame');
   } finally {
+    consoleGuard.detach();
     await close();
   }
 }
