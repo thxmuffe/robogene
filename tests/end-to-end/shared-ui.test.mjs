@@ -6,6 +6,10 @@ import { waitForHttpOk } from '../shared/async.mjs';
 import { attachConsoleFailureGuard } from '../shared/playwright.mjs';
 import { getFreePort } from '../shared/ports.mjs';
 import { commandAvailable, killByPattern } from '../shared/system.mjs';
+import { runGalleryScenario } from './e2e-gallery-ui.test.mjs';
+import { runMobileActionsScenario } from './e2e-mobile-edit-db-item-actions-ui.test.mjs';
+import { runRosterPersistScenario } from './e2e-roster-description-persist-ui.test.mjs';
+import { runRosterGenerateScenario } from './e2e-roster-generate-ui.test.mjs';
 import { runSmokeScenario } from './e2e-smoke-ui.test.mjs';
 
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
@@ -174,10 +178,18 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
         throw err;
       }
     });
-    await t.test('ui e2e: gallery add frame and generate image', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
-    await t.test('ui e2e: mobile frame description edit actions stay visible', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
-    await t.test('ui e2e: roster character description persists after reload', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
-    await t.test('ui e2e: roster add character and generate image', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
+    await t.test('ui e2e: gallery add frame and generate image', async () => {
+      await runGalleryScenario(ctx);
+    });
+    await t.test('ui e2e: mobile frame description edit actions stay visible', async () => {
+      await runMobileActionsScenario(ctx);
+    });
+    await t.test('ui e2e: roster character description persists after reload', async () => {
+      await runRosterPersistScenario(ctx);
+    });
+    await t.test('ui e2e: roster add character and generate image', async () => {
+      await runRosterGenerateScenario(ctx);
+    });
     if (smokeError) {
       throw smokeError;
     }

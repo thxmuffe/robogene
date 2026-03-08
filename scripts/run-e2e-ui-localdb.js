@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require("fs");
 const { spawn } = require("child_process");
 const net = require("net");
+
+const AZURITE_DIR = ".tmp/azurite";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -49,9 +52,10 @@ async function stopAzurite(child) {
 }
 
 async function main() {
+  fs.rmSync(AZURITE_DIR, { recursive: true, force: true });
   const azurite = spawn(
     process.platform === "win32" ? "npx.cmd" : "npx",
-    ["azurite", "--silent", "--location", ".tmp/azurite", "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
+    ["azurite", "--silent", "--location", AZURITE_DIR, "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
     { stdio: "inherit", shell: false }
   );
 

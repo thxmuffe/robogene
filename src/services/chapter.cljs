@@ -367,36 +367,19 @@
         prompts-text (read-text default-prompts)
         descriptions (parse-descriptions chapter-script-text)
         visual (parse-visual-prompts prompts-text)
-        ref-bytes (read-bytes default-reference-image)
-        page1-bytes (read-bytes page1-reference-image)
-        chapter1 (make-chapter 1 "Chapter 1" "")
-        chapter-id (:chapterId chapter1)
-        frame1 {:frameId (new-uuid)
-                :chapterId chapter-id
-                :ownerType "saga"
-                :frameNumber 1
-                :description (best-frame-description descriptions visual 1)
-                :imageUrl (when page1-bytes (png-data-url page1-bytes))
-                :status (if page1-bytes "ready" "draft")
-                :reference true
-                :createdAt (.toISOString (js/Date.))}
-        frames (if page1-bytes
-                 [frame1 (assoc (make-draft-frame chapter-id 2)
-                               :description (best-frame-description descriptions visual 2))]
-                 [(assoc (make-draft-frame chapter-id 1)
-                         :description (best-frame-description descriptions visual 1))])]
+        ref-bytes (read-bytes default-reference-image)]
     (reset! state
             {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
              :sagaMeta {:name "Robot Emperor"
                         :description ""}
-             :saga [chapter1]
+             :saga []
              :roster []
-             :frames frames
+             :frames []
              :failedJobs []
              :processing false
-             :revision 1
+             :revision 0
              :openaiOptions openai-options
              :referenceImageBytes ref-bytes})))
 
