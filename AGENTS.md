@@ -11,6 +11,7 @@
 9. Max two implementation attempts per issue; if unresolved, stop and propose a minimal reproducible example.
 10. After each implementation step: list changed files and rationale, then continue unless user asks to pause.
 11. Do not run exploratory benchmarks/experiments for curiosity questions unless explicitly requested by the user.
+12. Avoid file renames/moves when possible; prefer keeping paths stable so humans can review git diffs more easily.
 
 ## Optimal Change (Preferred, Non-Mandatory)
 
