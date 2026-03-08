@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    name: Validate
     runs-on: ubuntu-latest
     env:
       ROBOGENE_E2E_HEADLESS: "1"
