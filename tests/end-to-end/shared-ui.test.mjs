@@ -21,6 +21,14 @@ function logStep(scope, message) {
   console.log(`[e2e][${scope}] ${message}`);
 }
 
+function isTimeoutError(err) {
+  const text = String(err?.message || err || '');
+  return text.includes('Timed out')
+    || text.includes('Timeout')
+    || text.includes('waiting for')
+    || text.includes('Test timeout');
+}
+
 async function loadPlaywright(t) {
   try {
     return await import('playwright');
@@ -41,6 +49,15 @@ function createAppLogger() {
       return logs;
     },
   };
+}
+
+async function forceStopApp(app) {
+  if (!app || app.exitCode !== null) return;
+  app.kill('SIGKILL');
+  await new Promise((resolve) => {
+    app.once('exit', resolve);
+    setTimeout(resolve, 1000);
+  });
 }
 
 test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
@@ -88,6 +105,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
   });
 
   let browser = null;
+  let suiteFailed = false;
   try {
     logStep('suite', `starting shared app on web:${webappPort} api:${apiPort}`);
     await waitForHttpOk(`http://localhost:${webappPort}/index.html`, startupTimeoutMs);
@@ -121,25 +139,40 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     };
 
     const ctx = { openPage, actionTimeoutMs, logStep };
-    if (!onlyScenario || onlyScenario === 'gallery') {
-      await t.test('ui e2e: gallery add frame and generate image', async () => runGalleryScenario(ctx));
-    }
-    if (!onlyScenario || onlyScenario === 'mobile') {
-      await t.test('ui e2e: mobile frame description edit actions stay visible', async () => runMobileActionsScenario(ctx));
-    }
-    if (!onlyScenario || onlyScenario === 'roster-persist') {
-      await t.test('ui e2e: roster character description persists after reload', async () => runRosterPersistScenario(ctx));
-    }
-    if (!onlyScenario || onlyScenario === 'roster-generate') {
-      await t.test('ui e2e: roster add character and generate image', async () => runRosterGenerateScenario(ctx));
+    const scenarios = [
+      ['gallery', 'ui e2e: gallery add frame and generate image', runGalleryScenario],
+      ['mobile', 'ui e2e: mobile frame description edit actions stay visible', runMobileActionsScenario],
+      ['roster-persist', 'ui e2e: roster character description persists after reload', runRosterPersistScenario],
+      ['roster-generate', 'ui e2e: roster add character and generate image', runRosterGenerateScenario],
+    ];
+
+    for (const [id, name, run] of scenarios) {
+      if (onlyScenario && onlyScenario !== id) continue;
+      let scenarioError = null;
+      await t.test(name, async () => {
+        try {
+          await run(ctx);
+        } catch (err) {
+          scenarioError = err;
+          throw err;
+        }
+      });
+      if (scenarioError && isTimeoutError(scenarioError)) {
+        throw scenarioError;
+      }
     }
   } catch (err) {
+    suiteFailed = true;
     throw new Error(`${String(err.message || err)}\n\nRecent app logs:\n${appLogs.get()}`);
   } finally {
     if (browser) {
       await browser.close();
     }
-    await stopProcess(app);
+    if (suiteFailed) {
+      await forceStopApp(app);
+    } else {
+      await stopProcess(app);
+    }
     killByPattern('func start --script-root src/host');
     killByPattern('http-server dist/release/webapp -p');
   }
