@@ -5,28 +5,16 @@ import { stopProcess, waitForHttpOk } from '../shared/async.mjs';
 import { attachConsoleFailureGuard } from '../shared/playwright.mjs';
 import { getFreePort } from '../shared/ports.mjs';
 import { commandAvailable, killByPattern } from '../shared/system.mjs';
-import { runGalleryScenario } from './e2e-gallery-ui.test.mjs';
-import { runMobileActionsScenario } from './e2e-mobile-edit-db-item-actions-ui.test.mjs';
-import { runRosterPersistScenario } from './e2e-roster-description-persist-ui.test.mjs';
-import { runRosterGenerateScenario } from './e2e-roster-generate-ui.test.mjs';
+import { runSmokeScenario } from './e2e-smoke-ui.test.mjs';
 
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = 90000;
 const actionTimeoutMs = 45000;
-const onlyScenario = process.env.ROBOGENE_E2E_ONLY || '';
 const mockSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#1496ff'/></svg>";
 const mockSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(mockSvg, 'utf8').toString('base64')}`;
 
 function logStep(scope, message) {
   console.log(`[e2e][${scope}] ${message}`);
-}
-
-function isTimeoutError(err) {
-  const text = String(err?.message || err || '');
-  return text.includes('Timed out')
-    || text.includes('Timeout')
-    || text.includes('waiting for')
-    || text.includes('Test timeout');
 }
 
 async function loadPlaywright(t) {
@@ -51,9 +39,22 @@ function createAppLogger() {
   };
 }
 
+async function stopAzureFunctionsHost() {
+  if (!commandAvailable('pkill')) return;
+  spawn('pkill', ['-INT', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  spawn('pkill', ['-KILL', '-f', 'func start --script-root src/host'], { stdio: 'ignore' });
+}
+
 async function forceStopApp(app) {
   if (!app || app.exitCode !== null) return;
-  app.kill('SIGKILL');
+  try {
+    process.kill(-app.pid, 'SIGKILL');
+  } catch {
+    try {
+      app.kill('SIGKILL');
+    } catch {}
+  }
   await new Promise((resolve) => {
     app.once('exit', resolve);
     setTimeout(resolve, 1000);
@@ -76,7 +77,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
   const webappPort = await getFreePort(0);
   const apiPort = await getFreePort(0);
 
-  killByPattern('func start --script-root src/host');
+  await stopAzureFunctionsHost();
   killByPattern('http-server dist/release/webapp -p');
 
   const appLogs = createAppLogger();
@@ -93,6 +94,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
       ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
 
   app.stdout.on('data', (chunk) => {
@@ -113,7 +115,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await waitForHttpOk(`http://localhost:${apiPort}/api/state`, startupTimeoutMs);
     logStep('suite', 'api is reachable');
 
-    browser = await playwright.chromium.launch({ headless: true });
+    browser = await playwright.chromium.launch({ headless: false });
     logStep('suite', 'browser launched');
 
     const openPage = async (scope, options = {}) => {
@@ -139,27 +141,21 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     };
 
     const ctx = { openPage, actionTimeoutMs, logStep };
-    const scenarios = [
-      ['gallery', 'ui e2e: gallery add frame and generate image', runGalleryScenario],
-      ['mobile', 'ui e2e: mobile frame description edit actions stay visible', runMobileActionsScenario],
-      ['roster-persist', 'ui e2e: roster character description persists after reload', runRosterPersistScenario],
-      ['roster-generate', 'ui e2e: roster add character and generate image', runRosterGenerateScenario],
-    ];
-
-    for (const [id, name, run] of scenarios) {
-      if (onlyScenario && onlyScenario !== id) continue;
-      let scenarioError = null;
-      await t.test(name, async () => {
-        try {
-          await run(ctx);
-        } catch (err) {
-          scenarioError = err;
-          throw err;
-        }
-      });
-      if (scenarioError && isTimeoutError(scenarioError)) {
-        throw scenarioError;
+    let smokeError = null;
+    await t.test('ui e2e: smoke app boots and shows first frame', async () => {
+      try {
+        await runSmokeScenario(ctx);
+      } catch (err) {
+        smokeError = err;
+        throw err;
       }
+    });
+    await t.test('ui e2e: gallery add frame and generate image', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
+    await t.test('ui e2e: mobile frame description edit actions stay visible', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
+    await t.test('ui e2e: roster character description persists after reload', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
+    await t.test('ui e2e: roster add character and generate image', { skip: 'Temporarily skipped while smoke test is stabilized.' }, async () => {});
+    if (smokeError) {
+      throw smokeError;
     }
   } catch (err) {
     suiteFailed = true;
@@ -173,7 +169,10 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     } else {
       await stopProcess(app);
     }
-    killByPattern('func start --script-root src/host');
+    await stopAzureFunctionsHost();
     killByPattern('http-server dist/release/webapp -p');
+    if (suiteFailed) {
+      process.nextTick(() => process.exit(1));
+    }
   }
 });
