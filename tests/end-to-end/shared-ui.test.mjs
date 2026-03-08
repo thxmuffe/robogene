@@ -15,7 +15,7 @@ import { runSmokeScenario } from './e2e-smoke-ui.test.mjs';
 const shouldRun = process.env.ROBOGENE_RUN_E2E_UI === '1';
 const startupTimeoutMs = 90000;
 const actionTimeoutMs = 5000;
-const shouldRunHeadless = process.env.ROBOGENE_E2E_HEADLESS === '1' || process.env.CI === 'true';
+const shouldRunHeadless = process.env.ROBOGENE_E2E_HEADLESS !== '0';
 const shouldUsePrebuilt = process.env.ROBOGENE_E2E_USE_PREBUILT === '1';
 const mockSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#1496ff'/></svg>";
 const mockSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(mockSvg, 'utf8').toString('base64')}`;
