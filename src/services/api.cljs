@@ -616,9 +616,10 @@
                                    snapshot))}))
 
 (defn handle-signalr-negotiate [request]
-  (if-let [info (realtime/create-client-connection-info)]
-    (json-response 200 info request)
-    (throw (js/Error. (str "Missing " realtime/connection-setting-name)))))
+  (json-response 200
+                 (or (realtime/create-client-connection-info)
+                     {:disabled true})
+                 request))
 
 (defn handle-options-preflight [request]
   #js {:status 204

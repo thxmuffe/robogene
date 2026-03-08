@@ -274,7 +274,7 @@ jobs:
         run: npm test
 
       - name: Run UI e2e tests from built artifacts
-        run: npm run test:e2e:ui
+        run: npm run test:e2e
 
   deploy-pages:
     name: Deploy webapp to GitHub Pages

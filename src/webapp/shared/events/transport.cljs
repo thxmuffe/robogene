@@ -161,15 +161,16 @@
                       (or (.-message err) err)))))))
 
 (defn connect-from-negotiate! [info epoch]
-  (let [url (:url info)
-        access-token (:accessToken info)]
-    (when (str/blank? (or url ""))
-      (throw (js/Error. "Negotiate response missing SignalR URL.")))
-    (when (str/blank? (or access-token ""))
-      (throw (js/Error. "Negotiate response missing SignalR access token.")))
-    (let [conn (build-connection url access-token)]
-      (subscribe-connection-events! conn epoch)
-      (start-connection! conn epoch))))
+  (when-not (:disabled info)
+    (let [url (:url info)
+          access-token (:accessToken info)]
+      (when (str/blank? (or url ""))
+        (throw (js/Error. "Negotiate response missing SignalR URL.")))
+      (when (str/blank? (or access-token ""))
+        (throw (js/Error. "Negotiate response missing SignalR access token.")))
+      (let [conn (build-connection url access-token)]
+        (subscribe-connection-events! conn epoch)
+        (start-connection! conn epoch)))))
 
 (defn start-realtime! []
   (when (and (nil? @realtime-conn*)
