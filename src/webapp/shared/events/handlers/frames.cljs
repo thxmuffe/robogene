@@ -43,25 +43,26 @@
                    (fn [frames] (conj (vec (or frames [])) frame)))
         (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
-(defn remove-frame [db frame-id]
-  (let [remaining-frames (->> (or (:gallery-items db) [])
-                              (remove (fn [frame] (= (:frameId frame) frame-id)))
+(defn remove-frames [db frame-ids]
+  (let [frame-id-set (set frame-ids)
+        remaining-frames (->> (or (:gallery-items db) [])
+                              (remove (fn [frame] (contains? frame-id-set (:frameId frame))))
                               vec)
         current-active-id (:active-frame-id db)
-        next-active-id (if (= current-active-id frame-id)
+        next-active-id (if (contains? frame-id-set current-active-id)
                          (some-> remaining-frames first :frameId)
-                         current-active-id)]
+                         current-active-id)
+        dissoc-ids (fn [m]
+                     (apply dissoc (or m {}) frame-ids))]
     (-> db
         (assoc :gallery-items remaining-frames
                :active-frame-id next-active-id)
-        (update :frame-inputs dissoc frame-id)
-        (update :open-frame-actions dissoc frame-id)
-        (update :image-ui-by-frame-id image-ui/remove-frame frame-id)
-        (update-in [:latest-state :frames]
-                   (fn [frames]
-                     (->> (or frames [])
-                          (remove (fn [frame] (= (:frameId frame) frame-id)))
-                          vec))))))
+        (update :frame-inputs dissoc-ids)
+        (update :open-frame-actions dissoc-ids)
+        (reduce (fn [acc frame-id]
+                  (update acc :image-ui-by-frame-id image-ui/remove-frame frame-id))
+                frame-ids)
+        (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
 
 (defn clear-frame-image [db frame-id]
   (let [clear-image (fn [frame]
@@ -179,6 +180,9 @@
       :delete-frame
       {:post-delete-frame (merge payload callbacks)}
 
+      :delete-empty-frames
+      {:post-delete-empty-frames (merge payload callbacks)}
+
       :clear-frame-image
       {:post-clear-frame-image (merge payload callbacks)}
 
@@ -284,13 +288,32 @@
 (rf/reg-event-fx
  :delete-frame
   (fn [{:keys [db]} [_ frame-id]]
-   (let [frame (frame-by-id db frame-id)
+     (let [frame (frame-by-id db frame-id)
          command {:id (sync/next-command-id)
                   :kind :delete-frame
                   :payload {:frame-id frame-id}
                   :success-status (str "Deleted " (deleted-frame-label frame) ".")}]
-     (sync/queue-command (remove-frame db frame-id)
+     (sync/queue-command (remove-frames db [frame-id])
                          "Deleting frame..."
+                         command))))
+
+(rf/reg-event-fx
+ :delete-empty-frames
+ (fn [{:keys [db]} [_ owner-id owner-type]]
+   (let [empty-frame-ids (->> (or (:gallery-items db) [])
+                              (filter (fn [frame]
+                                        (and (= (or (:ownerType frame) "saga") (str owner-type))
+                                             (= (:chapterId frame) owner-id)
+                                             (str/blank? (or (:imageUrl frame) "")))))
+                              (mapv :frameId))
+         frame-count (count empty-frame-ids)
+         command {:id (sync/next-command-id)
+                  :kind :delete-empty-frames
+                  :payload {:owner-id owner-id
+                            :owner-type owner-type}
+                  :success-status (str "Deleted " frame-count " empty frame" (when (not= 1 frame-count) "s") ".")}]
+     (sync/queue-command (remove-frames db empty-frame-ids)
+                         "Deleting empty frames..."
                          command))))
 
 (rf/reg-event-fx
@@ -478,12 +501,12 @@
  (fn [{:keys [db]} [_ command-id msg]]
    (let [inflight (:sync-inflight db)]
      (if (= command-id (:id inflight))
-       {:db (-> db
-                sync/dequeue-command
-                (assoc :sync-inflight nil
-                       :status (str "Request failed: " msg))
-                (cond-> (= :add-frame (:kind inflight))
-                  (remove-frame (get-in inflight [:payload :optimistic-frame-id]))))
+       {:db (cond-> (-> db
+                        sync/dequeue-command
+                        (assoc :sync-inflight nil
+                               :status (str "Request failed: " msg)))
+              (= :add-frame (:kind inflight))
+              (remove-frames [(get-in inflight [:payload :optimistic-frame-id])]))
         :dispatch-n [[:sync-outbox/process]
                      [:fetch-state]]}
        {:db db}))))

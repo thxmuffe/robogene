@@ -141,6 +141,11 @@ body {
   margin: 0 auto;
 }
 
+.hero-collection {
+  width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
+  margin: 0 auto;
+}
+
 .saga-page h2 {
   color: #143b5c;
   font-family: "Avenir Next", "Trebuchet MS", sans-serif;
@@ -168,6 +173,8 @@ h2 { margin: 24px 0 10px; }
   --card-width: 280px;
   --card-gap: 14px;
   --cols: 1;
+  width: 100%;
+  align-items: center;
 }
 
 @media (min-width: 640px) {

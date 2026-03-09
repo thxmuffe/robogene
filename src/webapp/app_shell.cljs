@@ -50,6 +50,7 @@
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])
         frame-view? (= :frame (:view route))
+        collection-view? (not frame-view?)
         saga-name* (saga-name saga-meta)]
     (set! (.-title js/document)
           (if (= :frame (:view route))
@@ -67,7 +68,9 @@
                    :style (when frame-view? {:width "100%"})
                    :className (when frame-view? "app-stack-frame")}
         [:> Box {:component "header"
-                 :className (str "hero" (when frame-view? " hero-frame"))}
+                 :className (str "hero"
+                                 (when frame-view? " hero-frame")
+                                 (when collection-view? " hero-collection"))}
          [:h1
           [:a {:href (model/saga-hash)
                :className "hero-home-link"}

@@ -258,8 +258,19 @@
 (rf/reg-fx
  :post-delete-frame
  (fn [{:keys [frame-id on-success on-failure]}]
-   (post-json "/api/delete-frame"
-              {:frameId frame-id}
+  (post-json "/api/delete-frame"
+             {:frameId frame-id}
+             on-success
+             on-failure
+             (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-delete-empty-frames
+ (fn [{:keys [owner-id owner-type on-success on-failure]}]
+   (post-json "/api/delete-empty-frames"
+              {:ownerType (or owner-type "saga")
+               :chapterId (when (not= "character" (str owner-type)) owner-id)
+               :characterId (when (= "character" (str owner-type)) owner-id)}
               on-success
               on-failure
               (fn [ok _] ok))))

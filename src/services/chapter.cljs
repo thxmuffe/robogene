@@ -329,22 +329,45 @@
 
 (declare find-frame-index)
 
-(defn delete-frame! [frame-id]
-  (let [snapshot @state
+(defn delete-frames! [frame-ids]
+  (let [frame-id-set (set frame-ids)
+        snapshot @state
         frames (:frames snapshot)
-        idx (find-frame-index frames frame-id)
-        frame (when (number? idx) (get frames idx))]
-    (when (nil? idx)
+        deleted-frames (->> frames
+                            (filter (fn [frame]
+                                      (contains? frame-id-set (:frameId frame))))
+                            vec)]
+    (when (not= (count deleted-frames) (count frame-id-set))
       (throw (js/Error. "Frame not found.")))
     (swap! state
            (fn [s]
              (-> s
                  (update :frames (fn [rows]
-                                   (vec (concat (subvec rows 0 idx)
-                                                (subvec rows (inc idx)))))
-                 )
+                                   (->> (or rows [])
+                                        (remove (fn [frame]
+                                                  (contains? frame-id-set (:frameId frame))))
+                                        vec)))
                  (update :revision inc))))
-    frame))
+    deleted-frames))
+
+(defn delete-frame! [frame-id]
+  (first (delete-frames! [frame-id])))
+
+(defn delete-empty-frames! [owner-id owner-type]
+  (let [normalized-owner-type (str/lower-case (str (or owner-type "saga")))
+        snapshot @state
+        frames (:frames snapshot)
+        empty-frames (->> frames
+                          (filter (fn [frame]
+                                    (and (= (:chapterId frame) owner-id)
+                                         (= (str/lower-case (str (or (:ownerType frame) "saga")))
+                                            normalized-owner-type)
+                                         (str/blank? (or (:imageUrl frame) "")))))
+                          vec)
+        deleted-frame-ids (mapv :frameId empty-frames)]
+    (delete-frames! deleted-frame-ids)
+    {:deletedCount (count deleted-frame-ids)
+     :frameIds deleted-frame-ids}))
 
 (defn update-frame-description! [frame-id description]
   (let [snapshot @state

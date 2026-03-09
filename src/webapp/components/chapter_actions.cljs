@@ -12,19 +12,36 @@
           cancel-ui-token @(rf/subscribe [:cancel-ui-token])
           display-name (or entity-name "")
           entity-label (or entity-label "chapter")
+          owner-type (if (= "character" (str entity-label)) "character" "saga")
+          frames @(rf/subscribe [:frames-for-owner owner-type entity-id])
+          empty-frames (filterv (fn [frame]
+                                  (str/blank? (or (:imageUrl frame) "")))
+                                frames)
+          empty-frame-count (count empty-frames)
           title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
-          items [{:id :rename-entity
-                  :label (str "Edit " label)}
-                 {:id :delete-entity
-                  :label (str "Delete " label)
-                  :confirm {:title (str "Delete this " label "?")
-                            :text (str "This deletes all frames in this " label ".")
-                            :confirm-label (str "Delete " label)
-                            :confirm-color "error"}
-                  :dispatch-event [(if (= "character" (str entity-label))
-                                     :delete-character
-                                     :delete-chapter)
-                                   entity-id]}]
+          items (cond-> [{:id :rename-entity
+                          :label (str "Edit " label)}]
+                  (pos? empty-frame-count)
+                  (conj {:id :delete-empty-frames
+                         :label "Delete empty frames"
+                         :confirm {:title "Delete empty frames?"
+                                   :text (str "This deletes " empty-frame-count
+                                              " frame" (when (not= 1 empty-frame-count) "s")
+                                              " without an image in this " label ".")
+                                   :confirm-label "Delete empty frames"
+                                   :confirm-color "error"}
+                         :dispatch-event [:delete-empty-frames entity-id owner-type]})
+                  true
+                  (conj {:id :delete-entity
+                         :label (str "Delete " label)
+                         :confirm {:title (str "Delete this " label "?")
+                                   :text (str "This deletes all frames in this " label ".")
+                                   :confirm-label (str "Delete " label)
+                                   :confirm-color "error"}
+                         :dispatch-event [(if (= "character" (str entity-label))
+                                            :delete-character
+                                            :delete-chapter)
+                                          entity-id]}))
           selected-item @confirm*]
       (when (not= cancel-ui-token @seen-cancel-token*)
         (reset! seen-cancel-token* cancel-ui-token)

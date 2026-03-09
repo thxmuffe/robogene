@@ -519,6 +519,37 @@
                                     :frame frame}
                                    snapshot))}))
 
+(defn handle-delete-empty-frames [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [owner-type (some-> (gobj/get body "ownerType") str str/lower-case)
+           chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           character-id (some-> (gobj/get body "characterId") str str/trim)
+           owner-id (if (= owner-type "character") character-id chapter-id)]
+       (cond
+         (not (#{"saga" "character"} owner-type))
+         (json-response 400 {:error "Missing or invalid ownerType."} request)
+
+         (str/blank? owner-id)
+         (json-response 400
+                        {:error (if (= owner-type "character")
+                                  "Missing characterId."
+                                  "Missing chapterId.")}
+                        request)
+
+         :else
+         (-> (chapter/apply-command!
+              {:reason "empty-frames-deleted"
+               :run! #(chapter/delete-empty-frames! owner-id owner-type)})
+             (.then (fn [{:keys [result snapshot]}]
+                      (json-response 200
+                                     (with-revision {:deleted true
+                                                     :deletedCount (:deletedCount result)
+                                                     :frameIds (:frameIds result)}
+                                                    snapshot)
+                                     request)))))))))
+
 (def handle-clear-frame-image
   (make-required-mutation-handler
    {:field-key "frameId"
@@ -646,6 +677,7 @@
    {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
    {:method :post :name "post-delete-character" :route "delete-character" :handler handle-delete-character}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
+   {:method :post :name "post-delete-empty-frames" :route "delete-empty-frames" :handler handle-delete-empty-frames}
    {:method :post :name "post-clear-frame-image" :route "clear-frame-image" :handler handle-clear-frame-image}
    {:method :post :name "signalr-negotiate" :route "negotiate" :handler handle-signalr-negotiate}
    {:method :options :name "options-preflight" :route "{*path}" :handler handle-options-preflight}])
