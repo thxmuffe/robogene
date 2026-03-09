@@ -3,71 +3,12 @@
             [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.frame :as frame]
+            [webapp.components.social-media-buttons :as social-media-buttons]
             [webapp.shared.ui.back-button :as back-button]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            ["@mantine/core" :refer [ActionIcon Box Button Group Tooltip]]
-            ["react-icons/fa6" :refer [FaFacebookF FaLinkedinIn FaXTwitter FaLink FaXmark]]))
-
-(defn current-share-url []
-  (.-href js/location))
-
-(defn open-share! [base-url]
-  (let [target (str base-url (js/encodeURIComponent (current-share-url)))]
-    (.open js/window target "_blank" "noopener,noreferrer")))
-
-(defn copy-link! []
-  (let [url (current-share-url)
-        clipboard (some-> js/navigator .-clipboard)]
-    (if (fn? (some-> clipboard .-writeText))
-      (.writeText clipboard url)
-      (do
-        (.prompt js/window "Copy link:" url)
-        nil))))
-
-(defn share-actions [saga-name]
-  [:> Group {:className "detail-share"
-             :gap "xs"
-             :align "center"}
-   [:> Group {:className "share-actions"
-              :gap "xs"}
-    [:> Tooltip {:label "Share on Facebook"}
-     [:> ActionIcon
-      {:className "share-icon-btn share-facebook"
-       :aria-label "Share on Facebook"
-       :variant "subtle"
-       :radius "xl"
-       :onClick #(open-share! "https://www.facebook.com/sharer/sharer.php?u=")}
-      [:> FaFacebookF]]]
-    [:> Tooltip {:label "Share on LinkedIn"}
-     [:> ActionIcon
-      {:className "share-icon-btn share-linkedin"
-       :aria-label "Share on LinkedIn"
-       :variant "subtle"
-       :radius "xl"
-       :onClick #(open-share! "https://www.linkedin.com/sharing/share-offsite/?url=")}
-      [:> FaLinkedinIn]]]
-    [:> Tooltip {:label "Share on X"}
-     [:> ActionIcon
-      {:className "share-icon-btn share-x"
-       :aria-label "Share on X"
-       :variant "subtle"
-       :radius "xl"
-       :onClick #(let [url (js/encodeURIComponent (current-share-url))
-                        text (js/encodeURIComponent (str "Check out this " saga-name " frame"))]
-                    (.open js/window
-                           (str "https://twitter.com/intent/tweet?url=" url "&text=" text)
-                           "_blank"
-                           "noopener,noreferrer"))}
-      [:> FaXTwitter]]]
-    [:> Tooltip {:label "Copy link"}
-     [:> ActionIcon
-      {:className "share-icon-btn share-copy"
-       :aria-label "Copy link"
-       :variant "subtle"
-       :radius "xl"
-       :onClick #(copy-link!)}
-      [:> FaLink]]]]])
+            ["@mantine/core" :refer [ActionIcon Box Button Group]]
+            ["react-icons/fa6" :refer [FaXmark]]))
 
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
@@ -236,7 +177,7 @@
               :radius "xl"
               :onClick #(rf/dispatch [:set-frame-fullscreen false])}
              [:> FaXmark]]
-            [share-actions saga-name])]
+            [social-media-buttons/social-media-buttons {:saga-name saga-name}]])]
          [:> Box {:className "detail-missing"}
           [:p "Frame not found in this chapter."]
           (when from-page
