@@ -154,35 +154,35 @@
           (.requestAnimationFrame js/window
                                   (fn []
                                     (frame-nav/focus-subtitle! frame-id)))))
-      [:section
+      [:section {:className "frame-page-section"}
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
-          (when-not fullscreen?
-            [top-controls from-page owner-name saga-name])
-          [frame/frame active-frame
-           (get frame-inputs (:frameId active-frame) "")
-           {:clickable? false
-            :media-nav? true
-            :actions-open? (true? (get open-frame-actions (:frameId active-frame)))
-            :image-fit "contain"}]
-          (when-not fullscreen?
-            [nav-controls chapter-id frame-neighbors from-page])
-          (if fullscreen?
-            [:> ActionIcon
-             {:className "fullscreen-close"
-              :color "orange"
-              :aria-label "Close fullscreen"
-              :title "Close fullscreen"
-              :variant "filled"
-              :radius "xl"
-              :onClick #(rf/dispatch [:set-frame-fullscreen false])}
-             [:> FaXmark]]
-            [social-media-buttons/social-media-buttons {:saga-name saga-name}]])]
-         [:> Box {:className "detail-missing"}
-          [:p "Frame not found in this chapter."]
-          (when from-page
-            [back-button/back-button
-             {:label "Back"
-              :on-click #(rf/dispatch [:navigate-from-page])}])])])
+           (when-not fullscreen?
+             [top-controls from-page owner-name saga-name])
+           [frame/frame active-frame
+            (get frame-inputs (:frameId active-frame) "")
+            {:clickable? false
+             :media-nav? true
+             :actions-open? (true? (get open-frame-actions (:frameId active-frame)))
+             :image-fit "contain"}]
+           (when-not fullscreen?
+             [nav-controls chapter-id frame-neighbors from-page])
+           (if fullscreen?
+             [:> ActionIcon
+              {:className "fullscreen-close"
+               :color "orange"
+               :aria-label "Close fullscreen"
+               :title "Close fullscreen"
+               :variant "filled"
+               :radius "xl"
+               :onClick #(rf/dispatch [:set-frame-fullscreen false])}
+              [:> FaXmark]]
+             [social-media-buttons/social-media-buttons {:saga-name saga-name}])]
+          [:> Box {:className "detail-missing"}
+           [:p "Frame not found in this chapter."]
+           (when from-page
+             [back-button/back-button
+              {:label "Back"
+               :on-click #(rf/dispatch [:navigate-from-page])}])])])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))

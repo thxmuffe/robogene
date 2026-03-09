@@ -49,16 +49,25 @@
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])
+        frame-view? (= :frame (:view route))
         saga-name* (saga-name saga-meta)]
     (set! (.-title js/document)
           (if (= :frame (:view route))
             (frame-page-title route saga saga-meta)
             (main-page-title route saga-meta)))
     [:> MantineProvider {:theme theme/app-theme}
-     [:> Container {:fluid true}
-      [:main.app
-        [:> Stack {:gap "md"}
-        [:> Box {:component "header" :className "hero"}
+     [:> Container {:fluid true
+                    :px (when frame-view? 0)
+                    :className (when frame-view? "app-shell-frame")}
+      [:main {:className (str "app" (when frame-view? " app-frame"))
+              :style (when frame-view?
+                       {:padding-left 0
+                        :padding-right 0})}
+        [:> Stack {:gap "md"
+                   :style (when frame-view? {:width "100%"})
+                   :className (when frame-view? "app-stack-frame")}
+        [:> Box {:component "header"
+                 :className (str "hero" (when frame-view? " hero-frame"))}
          [:h1
           [:a {:href (model/saga-hash)
                :className "hero-home-link"}
