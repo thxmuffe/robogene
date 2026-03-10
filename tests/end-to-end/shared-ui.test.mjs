@@ -136,6 +136,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     ...process.env,
     WEBAPP_PORT: String(webappPort),
     WEBAPI_PORT: String(apiPort),
+    ROBOGENE_BUILD_PROFILE: 'release',
     FUNCTIONS_WORKER_RUNTIME: 'node',
     ROBOGENE_IMAGE_GENERATOR: 'mock',
     ROBOGENE_IMAGE_GENERATOR_MOCK_DATA_URL: mockSvgDataUrl,
@@ -152,8 +153,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await stopAzureFunctionsHost();
     killByPattern('http-server dist/release/webapp -p');
     runNpmCommand(['run', 'stop:dev'], appEnv);
-    runNpmCommand(['run', 'build:webapi:debug'], appEnv);
-    runNpmCommand(['run', 'build'], appEnv);
+    runNpmCommand(['run', 'release:build'], appEnv);
   }
 
   if (!fs.existsSync(path.join(webRoot, 'index.html'))) {

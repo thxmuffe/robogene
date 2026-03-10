@@ -1,5 +1,6 @@
 (ns webapp.components.frame-menu
-  (:require ["@mantine/core" :refer [ActionIcon Menu]]
+  (:require [webapp.shared.ui.interaction :as interaction]
+            ["@mantine/core" :refer [ActionIcon Menu]]
             ["react-icons/fa6" :refer [FaEllipsisVertical]]))
 
 (defn frame-menu [{:keys [title aria-label button-class items on-select]}]
@@ -12,6 +13,8 @@
       :aria-label (or aria-label title "Actions")
       :title (or title "Actions")
       :tabIndex -1
+      :onMouseDown interaction/prevent!
+      :onPointerDown interaction/prevent!
       :variant "subtle"
       :radius "xl"}
      [:> FaEllipsisVertical]]]

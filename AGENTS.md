@@ -13,6 +13,8 @@
 11. Do not run exploratory benchmarks/experiments for curiosity questions unless explicitly requested by the user.
 12. Avoid file renames/moves when possible; prefer keeping paths stable so humans can review git diffs more easily.
 13. Branch policy: do all feature development on `dev`. Only pipeline, script, and test fixes may be implemented directly on `main`.
+14. For manual runtime verification, never use the user's default app ports (`8080`, `7071`, `9630`, `9631`). Use isolated ports or the repo's dedicated isolated launch profile instead.
+15. Do not run commands that can stop or restart the user's live app session (`start`, `start:release`, `stop:dev`, e2e startup scripts) against the default ports unless the user explicitly asks.
 
 ## Optimal Change (Preferred, Non-Mandatory)
 

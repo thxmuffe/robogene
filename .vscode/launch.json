@@ -45,6 +45,46 @@
         "!${workspaceFolder}/src/webapp/js/cljs-runtime/node_modules/**",
         "!**/node_modules/**"
       ]
+    },
+    {
+      "name": "Codex: Isolated Release Verify",
+      "type": "pwa-node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start:release"
+      ],
+      "env": {
+        "WEBAPP_PORT": "18080",
+        "WEBAPI_PORT": "17071",
+        "ROBOGENE_ALLOWED_ORIGIN": "http://localhost:18080,http://127.0.0.1:18080"
+      },
+      "windows": {
+        "runtimeExecutable": "node",
+        "runtimeArgs": [
+          "${env:ProgramFiles}\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+          "run",
+          "start:release"
+        ]
+      },
+      "outputCapture": "std",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "name": "Codex: Browser Verify",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:18080/index.html",
+      "webRoot": "${workspaceFolder}/src/webapp",
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/src/webapp/**",
+        "!${workspaceFolder}/src/webapp/js/cljs-runtime/node_modules/**",
+        "!**/node_modules/**"
+      ]
     }
   ]
 }

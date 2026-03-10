@@ -37,7 +37,9 @@
         (reset! upload-open?* false))
       [:<>
        [:div {:className "frame-action-buttons"
+              :data-frame-id frame-id
               :onMouseDown interaction/prevent!
+              :onPointerDown interaction/prevent!
               :onClick interaction/stop!
               :onDoubleClick interaction/stop!}
         [:> ActionIcon

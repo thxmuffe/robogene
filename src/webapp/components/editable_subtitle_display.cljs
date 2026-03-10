@@ -19,6 +19,13 @@
   (rf/dispatch [:set-frame-actions-open frame-id false])
   (focus-subtitle! frame-id))
 
+(defn- keep-editing-on-blur? [frame-id]
+  (let [active-el (.-activeElement js/document)
+        frame-actions-selector (str ".frame-action-buttons[data-frame-id=\"" frame-id "\"]")]
+    (or (interaction/closest? active-el frame-actions-selector)
+        (interaction/closest? active-el "[role='dialog'][aria-modal='true']")
+        (interaction/closest? active-el "[role='menu'], .mantine-Menu-dropdown"))))
+
 (defn editable-subtitle-display [{:keys [frameId description]} editing?]
   (let [saved-description (or description "")
         current-input @(rf/subscribe [:frame-draft frameId])
@@ -45,8 +52,12 @@
                      (interaction/stop! e)
                      (rf/dispatch [:set-active-frame frameId]))
           :onBlur (fn [_]
-                    (rf/dispatch [:frame-direction-changed frameId saved-description])
-                    (close-editing! frameId))
+                    (js/setTimeout
+                     (fn []
+                       (when-not (keep-editing-on-blur? frameId)
+                         (rf/dispatch [:frame-direction-changed frameId saved-description])
+                         (close-editing! frameId)))
+                     0))
           :onClick interaction/stop!
           :onDoubleClick interaction/stop!
           :onChange (fn [e]
