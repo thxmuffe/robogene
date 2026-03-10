@@ -19,7 +19,10 @@
   (r/with-let [drag-over?* (r/atom false)
                image-data-url* (r/atom nil)
                error* (r/atom nil)
-               input-id (str "upload-input-" (random-uuid))]
+               file-input-id (str "upload-input-" (random-uuid))
+               camera-input-id (str "camera-input-" (random-uuid))
+               dropzone-el* (r/atom nil)
+               was-open?* (r/atom false)]
     (let [set-file! (fn [file]
                       (if file
                         (do
@@ -62,28 +65,53 @@
                        (reset! image-data-url* nil)
                        (reset! error* nil)
                        (on-close))]
+      (when (and open (not @was-open?*))
+        (js/requestAnimationFrame
+         (fn []
+           (some-> @dropzone-el* .focus))))
+      (reset! was-open?* open)
       [popup-dialog/popup-dialog {:open open
                                   :on-close do-cancel!}
        [:div.upload-dialog
         [:h3.upload-dialog-title "Replace With Own Photo"]
-        [:p.upload-dialog-help "Paste from clipboard, drag and drop, or choose a file from your computer."]
+        [:p.upload-dialog-help "Paste from clipboard, drag and drop, choose a file, or take a photo with your device camera."]
         [:input.upload-file-input
-         {:id input-id
+         {:id file-input-id
           :type "file"
           :accept "image/*"
+          :onChange on-file-change}]
+        [:input.upload-file-input
+         {:id camera-input-id
+          :type "file"
+          :accept "image/*"
+          :capture "environment"
           :onChange on-file-change}]
         [:div.upload-dropzone
          {:className (str "upload-dropzone" (when @drag-over?* " is-drag-over"))
           :role "button"
           :tabIndex 0
+          :ref #(reset! dropzone-el* %)
           :onDragOver on-drag-over
           :onDragLeave on-drag-leave
           :onDrop on-drop
           :onPaste on-paste
           :onClick #(do
                       (interaction/stop! %)
-                      (some-> (.getElementById js/document input-id) .click))}
-         [:span.upload-dropzone-text "Drop image here, click to choose file, or paste (Cmd/Ctrl+V)."]]
+                      (some-> (.getElementById js/document file-input-id) .click))}
+         [:span.upload-dropzone-text "Drop image here, click to choose a file, or paste (Cmd/Ctrl+V)."]]
+        [:div.upload-actions
+         [:button.btn
+          {:type "button"
+           :onClick (fn [e]
+                      (interaction/halt! e)
+                      (some-> (.getElementById js/document file-input-id) .click))}
+          "Choose file"]
+         [:button.btn
+          {:type "button"
+           :onClick (fn [e]
+                      (interaction/halt! e)
+                      (some-> (.getElementById js/document camera-input-id) .click))}
+          "Take photo"]]
         (when (seq (or @image-data-url* ""))
           [:div.upload-preview
            [:img {:src @image-data-url*

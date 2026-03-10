@@ -443,6 +443,10 @@ h2 { margin: 24px 0 10px; }
   box-shadow: 0 0 0 3px rgba(32, 99, 155, 0.2), 0 12px 28px rgba(16, 42, 67, 0.2);
 }
 
+.frame-editing.frame-active {
+  transform: none;
+}
+
 .frame img {
   width: 100%;
   display: block;
