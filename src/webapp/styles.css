@@ -749,9 +749,9 @@ h2 { margin: 24px 0 10px; }
   border-radius: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-y: auto;
+  overflow-y: hidden;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
 .subtitle-display-input,
@@ -785,7 +785,7 @@ h2 { margin: 24px 0 10px; }
   overflow-wrap: anywhere;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
 .subtitle-display-input textarea:hover,
