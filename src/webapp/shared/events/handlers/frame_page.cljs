@@ -38,6 +38,12 @@
     :set-hash (model/saga-hash)}))
 
 (rf/reg-event-fx
+ :navigate-chapter-page
+ (fn [{:keys [db]} [_ chapter-id]]
+   {:db db
+    :set-hash (model/chapter-hash chapter-id)}))
+
+(rf/reg-event-fx
  :navigate-roster-page
  (fn [{:keys [db]} [_ saga-name]]
    (let [route-saga-name (or saga-name (get-in db [:route :saga-name]))]

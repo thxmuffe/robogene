@@ -52,6 +52,9 @@
           :frame-id frame
           :fullscreen? fullscreen?
           :from-page from-page}))
+     (when-let [[_ chapter] (re-matches #"^#/chapter/([^/?#]+)(?:\?.*)?$" raw)]
+       {:view :chapter
+        :chapter chapter})
      (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
        (let [query* (or query "")
              saga-name (some-> (re-find #"(^|&)saga=([^&]+)" query*)
@@ -81,6 +84,9 @@
   ([] (roster-hash (default-saga-route-name)))
   ([saga-name]
    (str "#/roster?saga=" (js/encodeURIComponent (or saga-name (default-saga-route-name))))))
+
+(defn chapter-hash [chapter-id]
+  (str "#/chapter/" chapter-id))
 
 (defn frame-hash
   ([chapter frame-id]

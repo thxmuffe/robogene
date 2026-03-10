@@ -19,8 +19,14 @@
                                 frames)
           empty-frame-count (count empty-frames)
           title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
-          items (cond-> [{:id :rename-entity
-                          :label (str "Edit " label)}]
+          base-items (cond-> []
+                       (= "chapter" (str entity-label))
+                       (conj {:id :open-chapter-page
+                              :label "Open chapter page"})
+                       true
+                       (conj {:id :rename-entity
+                              :label (str "Edit " label)}))
+          items (cond-> base-items
                   (pos? empty-frame-count)
                   (conj {:id :delete-empty-frames
                          :label "Delete empty frames"
@@ -54,7 +60,10 @@
           :button-class "chapter-menu-trigger"
           :items items
           :on-select (fn [item]
-                       (if (= :rename-entity (:id item))
+                       (case (:id item)
+                         :open-chapter-page
+                         (rf/dispatch [:navigate-chapter-page entity-id])
+                         :rename-entity
                          (rf/dispatch [:start-entity-edit entity-label entity-id display-name (or entity-description "")])
                          (reset! confirm* item)))}]]
        [confirm-dialog/confirm-dialog

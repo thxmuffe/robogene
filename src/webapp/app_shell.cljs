@@ -5,6 +5,7 @@
             [webapp.shared.model :as model]
             [webapp.pages.gallery-page :as gallery-page]
             [webapp.pages.roster-page :as roster-page]
+            [webapp.pages.chapter-page :as chapter-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
@@ -22,6 +23,13 @@
                          (some-> chapter :description str/trim not-empty)
                          "Chapter")]
     (str "Frame Page · " chapter-name " · " (saga-name saga-meta))))
+
+(defn chapter-page-title [route saga saga-meta]
+  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
+        chapter-name (or (some-> chapter :name str/trim not-empty)
+                         (some-> chapter :description str/trim not-empty)
+                         "Chapter")]
+    (str "Chapter Page · " chapter-name " · " (saga-name saga-meta))))
 
 (defn main-page-title [route saga-meta]
   (let [page-title (if (= :roster (:view route))
@@ -51,8 +59,9 @@
         collection-view? (not frame-view?)
         saga-name* (saga-name saga-meta)]
     (set! (.-title js/document)
-          (if (= :frame (:view route))
-            (frame-page-title route saga saga-meta)
+          (case (:view route)
+            :frame (frame-page-title route saga saga-meta)
+            :chapter (chapter-page-title route saga saga-meta)
             (main-page-title route saga-meta)))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
@@ -76,6 +85,9 @@
         (case (:view route)
           :frame
           [frame-page/frame-page route saga-name*]
+
+          :chapter
+          [chapter-page/chapter-page route]
 
           :roster
           [roster-page/roster-page saga-name*
