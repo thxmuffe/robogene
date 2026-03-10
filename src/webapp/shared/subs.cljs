@@ -23,6 +23,10 @@
 (rf/reg-sub :character-description-inputs (fn [db _] (get-in db [:view-state :roster :description-inputs])))
 (rf/reg-sub :editing-chapter-id (fn [db _] (get-in db [:view-state :saga :editing-id])))
 (rf/reg-sub :editing-character-id (fn [db _] (get-in db [:view-state :roster :editing-id])))
+(rf/reg-sub :chapter-collapsed?
+            (fn [db [_ chapter-id]]
+              (contains? (get-in db [:view-state :saga :collapsed-chapter-ids] #{})
+                         chapter-id)))
 (rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
 (rf/reg-sub :frame-image-ui
             (fn [db [_ frame-id]]

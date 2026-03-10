@@ -95,6 +95,17 @@
 (fn [db _]
    (assoc-in db [:view-state :saga :show-celebration?] false)))
 
+(rf/reg-event-db
+ :toggle-chapter-collapsed
+ (fn [db [_ chapter-id]]
+   (update-in db
+              [:view-state :saga :collapsed-chapter-ids]
+              (fn [ids]
+                (let [ids (or ids #{})]
+                  (if (contains? ids chapter-id)
+                    (disj ids chapter-id)
+                    (conj ids chapter-id)))))))
+
 (rf/reg-event-fx
 :add-chapter
 (fn [{:keys [db]} _]

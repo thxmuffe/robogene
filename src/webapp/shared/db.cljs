@@ -11,6 +11,7 @@
    :view-state {:saga {:name-inputs {}
                        :description-inputs {}
                        :editing-id nil
+                       :collapsed-chapter-ids #{}
                        :new-name ""
                        :new-description ""
                        :new-panel-open? false

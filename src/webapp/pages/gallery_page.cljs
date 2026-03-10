@@ -92,10 +92,24 @@
 (defn collection-section [cfg entity active-frame-id editing-entity-id entity-name-inputs entity-description-inputs]
   (let [{:keys [entity-id-key entity-label entity-singular owner-type]} cfg
         entity-id (entity-id-key entity)
+        chapter-entity? (= "chapter" (str entity-label))
+        chapter-collapsed? (when chapter-entity?
+                             @(rf/subscribe [:chapter-collapsed? entity-id]))
         entity-name (or (:name entity) (:description entity) "")
         entity-description (or (:description entity) "")]
     [:> Box {:component "section" :className "chapter-block"}
-     [:div.chapter-separator]
+     [:div.chapter-separator-row
+      (when chapter-entity?
+        [:button
+         {:type "button"
+          :className "chapter-separator-toggle"
+          :title (if chapter-collapsed? "Expand chapter" "Collapse chapter")
+          :aria-label (if chapter-collapsed? "Expand chapter" "Collapse chapter")
+          :aria-expanded (str (not chapter-collapsed?))
+          :onClick #(rf/dispatch [:toggle-chapter-collapsed entity-id])}
+         [:span {:className (str "chapter-separator-toggle-triangle"
+                                 (when chapter-collapsed? " is-collapsed"))}]])
+      [:div.chapter-separator]]
      [:> Group {:className "chapter-header"
                 :gap "sm"
                 :align "center"
@@ -128,7 +142,8 @@
         :entity-description entity-description
         :entity-label entity-label
         :singular-label entity-singular}]]
-     [chapter-component/chapter entity-id owner-type active-frame-id]]))
+     (when-not chapter-collapsed?
+       [chapter-component/chapter entity-id owner-type active-frame-id])]))
 
 (defn new-entity-form [cfg name description]
   (let [{:keys [add-event set-open-event add-title name-input-placeholder description-input-placeholder name-changed-event description-changed-event]} cfg]
