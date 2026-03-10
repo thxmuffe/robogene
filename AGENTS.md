@@ -12,6 +12,7 @@
 10. After each implementation step: list changed files and rationale, then continue unless user asks to pause.
 11. Do not run exploratory benchmarks/experiments for curiosity questions unless explicitly requested by the user.
 12. Avoid file renames/moves when possible; prefer keeping paths stable so humans can review git diffs more easily.
+13. Branch policy: do all feature development on `dev`. Only pipeline, script, and test fixes may be implemented directly on `main`.
 
 ## Optimal Change (Preferred, Non-Mandatory)
 
