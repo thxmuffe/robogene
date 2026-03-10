@@ -41,7 +41,7 @@
       (if editing?
         [:> Textarea
          {:className "subtitle-display-input"
-          :value current-input
+          :defaultValue current-input
           :autosize true
           :minRows 2
           :maxRows 8
@@ -74,8 +74,7 @@
                              (rf/dispatch [:set-frame-actions-open frameId false])
                              (focus-subtitle! frameId))
 
-                           :else
-                           (interaction/stop! e))))}]
+                           :else nil)))}]
         [:span {:className "subtitle-display-text"}
          (if (seq subtitle)
            subtitle
