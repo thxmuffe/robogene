@@ -588,108 +588,6 @@ h2 { margin: 24px 0 10px; }
   font-weight: 700;
 }
 
-.description-editor-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  padding: 0 0 10px 10px;
-  min-height: 50px;
-  max-height: calc(100% - 56px);
-  overflow: visible;
-  display: grid;
-  grid-template-rows: 14px minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    "handle"
-    "editor";
-  gap: 8px;
-  align-items: start;
-  background: var(--edit-db-item-surface);
-}
-
-.description-editor-resize-handle {
-  grid-area: handle;
-  height: 14px;
-  position: relative;
-  pointer-events: none;
-}
-
-.description-editor-resize-handle::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  border-radius: 999px;
-  background: rgba(208, 225, 255, 0.62);
-}
-
-.description-editor-main {
-  grid-area: editor;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  width: 100%;
-  overflow: visible;
-}
-
-.description-editor-actions {
-  display: grid;
-  grid-template-columns: repeat(2, var(--icon-btn-size));
-  grid-auto-rows: var(--icon-btn-size);
-  justify-content: end;
-  align-content: start;
-  margin: 0;
-  width: max-content;
-  gap: 8px;
-  white-space: nowrap;
-  max-height: 100%;
-  overflow-y: auto;
-  overflow-x: visible;
-  padding-right: 0;
-}
-
-.description-editor-input {
-  flex: 1 1 auto;
-  height: 100%;
-  width: 100%;
-  min-height: 0;
-}
-
-.description-editor-input > div,
-.description-editor-input [data-mantine-input-wrapper] {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-}
-
-.description-editor-input textarea {
-  height: 100% !important;
-  min-height: 100% !important;
-  max-height: none !important;
-  overflow-y: auto !important;
-  resize: none;
-  border-radius: 0;
-  border: 0;
-  background-color: rgba(255, 255, 255, 0.96);
-  color: #102a43;
-  text-align: left;
-  font-size: 1rem;
-  line-height: 1.35;
-  padding: 10px 12px;
-}
-
-.description-editor-input textarea:hover,
-.description-editor-input textarea:focus {
-  background-color: rgba(255, 255, 255, 1);
-}
-
 .description-editor-generate-btn {
   width: var(--icon-btn-size);
   height: var(--icon-btn-size);
@@ -773,15 +671,6 @@ h2 { margin: 24px 0 10px; }
   background-color: rgba(255, 255, 255, 1);
 }
 
-.description-editor-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-}
-
 .edit-db-item-description-row {
   display: flex;
   flex-wrap: wrap;
@@ -801,20 +690,6 @@ h2 { margin: 24px 0 10px; }
   flex: 0 0 auto;
   margin-left: auto;
   align-self: flex-start;
-}
-
-.description-editor-form .edit-db-item-description-row {
-  flex-wrap: nowrap;
-}
-
-.description-editor-form .edit-db-item-description-row > :first-child {
-  flex: 1 1 auto;
-}
-
-@media (max-width: 760px) {
-  .description-editor-form .edit-db-item-description-row {
-    flex-wrap: nowrap;
-  }
 }
 
 .chapter-header .chapter-menu-trigger {
@@ -847,6 +722,11 @@ h2 { margin: 24px 0 10px; }
   cursor: text;
 }
 
+.subtitle-display-editing {
+  z-index: 7;
+  max-height: 40%;
+}
+
 .subtitle-display-text {
   --subtitle-font-size: 1.05rem;
   --subtitle-line-height: 1.24;
@@ -873,7 +753,51 @@ h2 { margin: 24px 0 10px; }
   scrollbar-gutter: stable;
 }
 
+.subtitle-display-input,
+.subtitle-display-input > div,
+.subtitle-display-input [data-mantine-input-wrapper] {
+  width: 100%;
+}
+
+.subtitle-display-input textarea {
+  --subtitle-font-size: 1.05rem;
+  --subtitle-line-height: 1.24;
+  max-width: min(94%, 74ch);
+  max-height: 100%;
+  display: block;
+  margin: 0 auto;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff3a6;
+  font-weight: 900;
+  text-align: center;
+  font-size: var(--subtitle-font-size);
+  line-height: var(--subtitle-line-height);
+  padding: 0 3px;
+  text-shadow: none;
+  -webkit-text-stroke: 2px rgba(12, 18, 28, 0.88);
+  paint-order: stroke fill;
+  font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.subtitle-display-input textarea:hover,
+.subtitle-display-input textarea:focus {
+  background: transparent;
+}
+
 .detail-page .subtitle-display-text {
+  --subtitle-font-size: 1.32rem;
+  --subtitle-line-height: 1.28;
+}
+
+.detail-page .subtitle-display-input textarea {
   --subtitle-font-size: 1.32rem;
   --subtitle-line-height: 1.28;
 }
@@ -883,9 +807,16 @@ h2 { margin: 24px 0 10px; }
   outline-offset: -3px;
 }
 
-.description-editor-panel .error-line {
-  color: #ffd3dd;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+.frame-action-buttons {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  z-index: 8;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--icon-btn-size);
+  gap: 8px;
+  align-items: center;
 }
 
 .upload-dialog {

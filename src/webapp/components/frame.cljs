@@ -5,21 +5,8 @@
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            [webapp.components.frame-description-editor :as description-editor]
+            [webapp.components.editable-subtitle-display :as editable-subtitle-display]
             ["@mantine/core" :refer [Badge Box Card Image]]))
-
-(defn on-editor-enable [frame-id]
-  (fn [e]
-    (interaction/stop! e)
-    (rf/dispatch [:set-frame-actions-open frame-id true])
-    nil))
-
-(defn on-editor-enable-keydown [frame-id]
-  (fn [e]
-    (when (or (= "Enter" (.-key e))
-              (= " " (.-key e)))
-      (interaction/prevent! e)
-      ((on-editor-enable frame-id) e))))
 
 (defn frame-owner-page [owner-type]
   (if (= "character" (str owner-type))
@@ -43,22 +30,6 @@
     :fit image-fit
     :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
     :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}])
-
-(defn subtitle-display [{:keys [frameId description]} frame-input]
-  (let [subtitle (str/trim (or frame-input description ""))]
-    [:> Box {:className "subtitle-display"
-             :data-frame-id frameId
-             :role "button"
-             :tabIndex 0
-             :title "Click subtitle to edit description"
-             :onFocus #(rf/dispatch [:set-active-frame frameId])
-             :onClick (on-editor-enable frameId)
-             :onDoubleClick (on-editor-enable frameId)
-             :onKeyDown (on-editor-enable-keydown frameId)}
-     [:span {:className "subtitle-display-text"}
-      (if (seq subtitle)
-        subtitle
-        "Click subtitle to add description")]]))
 
 (defn frame-placeholder [{:keys [status]}]
   (let [label (case status
@@ -115,9 +86,7 @@
                [:div.media-loading-overlay
                 [:div.placeholder-text "Image failed to load"]])]
             [frame-placeholder frame])]
-         (if editable?
-           [description-editor/frame-description-editor frame* frame-input]
-           [subtitle-display frame* frame-input])
+         [editable-subtitle-display/editable-subtitle-display frame* frame-input editable?]
          (when (and media-nav? (not editable?))
            [:div.media-nav-zones
             [:button

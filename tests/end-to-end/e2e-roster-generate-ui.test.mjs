@@ -47,7 +47,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     assert.ok(frameId, 'new roster frame should expose data-frame-id');
 
     await newFrame.locator('.subtitle-display').click();
-    await newFrame.locator('.description-editor-input textarea').fill('bill');
+    await newFrame.locator('.subtitle-display-input textarea').fill('bill');
     logStep('roster-generate', 'triggering image generation');
     await newFrame.getByRole('button', { name: 'Generate' }).click();
 
