@@ -106,16 +106,17 @@
                      :active-frame-id active-frame-id)
               (assoc :frame-inputs
                      (reduce (fn [acc frame]
-                             (let [frame-id (:frameId frame)
+                               (let [frame-id (:frameId frame)
+                                     editing? (true? (get open-frame-actions frame-id))
                                      existing-val (get-in db [:frame-inputs frame-id])
                                      description (str/trim (or (:description frame) ""))
                                      services-val (when (and (seq description)
                                                              (not (model/generic-frame-text? description)))
                                                     description)]
                                  (assoc acc frame-id
-                                        (if (nil? existing-val)
-                                          services-val
-                                          existing-val))))
+                                        (if editing?
+                                          existing-val
+                                          services-val))))
                              {}
                              frames)))})))
 
