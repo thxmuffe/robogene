@@ -29,7 +29,7 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
     const frame = page.locator('.gallery .frame[data-frame-id]').nth(beforeCount);
     await frame.waitFor({ timeout: actionTimeoutMs });
     logStep('mobile-actions', 'opening frame editor');
-    await frame.locator('.subtitle-display').click();
+    await frame.locator('.subtitle-display-text').click();
 
     const submitButton = frame.getByRole('button', { name: 'Submit' });
     const cancelButton = frame.getByRole('button', { name: 'Cancel' });

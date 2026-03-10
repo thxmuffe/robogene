@@ -37,11 +37,13 @@
         (reset! upload-open?* false))
       [:<>
        [:div {:className "frame-action-buttons"
+              :onMouseDown interaction/prevent!
               :onClick interaction/stop!
               :onDoubleClick interaction/stop!}
         [:> ActionIcon
          {:aria-label "Submit"
           :title "Submit"
+          :tabIndex -1
           :variant "filled"
           :radius "xl"
           :disabled (true? submit-disabled?)
@@ -52,6 +54,7 @@
         [:> ActionIcon
          {:aria-label "Cancel"
           :title "Cancel"
+          :tabIndex -1
           :variant "subtle"
           :radius "xl"
           :onClick (fn [e]
@@ -62,6 +65,7 @@
          [:> ActionIcon
           {:className "description-editor-generate-btn"
            :aria-label "Generate"
+           :tabIndex -1
            :variant "filled"
            :radius "xl"
            :onClick (fn [e]

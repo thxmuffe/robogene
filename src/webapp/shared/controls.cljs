@@ -29,10 +29,6 @@
                        (when-not (.-hidden js/document)
                          (rf/dispatch [:force-refresh])))))
 
-(defn on-frame-activate [frame-id]
-  (fn [_]
-    (activate-frame! frame-id)))
-
 (rf/reg-fx
  :scroll-frame-into-view
  (fn [frame-id]

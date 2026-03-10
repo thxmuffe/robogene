@@ -58,8 +58,7 @@
            attrs {:data-frame-id (:frameId frame)
                   :className (str "frame frame-panel"
                                   (when clickable? " frame-clickable")
-                                  (when active? " frame-active"))
-                  :onMouseEnter (controls/on-frame-activate (:frameId frame))}
+                                  (when active? " frame-active"))}
            nav-attrs (cond-> {:className "frame-nav-surface"}
                        clickable? (assoc :onClick (on-frame-click (:chapterId frame) (:frameId frame) (:ownerType frame))))]
        (when (and @was-editable* (not editable?))

@@ -166,8 +166,7 @@
       :data-frame-id controls/new-chapter-frame-id
       :role "button"
       :tab-index 0
-      :on-mouse-enter (controls/on-frame-activate controls/new-chapter-frame-id)
-      :on-focus (controls/on-frame-activate controls/new-chapter-frame-id)
+      :on-focus #(controls/activate-frame! controls/new-chapter-frame-id)
       :on-click (on-new-item-teaser-click set-open-event)
       :on-key-down (on-new-item-teaser-keydown set-open-event)}
      [:div.add-frame-tile-title teaser-title]

@@ -21,7 +21,7 @@ export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep })
     const newFrame = page.locator('.gallery .frame[data-frame-id]').nth(beforeCount);
     await newFrame.waitFor({ timeout: actionTimeoutMs });
     logStep('gallery', 'opening new frame editor');
-    await newFrame.locator('.subtitle-display').click();
+    await newFrame.locator('.subtitle-display-text').click();
 
     const generateButton = newFrame.getByRole('button', { name: 'Generate' });
     await generateButton.waitFor({ timeout: actionTimeoutMs });

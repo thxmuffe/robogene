@@ -46,7 +46,7 @@
         (:id (first candidates))))))
 
 (defn subtitle-nodes []
-  (array-seq (.querySelectorAll js/document ".subtitle-display[data-frame-id]")))
+  (array-seq (.querySelectorAll js/document ".subtitle-display-text[data-frame-id], .subtitle-display-input textarea[data-frame-id]")))
 
 (defn subtitle-node-by-frame-id [frame-id]
   (some (fn [el]

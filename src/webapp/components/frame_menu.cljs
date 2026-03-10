@@ -11,6 +11,7 @@
      {:className (or button-class "frame-menu-trigger")
       :aria-label (or aria-label title "Actions")
       :title (or title "Actions")
+      :tabIndex -1
       :variant "subtle"
       :radius "xl"}
      [:> FaEllipsisVertical]]]

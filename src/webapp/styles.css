@@ -402,7 +402,7 @@ h2 { margin: 24px 0 10px; }
 }
 
 .media-shell {
-  --subtitle-surface-bg: rgba(6, 10, 16, 0.5);
+  --subtitle-surface-bg: rgba(44, 36, 22, 0.6);
   position: relative;
   overflow: hidden;
 }
@@ -803,7 +803,7 @@ h2 { margin: 24px 0 10px; }
   --subtitle-line-height: 1.28;
 }
 
-.subtitle-display:focus-visible {
+.subtitle-display-text:focus-visible {
   outline: 2px solid rgba(126, 200, 255, 0.95);
   outline-offset: -3px;
 }
@@ -1016,7 +1016,7 @@ h2 { margin: 24px 0 10px; }
   object-position: center;
 }
 
-.detail-page-fullscreen .subtitle-display:focus-visible,
+.detail-page-fullscreen .subtitle-display-text:focus-visible,
 .detail-page-fullscreen .media-nav-zone:focus-visible {
   outline: none;
 }
