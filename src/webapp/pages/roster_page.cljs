@@ -23,15 +23,13 @@
    :teaser-sub "Create a character profile with image frames"
    :saga-back-label nil})
 
-(defn roster-page [saga-name roster frame-inputs open-frame-actions active-frame-id new-character-name new-character-description new-character-panel-open?]
+(defn roster-page [saga-name roster active-frame-id new-character-name new-character-description new-character-panel-open?]
   (let [safe-saga-name (or saga-name "Saga")
         title (str safe-saga-name " roster")]
     [gallery-page/collection-page (assoc roster-config
                                          :page-title title
                                          :saga-back-label (str "Back to " safe-saga-name))
    roster
-   frame-inputs
-   open-frame-actions
    active-frame-id
    {:name new-character-name
     :description new-character-description}

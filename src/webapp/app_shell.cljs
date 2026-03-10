@@ -35,8 +35,6 @@
         roster @(rf/subscribe [:roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
-        frame-inputs @(rf/subscribe [:frame-inputs])
-        open-frame-actions @(rf/subscribe [:open-frame-actions])
         active-frame-id @(rf/subscribe [:active-frame-id])
         new-chapter-name @(rf/subscribe [:new-chapter-name])
         new-chapter-description @(rf/subscribe [:new-chapter-description])
@@ -77,21 +75,17 @@
            app-name]]]
         (case (:view route)
           :frame
-          [frame-page/frame-page route frame-inputs open-frame-actions saga-name*]
+          [frame-page/frame-page route saga-name*]
 
           :roster
           [roster-page/roster-page saga-name*
            roster
-           frame-inputs
-           open-frame-actions
            active-frame-id
            new-character-name
            new-character-description
            new-character-panel-open?]
 
           [gallery-page/saga-page saga
-           frame-inputs
-           open-frame-actions
            active-frame-id
            new-chapter-name
            new-chapter-description

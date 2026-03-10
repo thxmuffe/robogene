@@ -6,7 +6,7 @@
    :wait-lights-visible? true
    :wait-lights-events []
    :cancel-ui-token 0
-   :frame-inputs {}
+   :frame-drafts {}
    :open-frame-actions {}
    :view-state {:saga {:name-inputs {}
                        :description-inputs {}

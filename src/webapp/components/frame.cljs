@@ -43,18 +43,18 @@
      [:div.placeholder-text label]]))
 
 (defn frame
-  ([frame frame-input]
-   [frame frame-input {:clickable? true}])
-  ([frame frame-input {:keys [clickable? active? actions-open? media-nav? image-fit]
-                       :or {clickable? true active? false actions-open? false media-nav? false image-fit "contain"}}]
+  ([frame]
+   [frame frame {:clickable? true}])
+  ([frame {:keys [clickable? active? media-nav? image-fit]
+           :or {clickable? true active? false media-nav? false image-fit "contain"}}]
    (r/with-let [was-editable* (r/atom false)]
      (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
            busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
            image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
            image-loading? (= :loading image-ui)
            image-error? (= :error image-ui)
-           editable? (true? actions-open?)
-           frame* (assoc frame :actionsOpen actions-open?)
+           editable? @(rf/subscribe [:frame-edit-open? (:frameId frame)])
+           frame* (assoc frame :actionsOpen editable?)
            attrs {:data-frame-id (:frameId frame)
                   :className (str "frame frame-panel"
                                   (when clickable? " frame-clickable")
@@ -86,7 +86,7 @@
                [:div.media-loading-overlay
                 [:div.placeholder-text "Image failed to load"]])]
             [frame-placeholder frame])]
-         [editable-subtitle-display/editable-subtitle-display frame* frame-input editable?]
+         [editable-subtitle-display/editable-subtitle-display frame* editable?]
          (when (and media-nav? (not editable?))
            [:div.media-nav-zones
             [:button

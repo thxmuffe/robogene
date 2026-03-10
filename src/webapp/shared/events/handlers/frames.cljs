@@ -57,7 +57,7 @@
     (-> db
         (assoc :gallery-items remaining-frames
                :active-frame-id next-active-id)
-        (update :frame-inputs dissoc-ids)
+        (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
         (reduce (fn [acc frame-id]
                   (update acc :image-ui-by-frame-id image-ui/remove-frame frame-id))
@@ -96,7 +96,7 @@
                             (assoc frame :description normalized)
                             frame))]
     (-> db
-        (assoc-in [:frame-inputs frame-id] normalized)
+        (update :frame-drafts dissoc frame-id)
         (update :gallery-items (fn [frames] (mapv set-description (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-description (or frames [])))))))
@@ -160,7 +160,7 @@
         (update-in description-inputs-key dissoc entity-id)
         (cond-> (= (get-in db editing-key) entity-id)
           (assoc-in editing-key nil))
-        (update :frame-inputs dissoc-ids)
+        (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
         (update :image-ui-by-frame-id dissoc-ids)
         (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
@@ -230,7 +230,7 @@
                               (or created-frame frame)
                               frame))
             cleanup-maps (-> db-with-status
-                             (update :frame-inputs dissoc temp-id)
+                             (update :frame-drafts dissoc temp-id)
                              (update :open-frame-actions dissoc temp-id))]
         {:db (-> cleanup-maps
                  (update :gallery-items (fn [frames] (mapv replace-frame (or frames []))))
@@ -256,15 +256,18 @@
 (rf/reg-event-db
  :frame-direction-changed
  (fn [db [_ frame-id value]]
-   (assoc-in db [:frame-inputs frame-id] value)))
+   (assoc-in db [:frame-drafts frame-id] value)))
 
 (rf/reg-event-fx
  :generate-frame
   (fn [{:keys [db]} [_ frame-id]]
-   (let [command {:id (sync/next-command-id)
+   (let [direction (or (get-in db [:frame-drafts frame-id])
+                       (:description (frame-by-id db frame-id))
+                       "")
+         command {:id (sync/next-command-id)
                   :kind :generate-frame
                   :payload {:frame-id frame-id
-                            :direction (get-in db [:frame-inputs frame-id] "")}
+                            :direction direction}
                   :success-status "Frame request queued."}]
      (sync/queue-command (set-frame-status db frame-id "queued")
                          "Queueing frame..."

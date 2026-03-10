@@ -15,10 +15,10 @@
   (interaction/stop! e)
   (rf/dispatch [:set-frame-actions-open frame-id true]))
 
-(defn editable-subtitle-display [{:keys [frameId description]} frame-input editing?]
+(defn editable-subtitle-display [{:keys [frameId description]} editing?]
   (let [saved-description (or description "")
-        current-input (or frame-input "")
-        subtitle (str/trim (or frame-input description ""))]
+        current-input @(rf/subscribe [:frame-draft frameId])
+        subtitle (str/trim (or (when editing? current-input) description ""))]
     [:<>
      [:> Box {:className (str "subtitle-display" (when editing? " subtitle-display-editing"))
               :data-frame-id frameId

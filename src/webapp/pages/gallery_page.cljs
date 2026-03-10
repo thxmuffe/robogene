@@ -89,7 +89,7 @@
    [:div.rainbow-band.band-4]
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
-(defn collection-section [cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs entity-description-inputs]
+(defn collection-section [cfg entity active-frame-id editing-entity-id entity-name-inputs entity-description-inputs]
   (let [{:keys [entity-id-key entity-label entity-singular owner-type]} cfg
         entity-id (entity-id-key entity)
         entity-name (or (:name entity) (:description entity) "")
@@ -128,7 +128,7 @@
         :entity-description entity-description
         :entity-label entity-label
         :singular-label entity-singular}]]
-     [chapter-component/chapter entity-id owner-type frame-inputs open-frame-actions active-frame-id]]))
+     [chapter-component/chapter entity-id owner-type active-frame-id]]))
 
 (defn new-entity-form [cfg name description]
   (let [{:keys [add-event set-open-event add-title name-input-placeholder description-input-placeholder name-changed-event description-changed-event]} cfg]
@@ -233,7 +233,7 @@
     :on-select (fn [_]
                  (rf/dispatch [:start-saga-meta-edit]))}])
 
-(defn collection-page [cfg entities frame-inputs open-frame-actions active-frame-id form-description panel-open? show-celebration?]
+(defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})
                focused-active-id* (r/atom nil)
                key-handler (fn [e]
@@ -249,7 +249,7 @@
           editing-entity-id @(rf/subscribe editing-id-sub)
           entity-name-inputs @(rf/subscribe name-inputs-sub)
           entity-description-inputs @(rf/subscribe description-inputs-sub)
-          any-frame-actions-open? (boolean (some true? (vals (or open-frame-actions {}))))
+          any-frame-actions-open? @(rf/subscribe [:any-frame-actions-open?])
           any-edit-open? (or panel-open?
                              (some? editing-entity-id)
                              any-frame-actions-open?)]
@@ -273,7 +273,7 @@
            [page-header-action cfg]])]
        (map-indexed (fn [idx entity]
                       ^{:key (or (entity-id-key entity) (str "entity-" idx))}
-                      [collection-section cfg entity frame-inputs open-frame-actions active-frame-id editing-entity-id entity-name-inputs entity-description-inputs])
+                      [collection-section cfg entity active-frame-id editing-entity-id entity-name-inputs entity-description-inputs])
                     entities)
        (when (and show-celebration? (= :saga view-id))
          [chapter-celebration])
@@ -307,11 +307,9 @@
    :teaser-title "Add New Chapter"
    :teaser-sub "Click to start a new adventure"})
 
-(defn saga-page [saga frame-inputs open-frame-actions active-frame-id new-chapter-name new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
+(defn saga-page [saga active-frame-id new-chapter-name new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
   [collection-page saga-config
    saga
-   frame-inputs
-   open-frame-actions
    active-frame-id
    {:name new-chapter-name
     :description new-chapter-description}

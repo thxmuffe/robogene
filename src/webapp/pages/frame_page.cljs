@@ -124,7 +124,7 @@
 
       :else nil)))
 
-(defn frame-page [route frame-inputs open-frame-actions saga-name]
+(defn frame-page [route saga-name]
   (r/with-let [key-context* (r/atom nil)
                focused-subtitle-key* (r/atom nil)
                key-handler (fn [e]
@@ -139,7 +139,7 @@
           ordered @(rf/subscribe [:frames-for-owner owner-type chapter-id])
           owner-name (owner-display-name from-page chapter-id saga roster)
           fullscreen? (true? (:fullscreen? route))
-          description-editor-open? (true? (get open-frame-actions frame-id))
+          description-editor-open? @(rf/subscribe [:frame-edit-open? frame-id])
           frame-neighbors (prev-next-by-id ordered frame-id)
           active-frame (:active frame-neighbors)]
       (reset! key-context* {:fullscreen? fullscreen?
@@ -159,11 +159,9 @@
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
            (when-not fullscreen?
              [top-controls from-page owner-name saga-name])
-           [frame/frame active-frame
-            (get frame-inputs (:frameId active-frame) "")
+          [frame/frame active-frame
             {:clickable? false
              :media-nav? true
-             :actions-open? (true? (get open-frame-actions (:frameId active-frame)))
              :image-fit "contain"}]
            (when-not fullscreen?
              [nav-controls chapter-id frame-neighbors from-page])

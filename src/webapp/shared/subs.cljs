@@ -7,8 +7,16 @@
 (rf/reg-sub :saga-meta (fn [db _] (:saga-meta db)))
 (rf/reg-sub :saga (fn [db _] (:saga db)))
 (rf/reg-sub :roster (fn [db _] (:roster db)))
-(rf/reg-sub :frame-inputs (fn [db _] (:frame-inputs db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
+(rf/reg-sub :frame-draft
+            (fn [db [_ frame-id]]
+              (get-in db [:frame-drafts frame-id])))
+(rf/reg-sub :frame-edit-open?
+            (fn [db [_ frame-id]]
+              (true? (get-in db [:open-frame-actions frame-id]))))
+(rf/reg-sub :any-frame-actions-open?
+            (fn [db _]
+              (boolean (some true? (vals (or (:open-frame-actions db) {}))))))
 (rf/reg-sub :chapter-name-inputs (fn [db _] (get-in db [:view-state :saga :name-inputs])))
 (rf/reg-sub :character-name-inputs (fn [db _] (get-in db [:view-state :roster :name-inputs])))
 (rf/reg-sub :chapter-description-inputs (fn [db _] (get-in db [:view-state :saga :description-inputs])))

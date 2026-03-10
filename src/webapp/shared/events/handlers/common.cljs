@@ -104,21 +104,12 @@
                      :image-ui-by-frame-id image-ui-by-frame-id
                      :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)
-              (assoc :frame-inputs
-                     (reduce (fn [acc frame]
-                               (let [frame-id (:frameId frame)
-                                     editing? (true? (get open-frame-actions frame-id))
-                                     existing-val (get-in db [:frame-inputs frame-id])
-                                     description (str/trim (or (:description frame) ""))
-                                     services-val (when (and (seq description)
-                                                             (not (model/generic-frame-text? description)))
-                                                    description)]
-                                 (assoc acc frame-id
-                                        (if editing?
-                                          existing-val
-                                          services-val))))
-                             {}
-                             frames)))})))
+              (update :frame-drafts
+                      (fn [drafts]
+                        (into {}
+                              (for [[frame-id draft] (or drafts {})
+                                    :when (true? (get open-frame-actions frame-id))]
+                                [frame-id draft])))))})))
 
 (rf/reg-event-fx
  :set-active-frame
@@ -130,7 +121,20 @@
 (rf/reg-event-db
  :set-frame-actions-open
  (fn [db [_ frame-id open?]]
-   (assoc-in db [:open-frame-actions frame-id] (true? open?))))
+   (let [open? (true? open?)
+         frame-description (or (:description (some (fn [frame]
+                                                     (when (= (:frameId frame) frame-id)
+                                                       frame))
+                                                   (or (:gallery-items db) [])))
+                               "")]
+     (-> db
+         (assoc-in [:open-frame-actions frame-id] open?)
+         (cond-> open?
+           (update :frame-drafts #(if (contains? (or % {}) frame-id)
+                                    %
+                                    (assoc (or % {}) frame-id frame-description)))
+           (not open?)
+           (update :frame-drafts dissoc frame-id))))))
 
 (rf/reg-event-db
  :state-failed
@@ -144,28 +148,15 @@
     :dispatch [:fetch-state]}))
 
 (defn cancel-open-edit-db-items [db]
-  (let [open-frame-ids (->> (or (:open-frame-actions db) {})
-                            (keep (fn [[frame-id open?]]
-                                    (when (true? open?) frame-id)))
-                            vec)
-        frame-desc-by-id (into {}
-                               (map (fn [frame]
-                                      [(:frameId frame) (or (:description frame) "")])
-                                    (or (:gallery-items db) [])))]
-    (-> db
-        (update :cancel-ui-token (fnil inc 0))
-        (assoc :open-frame-actions {})
-        (assoc-in [:view-state :saga :editing-id] nil)
-        (assoc-in [:view-state :roster :editing-id] nil)
-        (assoc-in [:view-state :saga :new-panel-open?] false)
-        (assoc-in [:view-state :roster :new-panel-open?] false)
-        (assoc-in [:view-state :saga :meta-editing?] false)
-        (update :frame-inputs
-                (fn [inputs]
-                  (reduce (fn [acc frame-id]
-                            (assoc acc frame-id (get frame-desc-by-id frame-id "")))
-                          (or inputs {})
-                          open-frame-ids))))))
+  (-> db
+      (update :cancel-ui-token (fnil inc 0))
+      (assoc :open-frame-actions {})
+      (assoc-in [:view-state :saga :editing-id] nil)
+      (assoc-in [:view-state :roster :editing-id] nil)
+      (assoc-in [:view-state :saga :new-panel-open?] false)
+      (assoc-in [:view-state :roster :new-panel-open?] false)
+      (assoc-in [:view-state :saga :meta-editing?] false)
+      (assoc :frame-drafts {})))
 
 (rf/reg-event-fx
  :cancel-open-edit-db-items

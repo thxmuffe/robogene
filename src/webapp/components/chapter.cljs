@@ -3,7 +3,7 @@
             [webapp.components.frame :as frame]
             ["@mantine/core" :refer [Box]]))
 
-(defn chapter [owner-id owner-type frame-inputs open-frame-actions active-frame-id]
+(defn chapter [owner-id owner-type active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
         character-owner? (= "character" (str owner-type))
         add-tile-title (if character-owner?
@@ -16,9 +16,7 @@
      (map-indexed (fn [idx frame-row]
                     ^{:key (or (:frameId frame-row) (str "frame-" idx))}
                     [frame/frame frame-row
-                     (get frame-inputs (:frameId frame-row) "")
-                     {:active? (= active-frame-id (:frameId frame-row))
-                      :actions-open? (true? (get open-frame-actions (:frameId frame-row)))}])
+                     {:active? (= active-frame-id (:frameId frame-row))}])
                   frames)
      [:article.add-frame-tile
       {:className "frame frame-clickable add-frame-tile"
