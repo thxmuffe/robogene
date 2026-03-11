@@ -106,8 +106,8 @@
       (when changed?
         (reset! prev-phase* phase)
         (when (= phase :red)
-          (js/console.error "[robogene] traffic-indicator entered ERROR state"
-                            (clj->js (red-signal-debug-info state))))
+          (js/console.warn "[robogene] traffic-indicator entered red state"
+                           (clj->js (red-signal-debug-info state))))
         (when-let [id @hide-timeout-id*]
           (js/clearTimeout id)
           (reset! hide-timeout-id* nil))

@@ -457,7 +457,7 @@ h2 { margin: 24px 0 10px; }
 }
 
 .media-shell {
-  --subtitle-surface-bg: rgba(25, 24, 24, 0.6);
+  --subtitle-surface-bg: rgba(188,188,188, 0.8);
   position: relative;
   overflow: hidden;
 }
@@ -470,8 +470,10 @@ h2 { margin: 24px 0 10px; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.56);
   background: rgba(16, 42, 67, 0.24);
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .placeholder-img {
@@ -482,16 +484,16 @@ h2 { margin: 24px 0 10px; }
   justify-content: center;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(135deg, #dbe6f0, #edf3f8);
-  color: #244061;
+  background: linear-gradient(135deg, #fffefb, #fffdfa);
+  color: rgba(36, 64, 97, 0.68);
 }
 
 .spinner {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.45);
-  border-top-color: #ff7a18;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 122, 24, 0.6);
   animation: spin 0.9s linear infinite;
 }
 
@@ -790,23 +792,27 @@ h2 { margin: 24px 0 10px; }
   max-height: 100%;
   display: block;
   margin: 0 auto;
-  padding: 0 3px;
+  padding: 0 2px;
   color: #fff3a6;
-  font-weight: 900;
+  font-weight: 800;
   text-align: center;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
   text-shadow: none;
-  -webkit-text-stroke: 2px rgba(12, 18, 28, 0.88);
+  -webkit-text-stroke: 1.2px rgba(12, 18, 28, 0.78);
   paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
   background: var(--subtitle-surface-bg);
-  border-radius: 0;
+  border-radius: 5px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overflow-y: hidden;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   scrollbar-gutter: auto;
+}
+
+.subtitle-display-text.subtitle-display-scroll-enabled {
+  overflow-y: auto;
 }
 
 .subtitle-display-input,
@@ -824,23 +830,27 @@ h2 { margin: 24px 0 10px; }
   margin: 0 auto;
   resize: none;
   border: 0;
-  border-radius: 0;
+  border-radius: 5px;
   background: var(--subtitle-surface-bg);
   color: #fff3a6;
-  font-weight: 900;
+  font-weight: 800;
   text-align: center;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
-  padding: 0 3px;
+  padding: 0 2px;
   text-shadow: none;
-  -webkit-text-stroke: 2px rgba(12, 18, 28, 0.88);
+  -webkit-text-stroke: 1.2px rgba(12, 18, 28, 0.78);
   paint-order: stroke fill;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow-y: hidden;
+  overscroll-behavior: auto;
   scrollbar-gutter: auto;
+}
+
+.subtitle-display-scroll-enabled textarea {
+  overflow-y: auto;
 }
 
 .subtitle-display-input textarea:hover,
