@@ -6,6 +6,9 @@
   --bg-parallax-y: 0px;
   --bg-orbit-x: 0px;
   --bg-orbit-y: 0px;
+  --gallery-scroll-x: 0px;
+  --gallery-scroll-y: 0px;
+  --gallery-scroll-rot: 0deg;
   --control-scale: 0.85;
   --menu-dot-btn-size: calc(42px * var(--control-scale));
   --icon-btn-size: calc(42px * var(--control-scale));
@@ -473,6 +476,24 @@ button.chapter-separator.is-collapsed {
 
 .frame-panel {
   border-width: 2px;
+}
+
+.gallery-motion-item {
+  position: relative;
+  z-index: 2;
+  transform:
+    translate3d(
+      calc(var(--gallery-scroll-x) * (var(--gallery-motion-x-scale, 1) + var(--gallery-motion-x-bias, 0)) + var(--gallery-motion-float-x, 0px) * 0.18),
+      calc(var(--gallery-scroll-y) * (var(--gallery-motion-y-scale, 1) + var(--gallery-motion-y-bias, 0))),
+      0
+    )
+    rotate(calc(var(--gallery-scroll-rot) * (var(--gallery-motion-rot-scale, 1) + var(--gallery-motion-rot-bias, 0))));
+  transition-property: transform;
+  transition-duration: var(--gallery-motion-duration, 420ms);
+  transition-delay: 0ms;
+  transition-timing-function: cubic-bezier(0.2, 0.76, 0.28, 1);
+  will-change: transform;
+  transform-origin: center 24%;
 }
 
 .frame-clickable {
@@ -1327,6 +1348,7 @@ button.chapter-separator.is-collapsed {
   justify-content: start;
   align-items: start;
   width: 100%;
+  overflow: visible;
 }
 
 .add-frame-tile {

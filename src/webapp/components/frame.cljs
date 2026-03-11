@@ -89,13 +89,13 @@
         [:> Box {:className "frame-main"}
          [:> Box {:className "media-shell"}
           [:> Box nav-attrs
-          (if has-image?
-            [:<>
-             [frame-status-note {:status (:status frame)
-                                 :image-loading? image-loading?
-                                 :image-error? image-error?}]
-             [frame-image frame* image-fit]]
-            [frame-placeholder frame])]
+           (if has-image?
+             [:<>
+              [frame-status-note {:status (:status frame)
+                                  :image-loading? image-loading?
+                                  :image-error? image-error?}]
+              [frame-image frame* image-fit]]
+             [frame-placeholder frame])]
           (when (and media-nav? (not editable?))
             [:div.media-nav-zones
              [:button
