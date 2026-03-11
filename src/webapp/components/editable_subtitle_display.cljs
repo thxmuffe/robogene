@@ -20,11 +20,6 @@
   (rf/dispatch [:set-frame-actions-open frame-id false])
   (focus-subtitle! frame-id))
 
-(defn- clear-hover-timeout! [hover-timeout*]
-  (when-let [timeout-id @hover-timeout*]
-    (js/clearTimeout timeout-id)
-    (reset! hover-timeout* nil)))
-
 (defn- keep-editing-on-blur? [frame-id]
   (let [active-el (.-activeElement js/document)
         frame-actions-selector (str ".frame-action-buttons[data-frame-id=\"" frame-id "\"]")]
@@ -32,119 +27,99 @@
         (interaction/closest? active-el "[role='dialog'][aria-modal='true']")
         (interaction/closest? active-el "[role='menu'], .mantine-Menu-dropdown"))))
 
+(def max-subtitle-chars 500)
+
+(defn- clamp-subtitle [text]
+  (let [value (subs (or text "") 0 (min (count (or text "")) max-subtitle-chars))]
+    value))
+
 (defn editable-subtitle-display [{:keys [frameId description]} editing?]
-  (let [scroll-enabled?* (r/atom false)
-        hover-timeout* (atom nil)]
+  (let [skip-blur-revert?* (r/atom false)]
     (fn [{:keys [frameId description]} editing?]
-      (let [saved-description (or description "")
-            current-input @(rf/subscribe [:frame-draft frameId])
-            subtitle (str/trim (or (when editing? current-input) description ""))]
-    [:<>
-     [:> Box (cond-> {:className (str "subtitle-display" (when editing? " subtitle-display-editing"))}
-               (not editing?)
-               (assoc :onClick #(enable-editing! frameId %)
-                      :onDoubleClick #(enable-editing! frameId %)))
-      (if editing?
-        [:> Textarea
-         {:className (str "subtitle-display-input"
-                          (when @scroll-enabled?* " subtitle-display-scroll-enabled"))
-          :defaultValue current-input
-          :data-frame-id frameId
-          :autosize true
-          :minRows 2
-          :maxRows 8
-          :autoFocus true
-          :placeholder "Describe this frame..."
-          :styles #js {:root #js {:width "100%"}
-                       :wrapper #js {:width "100%"}
-                       :input #js {:width "100%"
-                                   :overflowY (if @scroll-enabled?* "auto" "hidden")
-                                   :overscrollBehavior "auto"}}
-          :onFocus (fn [e]
-                     (interaction/stop! e)
-                     (reset! scroll-enabled?* false)
-                     (rf/dispatch [:set-active-frame frameId]))
-          :onBlur (fn [_]
-                    (clear-hover-timeout! hover-timeout*)
-                    (reset! scroll-enabled?* false)
-                    (js/setTimeout
-                     (fn []
-                       (when-not (keep-editing-on-blur? frameId)
-                         (rf/dispatch [:frame-direction-changed frameId saved-description])
-                         (close-editing! frameId)))
-                     0))
-          :onMouseEnter (fn [_]
-                          (clear-hover-timeout! hover-timeout*)
-                          (reset! hover-timeout*
-                                  (js/setTimeout
-                                   (fn []
-                                     (reset! scroll-enabled?* true)
-                                     (reset! hover-timeout* nil))
-                                   200)))
-          :onMouseLeave (fn [_]
-                          (clear-hover-timeout! hover-timeout*)
-                          (reset! scroll-enabled?* false))
-          :onClick interaction/stop!
-          :onDoubleClick interaction/stop!
-          :onChange (fn [e]
-                      (rf/dispatch [:frame-direction-changed frameId (.. e -target -value)]))
-          :onKeyDown (fn [e]
-                       (let [key (.-key e)
-                             submit? (and (= "Enter" key)
-                                          (or (.-metaKey e) (.-ctrlKey e)))]
-                         (cond
-                           (= "Escape" key)
-                           (do
-                             (interaction/halt! e)
-                             (rf/dispatch [:frame-direction-changed frameId saved-description])
-                             (close-editing! frameId))
+      (let [saved-description (clamp-subtitle description)
+            current-input (clamp-subtitle @(rf/subscribe [:frame-draft frameId]))
+            subtitle (str/trim (or (when editing? current-input) saved-description ""))
+            subtitle-props (cond-> {:className (str "subtitle-display" (when editing? " subtitle-display-editing"))}
+                             (not editing?)
+                             (assoc :onClick #(enable-editing! frameId %)
+                                    :onDoubleClick #(enable-editing! frameId %)))
+            close-without-blur-revert! (fn []
+                                         (reset! skip-blur-revert?* true)
+                                         (close-editing! frameId))]
+        [:> Box subtitle-props
+         (if editing?
+           [:<>
+            [:> Textarea
+             {:className "subtitle-display-input"
+              :defaultValue current-input
+              :data-frame-id frameId
+              :autosize true
+              :minRows 2
+              :maxRows 16
+              :maxLength max-subtitle-chars
+              :autoFocus true
+              :placeholder "Describe this frame..."
+              :styles #js {:root #js {:width "100%"}
+                           :wrapper #js {:width "100%"}
+                           :input #js {:width "100%"}}
+              :onFocus (fn [e]
+                         (interaction/stop! e)
+                         (rf/dispatch [:set-active-frame frameId]))
+              :onBlur (fn [_]
+                        (js/setTimeout
+                         (fn []
+                           (if @skip-blur-revert?*
+                             (reset! skip-blur-revert?* false)
+                             (when-not (keep-editing-on-blur? frameId)
+                               (rf/dispatch [:frame-direction-changed frameId saved-description])
+                               (close-editing! frameId))))
+                         0))
+              :onClick interaction/stop!
+              :onDoubleClick interaction/stop!
+              :onChange (fn [e]
+                          (rf/dispatch [:frame-direction-changed frameId (clamp-subtitle (.. e -target -value))]))
+              :onKeyDown (fn [e]
+                           (let [key (.-key e)
+                                 submit? (and (= "Enter" key)
+                                              (or (.-metaKey e) (.-ctrlKey e)))]
+                             (cond
+                               (= "Escape" key)
+                               (do
+                                 (interaction/halt! e)
+                                 (rf/dispatch [:frame-direction-changed frameId saved-description])
+                                 (close-without-blur-revert!))
 
-                           submit?
-                           (do
-                             (interaction/halt! e)
+                               submit?
+                               (do
+                                 (interaction/halt! e)
+                                 (rf/dispatch [:save-frame-description frameId current-input])
+                                 (close-without-blur-revert!))
+
+                               :else nil)))}]
+            [frame-action-buttons/frame-action-buttons
+             {:frame-id frameId
+              :submit-disabled? (= current-input saved-description)
+              :on-submit (fn []
+                           (rf/dispatch [:save-frame-description frameId current-input])
+                           (close-without-blur-revert!))
+              :on-cancel (fn []
+                           (rf/dispatch [:frame-direction-changed frameId saved-description])
+                           (close-without-blur-revert!))
+              :on-generate (fn []
                              (rf/dispatch [:save-frame-description frameId current-input])
-                             (close-editing! frameId))
-
-                           :else nil)))}]
-        [:span {:className (str "subtitle-display-text"
-                                (when @scroll-enabled?* " subtitle-display-scroll-enabled"))
-                :data-frame-id frameId
-                :role "button"
-                :tabIndex 0
-                :title "Click subtitle to edit description"
-                :onFocus #(rf/dispatch [:set-active-frame frameId])
-                :onMouseEnter (fn [_]
-                                (clear-hover-timeout! hover-timeout*)
-                                (reset! hover-timeout*
-                                        (js/setTimeout
-                                         (fn []
-                                           (reset! scroll-enabled?* true)
-                                           (reset! hover-timeout* nil))
-                                         200)))
-                :onMouseLeave (fn [_]
-                                (clear-hover-timeout! hover-timeout*)
-                                (reset! scroll-enabled?* false))
-                :onKeyDown (fn [e]
-                             (when (or (= "Enter" (.-key e))
-                                       (= " " (.-key e)))
-                               (interaction/prevent! e)
-                               (enable-editing! frameId e)))}
-         (if (seq subtitle)
-           subtitle
-           "Click subtitle to add description")])]
-     (when editing?
-       [frame-action-buttons/frame-action-buttons
-        {:frame-id frameId
-         :submit-disabled? (= current-input saved-description)
-         :on-submit (fn []
-                      (clear-hover-timeout! hover-timeout*)
-                      (rf/dispatch [:save-frame-description frameId current-input])
-                      (close-editing! frameId))
-         :on-cancel (fn []
-                      (clear-hover-timeout! hover-timeout*)
-                      (rf/dispatch [:frame-direction-changed frameId saved-description])
-                      (close-editing! frameId))
-         :on-generate (fn []
-                        (clear-hover-timeout! hover-timeout*)
-                        (close-editing! frameId)
-                        (rf/dispatch [:generate-frame frameId]))}])]))))
+                             (close-without-blur-revert!)
+                             (rf/dispatch [:generate-frame frameId current-input]))}]]
+           [:span {:className "subtitle-display-text"
+                   :data-frame-id frameId
+                   :role "button"
+                   :tabIndex 0
+                   :title "Click subtitle to edit description"
+                   :onFocus #(rf/dispatch [:set-active-frame frameId])
+                   :onKeyDown (fn [e]
+                                (when (or (= "Enter" (.-key e))
+                                          (= " " (.-key e)))
+                                  (interaction/prevent! e)
+                                  (enable-editing! frameId e)))}
+            (if (seq subtitle)
+              subtitle
+              "Click subtitle to add description")])]))))

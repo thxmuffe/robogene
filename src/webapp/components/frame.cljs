@@ -6,7 +6,7 @@
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
             [webapp.components.editable-subtitle-display :as editable-subtitle-display]
-            ["@mantine/core" :refer [Badge Box Card Image]]))
+            ["@mantine/core" :refer [Box Card Image]]))
 
 (defn frame-owner-page [owner-type]
   (if (= "character" (str owner-type))
@@ -36,11 +36,24 @@
                 "processing" "Generating..."
                 "queued" "Queued..."
                 "failed" "Generation failed"
-                "Add subtitle and generate")]
+                "Edit subtitle and generate")]
     [:> Box {:className "placeholder-img"}
      (when (or (= status "queued") (= status "processing"))
       [:div.spinner])
      [:div.placeholder-text label]]))
+
+(defn frame-status-note [{:keys [status image-loading? image-error?]}]
+  (let [label (cond
+                (= status "processing") "Generating..."
+                (= status "queued") "Queued..."
+                image-loading? "Loading image..."
+                (or image-error? (= status "failed")) "Image failed to load"
+                :else nil)]
+    (when label
+      [:div.frame-status-note
+       (when (or (= status "processing") (= status "queued") image-loading?)
+         [:div.spinner])
+       [:div.placeholder-text label]])))
 
 (defn frame
   ([frame]
@@ -73,37 +86,31 @@
                 :withBorder true
                 :padding 0
                 :radius "md"})
-        [:> Box {:className "media-shell"}
-         [:> Box nav-attrs
+        [:> Box {:className "frame-main"}
+         [:> Box {:className "media-shell"}
+          [:> Box nav-attrs
           (if has-image?
             [:<>
-             [frame-image frame* image-fit]
-             (when (or busy? image-loading?)
-               [:div.media-loading-overlay
-                [:div.spinner]
-                [:div.placeholder-text (if busy? "Generating..." "Loading image...")]])
-             (when (and image-error? (not busy?))
-               [:div.media-loading-overlay
-                [:div.placeholder-text "Image failed to load"]])]
+             [frame-status-note {:status (:status frame)
+                                 :image-loading? image-loading?
+                                 :image-error? image-error?}]
+             [frame-image frame* image-fit]]
             [frame-placeholder frame])]
-         [editable-subtitle-display/editable-subtitle-display frame* editable?]
-         (when (and media-nav? (not editable?))
-           [:div.media-nav-zones
-            [:button
-             {:type "button"
-              :className "media-nav-zone media-nav-prev"
-              :tabIndex -1
-              :onFocus (fn [e] (.blur (.-currentTarget e)))
-              :aria-label "Previous frame"
-              :onClick (on-media-nav-click -1)}]
-            [:button
-             {:type "button"
-              :className "media-nav-zone media-nav-next"
-              :tabIndex -1
-              :onFocus (fn [e] (.blur (.-currentTarget e)))
-              :aria-label "Next frame"
-              :onClick (on-media-nav-click 1)}]])]
-        (when busy?
-          [:> Badge {:className "badge queue badge-queue-overlay"
-                     :size "sm"}
-           "In Queue"])]))))
+          (when (and media-nav? (not editable?))
+            [:div.media-nav-zones
+             [:button
+              {:type "button"
+               :className "media-nav-zone media-nav-prev"
+               :tabIndex -1
+               :onFocus (fn [e] (.blur (.-currentTarget e)))
+               :aria-label "Previous frame"
+               :onClick (on-media-nav-click -1)}]
+             [:button
+              {:type "button"
+               :className "media-nav-zone media-nav-next"
+               :tabIndex -1
+               :onFocus (fn [e] (.blur (.-currentTarget e)))
+               :aria-label "Next frame"
+               :onClick (on-media-nav-click 1)}]])]
+         [editable-subtitle-display/editable-subtitle-display frame* editable?]]
+        ]))))

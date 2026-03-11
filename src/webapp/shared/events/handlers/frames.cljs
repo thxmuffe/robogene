@@ -262,8 +262,9 @@
 
 (rf/reg-event-fx
  :generate-frame
-  (fn [{:keys [db]} [_ frame-id]]
-   (let [direction (or (get-in db [:frame-drafts frame-id])
+  (fn [{:keys [db]} [_ frame-id provided-direction]]
+   (let [direction (or provided-direction
+                       (get-in db [:frame-drafts frame-id])
                        (:description (frame-by-id db frame-id))
                        "")
          command {:id (sync/next-command-id)

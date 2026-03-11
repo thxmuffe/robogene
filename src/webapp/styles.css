@@ -413,12 +413,13 @@ h2 { margin: 24px 0 10px; }
 }
 
 .frame {
-  background: var(--frame-surface);
-  border: 2px solid #1f2a44;
+  background: #fffdfa;
+  border: 2px solid #111827;
   border-radius: 0;
   overflow: hidden;
   position: relative;
   align-self: start;
+  color: #111827;
   box-shadow: 0 10px 24px rgba(16, 42, 67, 0.16);
   animation: rise 320ms ease;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
@@ -454,12 +455,22 @@ h2 { margin: 24px 0 10px; }
   display: block;
   aspect-ratio: 3 / 2;
   object-fit: cover;
+  position: relative;
+  z-index: 2;
+}
+
+.frame-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .media-shell {
-  --subtitle-surface-bg: rgba(188,188,188, 0.8);
   position: relative;
+  z-index: 2;
   overflow: hidden;
+  background: transparent;
 }
 
 .media-loading-overlay {
@@ -470,10 +481,10 @@ h2 { margin: 24px 0 10px; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.56);
-  background: rgba(16, 42, 67, 0.24);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  color: inherit;
+  background: transparent;
+  font-weight: 400;
+  letter-spacing: 0.015em;
 }
 
 .placeholder-img {
@@ -484,16 +495,34 @@ h2 { margin: 24px 0 10px; }
   justify-content: center;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(135deg, #fffefb, #fffdfa);
-  color: rgba(36, 64, 97, 0.68);
+  background: transparent;
+  color: inherit;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+}
+
+.frame-status-note {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  color: inherit;
+  text-align: center;
+  pointer-events: none;
 }
 
 .spinner {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  border-top-color: rgba(255, 122, 24, 0.6);
+  border: 1px solid currentColor;
+  border-top-color: rgba(255, 122, 24, 0.55);
+  opacity: 0.68;
   animation: spin 0.9s linear infinite;
 }
 
@@ -642,8 +671,10 @@ h2 { margin: 24px 0 10px; }
 }
 
 .placeholder-text {
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-weight: 400;
+  font-size: 0.9rem;
+  letter-spacing: 0.015em;
+  text-align: center;
 }
 
 .description-editor-generate-btn {
@@ -767,52 +798,41 @@ h2 { margin: 24px 0 10px; }
 }
 
 .subtitle-display {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
-  padding: 10px 12px;
-  display: block;
-  max-height: 40%;
-  overflow: hidden;
-  background: transparent;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  background: #fffdfa;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
   cursor: text;
 }
 
 .subtitle-display-editing {
-  z-index: 7;
-  max-height: 40%;
+  gap: 12px;
 }
 
 .subtitle-display-text {
   --subtitle-font-size: 1.05rem;
   --subtitle-line-height: 1.24;
-  max-width: min(94%, 74ch);
-  max-height: 100%;
+  width: 100%;
   display: block;
-  margin: 0 auto;
-  padding: 0 2px;
-  color: #fff3a6;
-  font-weight: 800;
-  text-align: center;
+  margin: 0;
+  padding: 0;
+  color: #111827;
+  font-weight: 700;
+  text-align: left;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
   text-shadow: none;
-  -webkit-text-stroke: 1.2px rgba(12, 18, 28, 0.78);
-  paint-order: stroke fill;
+  -webkit-text-stroke: 0;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
-  background: var(--subtitle-surface-bg);
-  border-radius: 5px;
+  background: transparent;
+  border-radius: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-y: hidden;
-  overscroll-behavior: auto;
-  scrollbar-gutter: auto;
-}
-
-.subtitle-display-text.subtitle-display-scroll-enabled {
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .subtitle-display-input,
@@ -824,38 +844,30 @@ h2 { margin: 24px 0 10px; }
 .subtitle-display-input textarea {
   --subtitle-font-size: 1.05rem;
   --subtitle-line-height: 1.24;
-  max-width: min(94%, 74ch);
-  max-height: 100%;
+  width: 100%;
   display: block;
-  margin: 0 auto;
+  margin: 0;
   resize: none;
   border: 0;
-  border-radius: 5px;
-  background: var(--subtitle-surface-bg);
-  color: #fff3a6;
-  font-weight: 800;
-  text-align: center;
+  border-radius: 0;
+  background: transparent;
+  color: #111827;
+  font-weight: 700;
+  text-align: left;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
-  padding: 0 2px;
+  padding: 0;
   text-shadow: none;
-  -webkit-text-stroke: 1.2px rgba(12, 18, 28, 0.78);
-  paint-order: stroke fill;
+  -webkit-text-stroke: 0;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-y: hidden;
-  overscroll-behavior: auto;
-  scrollbar-gutter: auto;
-}
-
-.subtitle-display-scroll-enabled textarea {
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .subtitle-display-input textarea:hover,
 .subtitle-display-input textarea:focus {
-  background: var(--subtitle-surface-bg);
+  background: transparent;
 }
 
 .detail-page .subtitle-display-text {
@@ -870,22 +882,20 @@ h2 { margin: 24px 0 10px; }
 
 .subtitle-display-text:focus-visible {
   outline: 1px solid rgba(126, 200, 255, 0.95);
-  outline-offset: -1px;
+  outline-offset: 2px;
 }
 
 .frame-action-buttons {
-  position: absolute;
-  right: 12px;
-  top: 10px;
-  z-index: 8;
+  position: static;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: var(--icon-btn-size);
+  justify-content: end;
   gap: 8px;
   align-items: center;
-  padding: 4px 6px;
-  background: var(--subtitle-surface-bg);
-  border-radius: 14px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
 }
 
 .upload-dialog {
@@ -1059,20 +1069,15 @@ h2 { margin: 24px 0 10px; }
   padding: 2px 8px;
   font-size: 0.75rem;
   border-radius: 999px;
-  color: #fff;
-  background: #2d7f87;
+  color: inherit;
+  background: transparent;
   vertical-align: middle;
 }
 
 .badge.queue {
-  background: #697a8b;
-}
-
-.badge-queue-overlay {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 4;
+  background: transparent;
+  font-weight: 400;
+  letter-spacing: 0.015em;
 }
 
 .detail-page {
