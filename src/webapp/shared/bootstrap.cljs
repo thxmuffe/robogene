@@ -13,8 +13,8 @@
 (defonce frame-motion-bound?* (atom false))
 (defonce frame-motion-animating?* (atom false))
 (defonce frame-motion-state* (atom {:x 0 :y 0 :rot 0 :last-scroll-y 0}))
-(def ^:const gallery-motion-translation-amplitude 0.2)
-(def ^:const gallery-motion-rotation-amplitude 0.65)
+(def ^:const gallery-motion-translation-amplitude 0)
+(def ^:const gallery-motion-rotation-amplitude 0)
 
 (defn- update-background-parallax! []
   (let [scroll-y (or (.-scrollY js/window) 0)
