@@ -163,8 +163,6 @@
         (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
         (update :image-ui-by-frame-id dissoc-ids)
-        (cond-> (= "chapter" (str entity-label))
-          (update-in [:view-state :saga :collapsed-chapter-ids] disj entity-id))
         (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
         (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
 

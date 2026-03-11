@@ -94,7 +94,7 @@
         entity-id (entity-id-key entity)
         chapter-entity? (= "chapter" (str entity-label))
         chapter-collapsed? (when chapter-entity?
-                             @(rf/subscribe [:chapter-collapsed? entity-id]))
+                             @(rf/subscribe [:gallery-chapter-collapsed? entity-id]))
         entity-name (or (:name entity) (:description entity) "")
         entity-description (or (:description entity) "")]
     [:> Box {:component "section" :className "chapter-block"}
@@ -106,44 +106,56 @@
           :title (if chapter-collapsed? "Expand chapter" "Collapse chapter")
           :aria-label (if chapter-collapsed? "Expand chapter" "Collapse chapter")
           :aria-expanded (str (not chapter-collapsed?))
-          :onClick #(rf/dispatch [:toggle-chapter-collapsed entity-id])}
+          :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed entity-id])}
          [:span {:className (str "chapter-separator-toggle-triangle"
                                  (when chapter-collapsed? " is-collapsed"))}]])
-      [:div.chapter-separator]]
-     [:> Group {:className "chapter-header"
-                :gap "sm"
-                :align "center"
-                :wrap "wrap"}
-      (if (= editing-entity-id entity-id)
-        [edit-db-item/edit-db-item
-         {:class-name "chapter-edit-db-item"
-          :show-name? true
-          :name-value (get entity-name-inputs entity-id "")
-          :on-name-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
-          :name-props {:size "sm"
-                       :className "chapter-name-input"
-                       :onKeyDown (on-name-keydown entity-label entity-id)}
-          :description-value (get entity-description-inputs entity-id "")
-          :on-description-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
-          :description-props {:autosize true
-                              :minRows 2
-                              :maxRows 6
-                              :className "chapter-description-input"}
-          :on-submit #(rf/dispatch [:save-entity entity-label entity-id])
-          :on-cancel #(rf/dispatch [:cancel-entity-name-edit entity-label])
-          :actions-class "chapter-edit-actions"}]
-        [:<>
-         [:p.chapter-name entity-name]
-         (when (seq (str/trim entity-description))
-           [:p.chapter-description entity-description])])
-      [chapter-actions/chapter-actions
-       {:entity-id entity-id
-        :entity-name entity-name
-        :entity-description entity-description
-        :entity-label entity-label
-        :singular-label entity-singular}]]
-     (when-not chapter-collapsed?
-       [chapter-component/chapter entity-id owner-type active-frame-id])]))
+      (if chapter-entity?
+        [:button
+         {:type "button"
+          :className (str "chapter-separator" (when chapter-collapsed? " is-collapsed"))
+          :title (if chapter-collapsed? "Expand chapter" "Collapse chapter")
+          :aria-label (if chapter-collapsed? "Expand chapter" "Collapse chapter")
+          :aria-expanded (str (not chapter-collapsed?))
+          :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed entity-id])}
+         (when chapter-collapsed?
+           [:span.chapter-separator-title entity-name])]
+        [:div.chapter-separator])]
+     (if (and chapter-entity? chapter-collapsed?)
+       nil
+       [:div.chapter-content
+        [:> Group {:className "chapter-header"
+                   :gap "sm"
+                   :align "center"
+                   :wrap "wrap"}
+         (if (= editing-entity-id entity-id)
+           [edit-db-item/edit-db-item
+            {:class-name "chapter-edit-db-item"
+             :show-name? true
+             :name-value (get entity-name-inputs entity-id "")
+             :on-name-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
+             :name-props {:size "sm"
+                          :className "chapter-name-input"
+                          :onKeyDown (on-name-keydown entity-label entity-id)}
+             :description-value (get entity-description-inputs entity-id "")
+             :on-description-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
+             :description-props {:autosize true
+                                 :minRows 2
+                                 :maxRows 6
+                                 :className "chapter-description-input"}
+             :on-submit #(rf/dispatch [:save-entity entity-label entity-id])
+             :on-cancel #(rf/dispatch [:cancel-entity-name-edit entity-label])
+             :actions-class "chapter-edit-actions"}]
+           [:<>
+            [:p.chapter-name entity-name]
+            (when (seq (str/trim entity-description))
+              [:p.chapter-description entity-description])])
+         [chapter-actions/chapter-actions
+          {:entity-id entity-id
+           :entity-name entity-name
+           :entity-description entity-description
+           :entity-label entity-label
+           :singular-label entity-singular}]]
+        [chapter-component/chapter entity-id owner-type active-frame-id]])]))
 
 (defn new-entity-form [cfg name description]
   (let [{:keys [add-event set-open-event add-title name-input-placeholder description-input-placeholder name-changed-event description-changed-event]} cfg]

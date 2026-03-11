@@ -8,10 +8,10 @@
    :cancel-ui-token 0
    :frame-drafts {}
    :open-frame-actions {}
-   :view-state {:saga {:name-inputs {}
+   :view-state {:gallery {:collapsed-chapter-ids #{}}
+                :saga {:name-inputs {}
                        :description-inputs {}
                        :editing-id nil
-                       :collapsed-chapter-ids #{}
                        :new-name ""
                        :new-description ""
                        :new-panel-open? false

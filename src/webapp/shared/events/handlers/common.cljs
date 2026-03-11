@@ -7,6 +7,7 @@
             [webapp.shared.events.image-ui :as image-ui]
             [webapp.shared.events.effects]
             [webapp.shared.events.transport]
+            [webapp.shared.events.handlers.gallery]
             [webapp.shared.events.handlers.frame-page]
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.frames]
@@ -92,24 +93,29 @@
          image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
                                (:image-ui-by-frame-id db)
                                previous-frames
-                               frames)]
-     {:db (-> db
-              (assoc :latest-state state
-                     :status (model/status-line state saga roster frames)
-                     :last-rendered-revision (:revision state)
-                     :saga-meta (or (:sagaMeta state) (:saga-meta db))
-                     :saga saga
-                     :roster roster
-                     :gallery-items frames
-                     :image-ui-by-frame-id image-ui-by-frame-id
-                     :open-frame-actions open-frame-actions
-                     :active-frame-id active-frame-id)
-              (update :frame-drafts
-                      (fn [drafts]
-                        (into {}
-                              (for [[frame-id draft] (or drafts {})
-                                    :when (true? (get open-frame-actions frame-id))]
-                                [frame-id draft])))))})))
+                               frames)
+         chapter-ids (set (map :chapterId saga))]
+     {:db
+      (-> db
+          (assoc :latest-state state
+                 :status (model/status-line state saga roster frames)
+                 :last-rendered-revision (:revision state)
+                 :saga-meta (or (:sagaMeta state) (:saga-meta db))
+                 :saga saga
+                 :roster roster
+                 :gallery-items frames
+                 :image-ui-by-frame-id image-ui-by-frame-id
+                 :open-frame-actions open-frame-actions
+                 :active-frame-id active-frame-id)
+          (update :frame-drafts
+                  (fn [drafts]
+                    (into {}
+                          (for [[frame-id draft] (or drafts {})
+                                :when (true? (get open-frame-actions frame-id))]
+                            [frame-id draft]))))
+          (update-in [:view-state :gallery :collapsed-chapter-ids]
+                     (fn [ids]
+                       (set (filter chapter-ids (or ids #{}))))))})))
 
 (rf/reg-event-fx
  :set-active-frame
