@@ -71,9 +71,6 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
 
     const newFrame = page.locator('.gallery .frame[data-frame-id]').nth(beforeCount);
     await newFrame.waitFor({ timeout: actionTimeoutMs });
-    const initialFrameId = await newFrame.getAttribute('data-frame-id');
-    assert.ok(initialFrameId, 'new frame should expose initial data-frame-id');
-
     await newFrame.locator('.subtitle-display-text').click();
     const textarea = newFrame.locator('.subtitle-display-input textarea');
     await textarea.waitFor({ timeout: actionTimeoutMs });
@@ -84,30 +81,37 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     logStep('gallery-upload', 'saving updated description');
     await newFrame.getByRole('button', { name: 'Submit' }).click();
 
-    const frameId = await page.waitForFunction(
-      (previousId) => {
-        const framesNow = Array.from(document.querySelectorAll('.gallery .frame[data-frame-id]'));
-        const newer = framesNow.find((el) => el.getAttribute('data-frame-id') !== previousId);
-        return newer?.getAttribute('data-frame-id') || previousId;
-      },
-      initialFrameId,
-      { timeout: actionTimeoutMs }
-    ).then((handle) => handle.jsonValue());
-    assert.ok(frameId, 'frame should expose stable data-frame-id after add completes');
-
-    const stableFrame = page.locator(`.gallery .frame[data-frame-id="${frameId}"]`).first();
+    const stableFrame = page
+      .locator('.gallery .frame[data-frame-id]')
+      .filter({ has: page.locator('.subtitle-display-text', { hasText: updatedDescription }) })
+      .first();
     await stableFrame.waitFor({ timeout: actionTimeoutMs });
-    await stableFrame.locator('.subtitle-display-text', { hasText: updatedDescription }).waitFor({ timeout: actionTimeoutMs });
+    const frameId = await stableFrame.getAttribute('data-frame-id');
+    assert.ok(frameId, 'frame should expose stable data-frame-id after add completes');
+    const stableFrameById = page.locator(`.gallery .frame[data-frame-id="${frameId}"]`).first();
 
     logStep('gallery-upload', 'opening upload menu');
-    await stableFrame.locator('.description-editor-actions-trigger').click();
+    await stableFrameById.locator('.subtitle-display-text').click();
+    await stableFrameById.locator('.description-editor-actions-trigger').waitFor({ timeout: actionTimeoutMs });
+    await stableFrameById.locator('.description-editor-actions-trigger').click();
     await page.getByRole('menuitem', { name: 'Replace with own photo' }).click();
 
     const uploadDialog = page.getByRole('dialog');
     await uploadDialog.waitFor({ timeout: actionTimeoutMs });
     const fileInput = uploadDialog.locator('input.upload-file-input[type="file"]').first();
     await fileInput.setInputFiles(uploadPngLikeFile);
-    await uploadDialog.getByRole('button', { name: 'Submit' }).click();
+    await page.waitForFunction(() => {
+      const surface = document.querySelector('.upload-image-surface');
+      const backgroundImage = String(surface?.style?.backgroundImage || '');
+      return backgroundImage.includes('data:image/svg+xml');
+    }, { timeout: actionTimeoutMs });
+    const uploadSubmit = uploadDialog.getByRole('button', { name: 'Submit' });
+    await uploadSubmit.waitFor({ timeout: actionTimeoutMs });
+    await page.waitForFunction(() => {
+      const submit = document.querySelector('[role="dialog"] button[aria-label="Submit"]');
+      return !!submit && !submit.disabled;
+    }, { timeout: actionTimeoutMs });
+    await uploadSubmit.click();
 
     logStep('gallery-upload', 'waiting for uploaded image and description stability');
     await page.waitForFunction(
@@ -126,9 +130,9 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     );
 
     await page.waitForTimeout(1800);
-    const subtitleText = await stableFrame.locator('.subtitle-display-text').textContent();
+    const subtitleText = await stableFrameById.locator('.subtitle-display-text').textContent();
     assert.equal(String(subtitleText || '').trim(), updatedDescription, 'saved description should remain stable');
-    const imgSrc = await stableFrame.locator('img').getAttribute('src');
+    const imgSrc = await stableFrameById.locator('img').getAttribute('src');
     assert.ok(String(imgSrc || '').startsWith('data:image/'), 'uploaded image should remain visible in the frame');
 
     consoleGuard.assertClean();

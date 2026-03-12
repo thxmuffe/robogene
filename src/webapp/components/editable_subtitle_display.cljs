@@ -2,19 +2,31 @@
   (:require [clojure.string :as str]
             [reagent.core :as r]
             [re-frame.core :as rf]
+            [webapp.components.row-dropdown-flow :as row-dropdown-flow]
+            [webapp.components.confirm-dialog :as confirm-dialog]
+            [webapp.components.upload-dialog :as upload-dialog]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            [webapp.components.frame-action-buttons :as frame-action-buttons]
-            ["@mantine/core" :refer [Box Textarea]]))
+            ["@mantine/core" :refer [Box Textarea]]
+            ["react-icons/fa6" :refer [FaCheck FaEraser FaImage FaPaperPlane FaTrashCan FaXmark]]))
 
 (defn- focus-subtitle! [frame-id]
   (.requestAnimationFrame js/window
                           (fn []
                             (frame-nav/focus-subtitle! frame-id))))
 
+(defn- scroll-subtitle-into-view! [frame-id]
+  (.requestAnimationFrame
+   js/window
+   (fn []
+     (some-> (.querySelector js/document (str ".frame[data-frame-id=\"" frame-id "\"] .subtitle-display"))
+             (.scrollIntoView #js {:block "nearest"
+                                   :inline "nearest"})))))
+
 (defn- enable-editing! [frame-id e]
   (interaction/stop! e)
-  (rf/dispatch [:set-frame-actions-open frame-id true]))
+  (rf/dispatch [:set-frame-actions-open frame-id true])
+  (scroll-subtitle-into-view! frame-id))
 
 (defn- close-editing! [frame-id]
   (rf/dispatch [:set-frame-actions-open frame-id false])
@@ -34,18 +46,94 @@
     value))
 
 (defn editable-subtitle-display [{:keys [frameId description]} editing?]
-  (let [skip-blur-revert?* (r/atom false)]
+  (let [skip-blur-revert?* (r/atom false)
+        action-pointer-down?* (r/atom false)
+        confirm* (r/atom nil)
+        upload-open?* (r/atom false)
+        seen-cancel-token* (r/atom nil)]
     (fn [{:keys [frameId description]} editing?]
       (let [saved-description (clamp-subtitle description)
             current-input (clamp-subtitle @(rf/subscribe [:frame-draft frameId]))
+            cancel-ui-token @(rf/subscribe [:cancel-ui-token])
             subtitle (str/trim (or (when editing? current-input) saved-description ""))
             subtitle-props (cond-> {:className (str "subtitle-display" (when editing? " subtitle-display-editing"))}
                              (not editing?)
                              (assoc :onClick #(enable-editing! frameId %)
                                     :onDoubleClick #(enable-editing! frameId %)))
+            menu-items [{:id :remove-image
+                         :label "Remove image"
+                         :confirm {:title "Remove image from this frame?"
+                                   :text "The frame and its description will stay."
+                                   :confirm-label "Remove image"
+                                   :confirm-color "primary"}
+                         :dispatch-event [:clear-frame-image frameId]}
+                        {:id :replace-image
+                         :label "Replace with own photo"}
+                        {:id :delete-frame
+                         :label "Delete frame"
+                         :confirm {:title "Delete this frame?"
+                                   :text "This cannot be undone."
+                                   :confirm-label "Delete"
+                                   :confirm-color "error"}
+                         :dispatch-event [:delete-frame frameId]}]
+            selected-item @confirm*
+            preserve-editing-for-action! (fn []
+                                           (reset! action-pointer-down?* true))
             close-without-blur-revert! (fn []
                                          (reset! skip-blur-revert?* true)
-                                         (close-editing! frameId))]
+                                         (close-editing! frameId))
+            actions [{:id :submit
+                      :label "Submit"
+                      :icon FaCheck
+                      :color "lime"
+                      :variant "filled"
+                      :disabled? (= current-input saved-description)
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (rf/dispatch [:save-frame-description frameId current-input])
+                                   (close-without-blur-revert!))}
+                     {:id :cancel
+                      :label "Cancel"
+                      :icon FaXmark
+                      :color "gray"
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (rf/dispatch [:frame-direction-changed frameId saved-description])
+                                   (close-without-blur-revert!))}
+                     {:id :generate
+                      :label "Generate image"
+                      :icon FaPaperPlane
+                      :color "indigo"
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (rf/dispatch [:save-frame-description frameId current-input])
+                                   (close-without-blur-revert!)
+                                   (rf/dispatch [:generate-frame frameId current-input]))}
+                     {:id :replace-image
+                      :label "Replace with own photo"
+                      :icon FaImage
+                      :color "blue"
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (reset! upload-open?* true))}
+                     {:id :remove-image
+                      :label "Remove image"
+                      :icon FaEraser
+                      :color "orange"
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (reset! confirm* (first menu-items)))}
+                     {:id :delete-frame
+                      :label "Delete frame"
+                      :icon FaTrashCan
+                      :color "red"
+                      :on-select (fn [e]
+                                   (interaction/halt! e)
+                                   (reset! confirm* (last menu-items)))}]]
+        (when (not= cancel-ui-token @seen-cancel-token*)
+          (reset! seen-cancel-token* cancel-ui-token)
+          (reset! confirm* nil)
+          (reset! upload-open?* false))
         [:> Box subtitle-props
          (if editing?
            [:<>
@@ -64,20 +152,31 @@
                            :input #js {:width "100%"}}
               :onFocus (fn [e]
                          (interaction/stop! e)
-                         (rf/dispatch [:set-active-frame frameId]))
+                         (rf/dispatch [:set-active-frame frameId])
+                         (scroll-subtitle-into-view! frameId))
               :onBlur (fn [_]
                         (js/setTimeout
                          (fn []
-                           (if @skip-blur-revert?*
+                           (cond
+                             @skip-blur-revert?*
                              (reset! skip-blur-revert?* false)
-                             (when-not (keep-editing-on-blur? frameId)
+
+                             @action-pointer-down?*
+                             (reset! action-pointer-down?* false)
+
+                             (keep-editing-on-blur? frameId)
+                             nil
+
+                             :else
+                             (do
                                (rf/dispatch [:frame-direction-changed frameId saved-description])
                                (close-editing! frameId))))
                          0))
               :onClick interaction/stop!
               :onDoubleClick interaction/stop!
               :onChange (fn [e]
-                          (rf/dispatch [:frame-direction-changed frameId (clamp-subtitle (.. e -target -value))]))
+                          (rf/dispatch [:frame-direction-changed frameId
+                                        (clamp-subtitle (.. e -target -value))]))
               :onKeyDown (fn [e]
                            (let [key (.-key e)
                                  submit? (and (= "Enter" key)
@@ -96,19 +195,34 @@
                                  (close-without-blur-revert!))
 
                                :else nil)))}]
-            [frame-action-buttons/frame-action-buttons
-             {:frame-id frameId
-              :submit-disabled? (= current-input saved-description)
-              :on-submit (fn []
-                           (rf/dispatch [:save-frame-description frameId current-input])
-                           (close-without-blur-revert!))
-              :on-cancel (fn []
-                           (rf/dispatch [:frame-direction-changed frameId saved-description])
-                           (close-without-blur-revert!))
-              :on-generate (fn []
-                             (rf/dispatch [:save-frame-description frameId current-input])
-                             (close-without-blur-revert!)
-                             (rf/dispatch [:generate-frame frameId current-input]))}]]
+            [:div {:className "frame-action-buttons"
+                   :data-frame-id frameId
+                   :onMouseDown interaction/prevent!
+                   :onPointerDown interaction/prevent!
+                   :onMouseDownCapture (fn [_]
+                                         (preserve-editing-for-action!))
+                   :onClick interaction/stop!
+                   :onDoubleClick interaction/stop!}
+             [row-dropdown-flow/row-dropdown-flow
+              {:class-name "frame-action-buttons-row"
+               :actions actions
+               :mandatory-count 2
+               :menu-title "Frame actions"
+               :menu-aria-label "Frame actions"
+               :on-action-pointer-down preserve-editing-for-action!}]
+             [confirm-dialog/confirm-dialog
+              {:item selected-item
+               :on-cancel #(reset! confirm* nil)
+               :on-confirm (fn []
+                             (when-let [event (:dispatch-event selected-item)]
+                               (rf/dispatch event))
+                             (reset! confirm* nil))}]
+             [upload-dialog/upload-dialog
+              {:open @upload-open?*
+               :active-frame-id frameId
+               :on-close #(reset! upload-open?* false)
+               :on-submit (fn [image-data-url]
+                            (rf/dispatch [:replace-frame-image frameId image-data-url]))}]]]
            [:span {:className "subtitle-display-text"
                    :data-frame-id frameId
                    :role "button"

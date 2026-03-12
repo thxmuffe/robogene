@@ -1,6 +1,7 @@
 (ns webapp.components.edit-db-item
-  (:require ["@mantine/core" :refer [ActionIcon TextInput Textarea]]
-            ["react-icons/fa6" :refer [FaCheck FaXmark]]))
+  (:require ["@mantine/core" :refer [TextInput Textarea]]
+            ["react-icons/fa6" :refer [FaCheck FaXmark]]
+            [webapp.components.row-dropdown-flow :as row-dropdown-flow]))
 
 (defn stop-propagation! [e]
   (.stopPropagation e))
@@ -10,24 +11,23 @@
   (.stopPropagation e))
 
 (defn edit-db-item-actions [opts]
-  (let [{:keys [on-submit on-cancel submit-disabled? extra-actions class-name]} opts]
-    [:div {:className (or class-name "chapter-edit-actions")}
-     [:> ActionIcon
-      {:aria-label "Submit"
-       :title "Submit"
-       :variant "filled"
-       :radius "xl"
-       :disabled (true? submit-disabled?)
-       :onClick on-submit}
-      [:> FaCheck]]
-     [:> ActionIcon
-      {:aria-label "Cancel"
-       :title "Cancel"
-       :variant "subtle"
-       :radius "xl"
-       :onClick on-cancel}
-      [:> FaXmark]]
-     extra-actions]))
+  (let [{:keys [on-submit on-cancel submit-disabled? action-items class-name]} opts
+        actions (into [{:id :submit
+                        :label "Submit"
+                        :icon FaCheck
+                        :disabled? (true? submit-disabled?)
+                        :on-select on-submit}
+                       {:id :cancel
+                        :label "Cancel"
+                        :icon FaXmark
+                        :on-select on-cancel}]
+                      (or action-items []))]
+    [row-dropdown-flow/row-dropdown-flow
+     {:class-name (or class-name "chapter-edit-actions")
+      :actions actions
+      :mandatory-count 2
+      :menu-title "More actions"
+      :menu-aria-label "More actions"}]))
 
 (defn edit-db-item [opts]
   (let [{:keys [class-name
@@ -45,7 +45,7 @@
                 on-cancel
                 submit-disabled?
                 actions-class
-                extra-actions]} opts
+                action-items]} opts
         shortcuts? (not (false? description-shortcuts?))
         name-key-down (:onKeyDown name-props)
         on-name-input-key-down (fn [e]
@@ -112,5 +112,5 @@
        {:on-submit on-submit
         :on-cancel on-cancel
         :submit-disabled? submit-disabled?
-        :extra-actions extra-actions
+        :action-items action-items
         :class-name actions-class}]]]))

@@ -1,10 +1,15 @@
 (ns webapp.components.upload-dialog
   (:require [clojure.string :as str]
             [reagent.core :as r]
+            [webapp.components.row-dropdown-flow :as row-dropdown-flow]
             [webapp.components.popup-dialog :as popup-dialog]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [ActionIcon]]
-            ["react-icons/fa6" :refer [FaCamera FaCheck FaClipboard FaFolderOpen FaImage FaXmark]]))
+            ["react-icons/fa6" :refer [FaCamera FaCheck FaClipboard FaFolderOpen FaImage FaPaste FaVideo FaXmark]]))
+
+(defn stop-media-stream! [stream]
+  (doseq [track (array-seq (some-> stream .getTracks))]
+    (.stop track)))
 
 (defn file->data-url [file on-result]
   (let [reader (js/FileReader.)]
@@ -20,22 +25,87 @@
 (defn clipboard-read-supported? []
   (fn? (some-> js/navigator .-clipboard .-read)))
 
-(defn upload-dialog [{:keys [open on-close on-submit]}]
+(defn webcam-supported? []
+  (fn? (some-> js/navigator .-mediaDevices .-getUserMedia)))
+
+(defn upload-dialog [{:keys [open on-close on-submit active-frame-id]}]
   (r/with-let [drag-over?* (r/atom false)
                image-data-url* (r/atom nil)
                error* (r/atom nil)
                file-input-id (str "upload-input-" (random-uuid))
                camera-input-id (str "camera-input-" (random-uuid))
                surface-el* (r/atom nil)
+               video-el* (r/atom nil)
+               stream* (r/atom nil)
+               webcam-open?* (r/atom false)
                was-open?* (r/atom false)
                dialog-pos* (r/atom {:x 0 :y 0})
-               drag-state* (r/atom nil)]
-    (let [set-file! (fn [file]
+               drag-state* (r/atom nil)
+               spotlight-style* (r/atom nil)]
+    (let [stop-webcam! (fn []
+                         (when-let [stream @stream*]
+                           (stop-media-stream! stream)
+                           (reset! stream* nil))
+                         (when-let [video @video-el*]
+                           (set! (.-srcObject video) nil))
+                         (reset! webcam-open?* false))
+          sync-spotlight! (fn []
+                            (if-not (seq (or active-frame-id ""))
+                              (reset! spotlight-style* nil)
+                              (if-let [frame-el (.querySelector js/document (str ".frame[data-frame-id=\"" active-frame-id "\"]"))]
+                                (let [rect (.getBoundingClientRect frame-el)
+                                      x (+ (.-left rect) (/ (.-width rect) 2))
+                                      y (+ (.-top rect) (/ (.-height rect) 2))
+                                      radius (max 44 (min 88 (* 0.18 (max (.-width rect) (.-height rect)))))]
+                                  (reset! spotlight-style*
+                                          {:--spotlight-x (str x "px")
+                                           :--spotlight-y (str y "px")
+                                           :--spotlight-radius (str radius "px")}))
+                                (reset! spotlight-style* nil))))
+          set-file! (fn [file]
                       (if file
                         (do
+                          (stop-webcam!)
                           (reset! error* nil)
                           (file->data-url file #(reset! image-data-url* %)))
                         (reset! error* "Please provide an image file.")))
+          start-webcam! (fn [e]
+                          (interaction/halt! e)
+                          (if-not (webcam-supported?)
+                            (reset! error* "Camera preview is not supported in this browser.")
+                            (-> (.getUserMedia (.-mediaDevices js/navigator)
+                                               #js {:video #js {:facingMode "user"}
+                                                    :audio false})
+                                (.then (fn [stream]
+                                         (stop-webcam!)
+                                         (reset! error* nil)
+                                         (reset! image-data-url* nil)
+                                         (reset! stream* stream)
+                                         (reset! webcam-open?* true)
+                                         (js/requestAnimationFrame
+                                          (fn []
+                                            (when-let [video @video-el*]
+                                              (set! (.-srcObject video) stream)
+                                              (some-> (.play video)
+                                                      (.catch (fn [_] nil))))))))
+                                (.catch (fn [_]
+                                          (reset! error* "Unable to access camera."))))))
+          capture-webcam! (fn [e]
+                            (interaction/halt! e)
+                            (if-let [video @video-el*]
+                              (let [width (max 1 (or (.-videoWidth video) 0))
+                                    height (max 1 (or (.-videoHeight video) 0))]
+                                (if (or (zero? width) (zero? height))
+                                  (reset! error* "Camera is not ready yet.")
+                                  (let [canvas (.createElement js/document "canvas")
+                                        ctx (.getContext canvas "2d")]
+                                    (set! (.-width canvas) width)
+                                    (set! (.-height canvas) height)
+                                    (.drawImage ctx video 0 0 width height)
+                                    (reset! image-data-url* (.toDataURL canvas "image/png"))
+                                    (reset! error* nil)
+                                    (stop-webcam!))))
+                              (reset! error* "Camera is not ready yet.")))
           on-file-change (fn [e]
                            (interaction/stop! e)
                            (set-file! (first-image-file (.. e -target -files))))
@@ -108,6 +178,7 @@
                        (interaction/halt! e)
                        (if (seq (or @image-data-url* ""))
                          (do
+                           (stop-webcam!)
                            (on-submit @image-data-url*)
                            (reset! image-data-url* nil)
                            (reset! error* nil)
@@ -115,22 +186,63 @@
                          (reset! error* "No image selected yet.")))
           do-cancel! (fn [e]
                        (interaction/halt! e)
+                       (stop-webcam!)
                        (reset! image-data-url* nil)
                        (reset! error* nil)
-                       (on-close))]
+                       (on-close))
+          toolbar-actions (cond-> [{:id :submit
+                                   :label "Submit"
+                                   :icon FaCheck
+                                   :color "lime"
+                                   :variant "filled"
+                                   :disabled? (str/blank? (or @image-data-url* ""))
+                                   :on-select do-submit!}
+                                  {:id :cancel
+                                   :label "Cancel"
+                                   :icon FaXmark
+                                   :color "gray"
+                                   :on-select do-cancel!}
+                                  {:id :paste-image
+                                   :label "Paste image"
+                                   :icon FaPaste
+                                   :color "grape"
+                                   :on-select read-clipboard-image!}
+                                  {:id :choose-file
+                                   :label "Choose file"
+                                   :icon FaFolderOpen
+                                   :color "blue"
+                                   :on-select #(open-file-picker! % file-input-id)}
+                                  {:id :take-photo
+                                   :label "Take photo"
+                                   :icon FaCamera
+                                   :color "cyan"
+                                   :on-select #(open-file-picker! % camera-input-id)}]
+                           (webcam-supported?)
+                           (conj {:id :webcam
+                                  :label (if @webcam-open?* "Capture photo" "Use webcam")
+                                  :icon FaVideo
+                                  :color "teal"
+                                  :on-select (if @webcam-open?*
+                                               capture-webcam!
+                                               start-webcam!)}))]
       (when (and open (not @was-open?*))
         (reset! dialog-pos* {:x 0 :y 0})
+        (sync-spotlight!)
         (js/requestAnimationFrame
          (fn []
+           (sync-spotlight!)
            (some-> @surface-el* .focus)
            (js/setTimeout
             (fn []
+              (sync-spotlight!)
               (some-> @surface-el* .focus))
             60))))
       (reset! was-open?* open)
       [popup-dialog/popup-dialog
        {:open open
         :on-close do-cancel!
+        :overlay-props {:className (when @spotlight-style* "popup-dialog-overlay-spotlight")
+                        :style @spotlight-style*}
         :size "auto"
         :padding 0
         :styles #js {:content #js {:background "transparent"
@@ -142,10 +254,18 @@
          :onPointerDown start-drag!
          :onPointerMove move-drag!
          :onPointerUp end-drag!
-         :onPointerCancel end-drag!
+        :onPointerCancel end-drag!
          :onPaste on-paste}
         [:div.upload-dialog-title-bar
-         [:h3.upload-dialog-title "Upload photo"]]
+         [:h3.upload-dialog-title "Upload photo"]
+         [:> ActionIcon
+          {:className "upload-dialog-close"
+           :aria-label "Close upload dialog"
+           :title "Close upload dialog"
+           :variant "subtle"
+           :radius "xl"
+           :onClick do-cancel!}
+          [:> FaXmark]]]
         [:input.upload-file-input
          {:id file-input-id
           :type "file"
@@ -158,64 +278,49 @@
           :capture "environment"
           :onChange on-file-change}]
         [:div.upload-image-surface
-         {:className (str "upload-image-surface" (when @drag-over?* " is-drag-over"))
+         {:className (str "upload-image-surface"
+                          (when (not (or @webcam-open?* (seq (or @image-data-url* "")))) " is-empty")
+                          (when @drag-over?* " is-drag-over")
+                          (when @webcam-open?* " is-webcam"))
           :role "button"
           :tabIndex 0
           :data-autofocus true
           :ref #(reset! surface-el* %)
-          :style (when (seq (or @image-data-url* ""))
-                   {:backgroundImage (str "url(" @image-data-url* ")")})
           :onDragOver on-drag-over
           :onDragLeave on-drag-leave
           :onDrop on-drop
           :onPaste on-paste
-          :onClick #(open-file-picker! % file-input-id)
+          :onClick #(when-not @webcam-open?*
+                      (open-file-picker! % file-input-id))
           :onKeyDown (fn [e]
-                       (when (or (= "Enter" (.-key e))
-                                 (= " " (.-key e)))
+                       (when (and (not @webcam-open?*)
+                                  (or (= "Enter" (.-key e))
+                                      (= " " (.-key e))))
                          (open-file-picker! e file-input-id)))}
-         (when-not (seq (or @image-data-url* ""))
+         (cond
+           @webcam-open?*
+           [:video.upload-webcam-preview
+            {:ref #(reset! video-el* %)
+             :autoPlay true
+             :playsInline true
+             :muted true}]
+
+           (seq (or @image-data-url* ""))
+           [:img.upload-image-preview
+            {:src @image-data-url*
+             :alt "Selected upload preview"}]
+
+           :else
            [:div.upload-image-placeholder
             [:> FaImage]
             [:span "Paste or drop image"]])]
         (when (seq (or @error* ""))
           [:p.error-line @error*])
-        [:div.upload-toolbar
-         [:button.upload-tool-btn
-          {:type "button"
-           :title "Paste image"
-           :aria-label "Paste image"
-           :onClick read-clipboard-image!}
-          [:> FaClipboard]
-          [:span "Paste"]]
-         [:button.upload-tool-btn
-          {:type "button"
-           :title "Choose file"
-           :aria-label "Choose file"
-           :onClick #(open-file-picker! % file-input-id)}
-          [:> FaFolderOpen]
-          [:span "File"]]
-         [:button.upload-tool-btn
-          {:type "button"
-           :title "Take photo"
-           :aria-label "Take photo"
-           :onClick #(open-file-picker! % camera-input-id)}
-          [:> FaCamera]
-          [:span "Camera"]]
-         [:> ActionIcon
-          {:className "upload-dialog-action"
-           :aria-label "Submit"
-           :title "Submit"
-           :variant "filled"
-           :radius "xl"
-           :disabled (str/blank? (or @image-data-url* ""))
-           :onClick do-submit!}
-          [:> FaCheck]]
-         [:> ActionIcon
-         {:className "upload-dialog-action"
-           :aria-label "Cancel"
-           :title "Cancel"
-           :variant "subtle"
-           :radius "xl"
-           :onClick do-cancel!}
-          [:> FaXmark]]]]])))
+        [row-dropdown-flow/row-dropdown-flow
+         {:class-name "upload-toolbar"
+          :actions toolbar-actions
+          :mandatory-count 2
+          :menu-title "Upload actions"
+          :menu-aria-label "Upload actions"}]]])
+    (finally
+      (stop-media-stream! @stream*))))
