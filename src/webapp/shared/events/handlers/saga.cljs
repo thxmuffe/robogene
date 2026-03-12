@@ -66,10 +66,16 @@
 
 (rf/reg-event-fx
  :save-entity
- (fn [{:keys [db]} [_ entity-label entity-id]]
+ (fn [{:keys [db]} [_ entity-label entity-id provided-name provided-description]]
    (let [{:keys [editing-key name-inputs-key description-inputs-key]} (entity-label->keys entity-label)
-         name (some-> (get-in db (conj name-inputs-key entity-id)) str str/trim)
-         description (some-> (get-in db (conj description-inputs-key entity-id)) str)]
+         name-source (if (some? provided-name)
+                       provided-name
+                       (get-in db (conj name-inputs-key entity-id)))
+         description-source (if (some? provided-description)
+                              provided-description
+                              (get-in db (conj description-inputs-key entity-id)))
+         name (some-> name-source str str/trim)
+         description (some-> description-source str)]
      (if (str/blank? (or name ""))
        {:db db}
        {:db (assoc-in db editing-key nil)
@@ -149,10 +155,19 @@
 
 (rf/reg-event-fx
  :save-saga-meta
- (fn [{:keys [db]} _]
-   (let [name (some-> (get-in db [:view-state :saga :meta-name]) str str/trim)
-         description (some-> (get-in db [:view-state :saga :meta-description]) str)]
+ (fn [{:keys [db]} [_ provided-name provided-description]]
+   (let [name-source (if (some? provided-name)
+                       provided-name
+                       (get-in db [:view-state :saga :meta-name]))
+         description-source (if (some? provided-description)
+                              provided-description
+                              (get-in db [:view-state :saga :meta-description]))
+         name (some-> name-source str str/trim)
+         description (some-> description-source str)]
      (if (str/blank? (or name ""))
        {:db db}
-       {:db (assoc-in db [:view-state :saga :meta-editing?] false)
+       {:db (-> db
+                (assoc :saga-meta {:name name
+                                   :description (or description "")})
+                (assoc-in [:view-state :saga :meta-editing?] false))
         :dispatch [:update-saga name description]}))))

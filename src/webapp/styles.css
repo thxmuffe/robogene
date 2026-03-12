@@ -259,10 +259,35 @@ h2 { margin: 24px 0 10px; }
 }
 
 .saga-meta-db-item .chapter-name-input,
-.saga-meta-db-item .chapter-description-input,
-.saga-meta-db-item .chapter-name-input input,
-.saga-meta-db-item .chapter-description-input textarea {
+.saga-meta-db-item .chapter-description-input {
   width: 100%;
+}
+
+.saga-meta-db-item .chapter-description,
+.saga-meta-db-item .chapter-description-input {
+  max-width: 100%;
+}
+
+.saga-meta-text,
+.saga-meta-input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.saga-title {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.02;
+  letter-spacing: 0.02em;
+  font-weight: 900;
+}
+
+.saga-title-input {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.02;
+  letter-spacing: 0.02em;
+  font-weight: 900;
 }
 
 .chapter-block {
@@ -455,7 +480,9 @@ button.chapter-separator.is-collapsed {
 }
 
 .saga-header-actions-row {
+  display: flex;
   justify-content: center;
+  align-items: center;
   width: 100%;
 }
 
@@ -876,11 +903,11 @@ button.chapter-separator.is-collapsed {
   flex-direction: column;
   gap: 8px;
   width: min(100%, 920px);
-  padding: 10px;
-  border: 1px solid rgba(167, 205, 255, 0.32);
-  border-radius: 12px;
-  background: var(--db-text-surface);
-  box-shadow: inset 0 1px 0 rgba(220, 235, 255, 0.08);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .new-entity-db-item {
@@ -896,31 +923,56 @@ button.chapter-separator.is-collapsed {
 .db-text input,
 .db-text textarea {
   border: 0;
-  border-radius: 0;
-  background-color: rgba(255, 255, 255, 0.96);
+  border-radius: 2px;
+  outline: none;
+  background-color: transparent;
   color: #102a43;
 }
 
-.db-text input:hover,
-.db-text input:focus,
-.db-text textarea:hover,
-.db-text textarea:focus {
+.db-text input:not(:read-only),
+.db-text textarea:not(:read-only) {
+  background-color: rgba(255, 255, 255, 0.96);
+}
+
+.db-text input:not(:read-only):hover,
+.db-text input:not(:read-only):focus,
+.db-text textarea:not(:read-only):hover,
+.db-text textarea:not(:read-only):focus {
   background-color: rgba(255, 255, 255, 1);
 }
 
-.chapter-name-input input,
-.chapter-description-input textarea {
+.db-text input:focus,
+.db-text textarea:focus {
+  outline: 1px solid rgba(27, 94, 170, 0.9);
+  outline-offset: 0;
+}
+
+.chapter-name-input,
+.chapter-description-input {
   border: 0;
+  border-radius: 2px;
 }
 
-.chapter-name-input input {
-  font-weight: 700;
+.chapter-name-input {
+  margin: 0;
+  font-weight: 900;
+  color: #173655;
+  font-size: inherit;
+  line-height: inherit;
 }
 
-.chapter-name-input input:hover,
-.chapter-name-input input:focus,
-.chapter-description-input textarea:hover,
-.chapter-description-input textarea:focus {
+.chapter-description-input {
+  margin: 4px 0 0;
+  color: #35526e;
+  font-weight: 600;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.chapter-name-input:not(:read-only):hover,
+.chapter-name-input:not(:read-only):focus,
+.chapter-description-input:not(:read-only):hover,
+.chapter-description-input:not(:read-only):focus {
   background-color: rgba(255, 255, 255, 1);
 }
 
@@ -987,7 +1039,7 @@ button.chapter-separator.is-collapsed {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px 14px;
+  padding: 14px 14px 16px;
   background: #fffdfa;
   border-top: 1px solid rgba(17, 24, 39, 0.08);
   cursor: text;
@@ -1000,10 +1052,11 @@ button.chapter-separator.is-collapsed {
 .subtitle-display-text {
   --subtitle-font-size: 1.05rem;
   --subtitle-line-height: 1.24;
+  box-sizing: border-box;
   width: 100%;
   display: block;
   margin: 0;
-  padding: 0;
+  padding: 2px 10px 4px;
   color: #111827;
   font-weight: 700;
   text-align: left;
@@ -1019,15 +1072,14 @@ button.chapter-separator.is-collapsed {
   overflow: visible;
 }
 
-.subtitle-display-input,
-.subtitle-display-input > div,
-.subtitle-display-input [data-mantine-input-wrapper] {
+.subtitle-display-input {
   width: 100%;
 }
 
-.subtitle-display-input textarea {
+.subtitle-display-input {
   --subtitle-font-size: 1.05rem;
   --subtitle-line-height: 1.24;
+  box-sizing: border-box;
   width: 100%;
   display: block;
   margin: 0;
@@ -1040,7 +1092,7 @@ button.chapter-separator.is-collapsed {
   text-align: left;
   font-size: var(--subtitle-font-size);
   line-height: var(--subtitle-line-height);
-  padding: 0;
+  padding: 2px 10px 4px;
   text-shadow: none;
   -webkit-text-stroke: 0;
   font-family: "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
@@ -1049,8 +1101,8 @@ button.chapter-separator.is-collapsed {
   overflow: visible;
 }
 
-.subtitle-display-input textarea:hover,
-.subtitle-display-input textarea:focus {
+.subtitle-display-input:hover,
+.subtitle-display-input:focus {
   background: transparent;
 }
 
@@ -1059,7 +1111,7 @@ button.chapter-separator.is-collapsed {
   --subtitle-line-height: 1.28;
 }
 
-.detail-page .subtitle-display-input textarea {
+.detail-page .subtitle-display-input {
   --subtitle-font-size: 1.32rem;
   --subtitle-line-height: 1.28;
 }
@@ -1330,6 +1382,8 @@ button.chapter-separator.is-collapsed {
 
 .detail-controls .roster-nav-btn {
   margin-left: auto;
+  height: auto;
+  min-height: 0;
   background: #2b3e53;
   border-color: rgba(205, 224, 247, 0.38);
   color: #eaf2ff;
@@ -1340,6 +1394,8 @@ button.chapter-separator.is-collapsed {
 }
 
 .collection-header .roster-nav-btn {
+  height: auto;
+  min-height: 0;
   background: #2b3e53;
   border-color: rgba(205, 224, 247, 0.38);
   color: #eaf2ff;
@@ -1354,6 +1410,13 @@ button.chapter-separator.is-collapsed {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
+}
+
+.roster-nav-btn .mantine-Button-inner,
+.roster-nav-btn .mantine-UnstyledButton-root,
+.roster-nav-btn .mantine-Button-label {
+  align-items: stretch;
+  height: auto;
 }
 
 .roster-nav-btn-grid {

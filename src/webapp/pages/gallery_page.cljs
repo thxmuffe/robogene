@@ -9,7 +9,6 @@
             [webapp.components.chapter :as chapter-component]
             [webapp.components.db-text :as db-text]
             [webapp.components.chapter-actions :as chapter-actions]
-            [webapp.components.waterfall-row :as waterfall-row]
             ["@mantine/core" :refer [Box Button Group Stack TextInput Textarea]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
@@ -223,7 +222,7 @@
          {:data-entity-editor-id entity-id}
          [db-text/db-text
           {:id (str entity-label "-" entity-id "-title")
-           :value current-name
+           :value entity-name
            :editing? editing?
            :class-name "chapter-header-body"
            :display-class-name "chapter-name"
@@ -233,12 +232,12 @@
            :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
            :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
            :on-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
-           :on-save (fn [_]
-                      (rf/dispatch [:save-entity entity-label entity-id]))
+           :on-save (fn [next-name]
+                      (rf/dispatch [:save-entity entity-label entity-id next-name current-description]))
            :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
          [db-text/db-text
           {:id (str entity-label "-" entity-id "-desc")
-           :value current-description
+           :value entity-description
            :editing? editing?
            :multiline? true
            :class-name "chapter-header-body"
@@ -251,8 +250,8 @@
            :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
            :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
            :on-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
-           :on-save (fn [_]
-                      (rf/dispatch [:save-entity entity-label entity-id]))
+           :on-save (fn [next-description]
+                      (rf/dispatch [:save-entity entity-label entity-id current-name next-description]))
            :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
          [chapter-actions/chapter-actions
           {:entity-id entity-id
@@ -327,36 +326,34 @@
         saga-meta-description @(rf/subscribe [:saga-meta-description])
         current-name (or (some-> (:name saga-meta) str/trim not-empty) page-title "Saga")
         current-description (or (:description saga-meta) "")
-        edit-name (if saga-meta-editing? saga-meta-name current-name)
-        edit-description (if saga-meta-editing? saga-meta-description current-description)
         editor-selector "[data-saga-meta-editor='true']"]
     [:div.saga-meta-header
      {:data-saga-meta-editor "true"}
      [db-text/db-text
       {:id "saga-meta-title"
-       :value (or edit-name "")
+       :value (or current-name "")
        :editing? saga-meta-editing?
        :class-name "saga-meta-db-item"
-       :display-class-name "chapter-name saga-title"
+       :display-class-name "chapter-name saga-title saga-meta-text"
        :editing-class-name "chapter-db-item saga-meta-db-item"
-       :input-class-name "chapter-name-input"
+       :input-class-name "chapter-name-input saga-title-input saga-meta-input"
        :display-as :h2
        :placeholder "Name this saga..."
        :on-open-edit #(rf/dispatch [:start-saga-meta-edit])
        :on-close-edit #(rf/dispatch [:cancel-saga-meta-edit])
        :on-change #(rf/dispatch [:saga-meta-name-changed %])
-       :on-save (fn [_]
-                  (rf/dispatch [:save-saga-meta]))
+       :on-save (fn [next-name]
+                  (rf/dispatch [:save-saga-meta next-name saga-meta-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
      [db-text/db-text
       {:id "saga-meta-desc"
-       :value (or edit-description "")
+       :value (or current-description "")
        :editing? saga-meta-editing?
        :multiline? true
        :class-name "saga-meta-db-item"
-       :display-class-name "chapter-description"
+       :display-class-name "chapter-description saga-meta-text"
        :editing-class-name "chapter-db-item saga-meta-db-item"
-       :input-class-name "chapter-description-input"
+       :input-class-name "chapter-description-input saga-meta-input"
        :display-as :p
        :placeholder ""
        :min-rows 2
@@ -364,15 +361,11 @@
        :on-open-edit #(rf/dispatch [:start-saga-meta-edit])
        :on-close-edit #(rf/dispatch [:cancel-saga-meta-edit])
        :on-change #(rf/dispatch [:saga-meta-description-changed %])
-       :on-save (fn [_]
-                  (rf/dispatch [:save-saga-meta]))
+       :on-save (fn [next-description]
+                  (rf/dispatch [:save-saga-meta saga-meta-name next-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
-     [waterfall-row/waterfall-row
-      {:class-name "chapter-header-actions-row saga-header-actions-row"
-       :prefix-content [page-header-action {:view-id :saga}]
-       :actions []
-       :menu-title "Saga actions"
-       :menu-aria-label "Saga actions"}]]))
+     [:div.saga-header-actions-row
+      [page-header-action {:view-id :saga}]]]))
 
 (defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})

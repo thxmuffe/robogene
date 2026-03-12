@@ -192,7 +192,8 @@
                       :rowKey "active"
                       :chapterId (read-chapter-id payload)
                       :revision (js/Number (or (gobj/get payload "revision") 0))
-                      :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
+                      :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))
+                      :sagaMetaJson (.stringify js/JSON (or (gobj/get payload "sagaMeta") #js {:name "" :description ""}))}
                  "Replace"))
 
 (defn chapter-row-key [chapter]
@@ -239,6 +240,27 @@
                    (if (and (seq (or id "")) (contains? acc id))
                      acc
                      (assoc acc (or id (str (count acc))) row))))
+               {})
+       vals
+       vec))
+
+(defn prefer-canonical-rows [id-from-row canonical-row-key row-pred? rows]
+  (->> rows
+       (filter row-pred?)
+       (reduce (fn [acc row]
+                 (let [entity-id (id-from-row row)
+                       canonical-key (canonical-row-key entity-id)
+                       row-key (or (gobj/get row "rowKey") "")
+                       existing (get acc entity-id)
+                       existing-key (or (some-> existing (gobj/get "rowKey")) "")
+                       prefer-row? (or (nil? existing)
+                                       (and (= row-key canonical-key)
+                                            (not= existing-key canonical-key)))]
+                   (if (seq (or entity-id ""))
+                     (if prefer-row?
+                       (assoc acc entity-id row)
+                       acc)
+                     acc)))
                {})
        vals
        vec))
@@ -353,13 +375,13 @@
                                      [])
                     (.then (fn [frames]
                               #js {:saga (->> chapter-rows
-                                              (filter chapter-row?)
+                                              (prefer-canonical-rows chapter-id-from-row canonical-chapter-row-key chapter-row?)
                                               (map parse-row-payload)
                                               (filter some?)
                                               (dedupe-by-id "chapterId")
                                               clj->js)
                                    :roster (->> chapter-rows
-                                                (filter character-row?)
+                                                (prefer-canonical-rows character-id-from-row canonical-character-row-key character-row?)
                                                 (map parse-row-payload)
                                                 (filter some?)
                                                 (dedupe-by-id "characterId")
@@ -381,7 +403,8 @@
            (if-not meta
              (-> (set-active-meta! #js {:chapterId (read-chapter-id initial-state)
                                         :revision (or (gobj/get initial-state "revision") 1)
-                                        :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
+                                        :failedJobs (or (gobj/get initial-state "failedJobs") #js [])
+                                        :sagaMeta (or (gobj/get initial-state "sagaMeta") #js {:name "" :description ""})})
                  (.then (fn [_]
                           (save-saga! (read-chapter-id initial-state)
                                           (or (gobj/get initial-state "saga") #js []))))
@@ -396,7 +419,9 @@
                           initial-state)))
              (let [chapter-root-id (read-chapter-id meta)
                    revision (js/Number (or (gobj/get meta "revision") 1))
-                   failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])]
+                   failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])
+                   saga-meta (or (parse-json (gobj/get meta "sagaMetaJson") #js {:name "" :description ""})
+                                 #js {:name "" :description ""})]
                (-> (load-rows chapter-root-id)
                    (.then
                     (fn [rows]
@@ -404,6 +429,7 @@
                         (gobj/set "chapterId" chapter-root-id)
                         (gobj/set "revision" revision)
                         (gobj/set "failedJobs" failed-jobs)
+                        (gobj/set "sagaMeta" saga-meta)
                         (gobj/set "saga" (gobj/get rows "saga"))
                         (gobj/set "roster" (or (gobj/get rows "roster") #js []))
                         (gobj/set "frames" (gobj/get rows "frames"))
@@ -427,7 +453,8 @@
                  (.then (fn [_]
                           (set-active-meta! #js {:chapterId chapter-root-id
                                                  :revision (or (gobj/get state "revision") 1)
-                                                 :failedJobs (or (gobj/get state "failedJobs") #js [])})))
+                                                 :failedJobs (or (gobj/get state "failedJobs") #js [])
+                                                 :sagaMeta (or (gobj/get state "sagaMeta") #js {:name "" :description ""})})))
                  (.then (fn [_]
                           (gobj/set state "frames" (clj->js frames))
                           state)))))))))

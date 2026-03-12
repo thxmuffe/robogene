@@ -59,9 +59,9 @@
                :active-frame-id next-active-id)
         (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
-        (reduce (fn [acc frame-id]
-                  (update acc :image-ui-by-frame-id image-ui/remove-frame frame-id))
-                frame-ids)
+        (update :image-ui-by-frame-id
+                (fn [ui-map]
+                  (reduce image-ui/remove-frame (or ui-map {}) frame-ids)))
         (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
 
 (defn clear-frame-image [db frame-id]

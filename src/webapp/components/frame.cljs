@@ -7,7 +7,6 @@
             [webapp.components.confirm-dialog :as confirm-dialog]
             [webapp.components.upload-dialog :as upload-dialog]
             [webapp.shared.controls :as controls]
-            [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
             ["react-icons/fa6" :refer [FaCamera FaDownload FaEraser FaTrashCan FaWandMagic FaWandMagicSparkles]]
             ["@mantine/core" :refer [Box Card Image]]))
@@ -92,7 +91,7 @@
       (.remove link))))
 
 (defn- blur-subtitle-input! [frame-id]
-  (some-> (.querySelector js/document (str "[data-db-text-id=\"" frame-id "-subtitle\"] .subtitle-display-input textarea"))
+  (some-> (.querySelector js/document (str "[data-db-text-id=\"" frame-id "-subtitle\"] .subtitle-display-input"))
           (.blur)))
 
 (defn- keep-frame-editing-open? [frame-id]
@@ -107,7 +106,7 @@
    [frame frame {:clickable? true}])
   ([frame {:keys [clickable? active? media-nav? image-fit]
            :or {clickable? true active? false media-nav? false image-fit "contain"}}]
-   (r/with-let [was-editable* (r/atom false)
+   (r/with-let [action-pointer-down?* (r/atom false)
                 upload-submit-blur?* (r/atom false)
                 confirm* (r/atom nil)
                 upload-open?* (r/atom false)
@@ -200,11 +199,6 @@
          (reset! seen-cancel-token* cancel-ui-token)
          (reset! confirm* nil)
          (reset! upload-open?* false))
-       (when (and @was-editable* (not editable?))
-         (.requestAnimationFrame js/window
-                                 (fn []
-                                   (frame-nav/focus-subtitle! (:frameId frame)))))
-       (reset! was-editable* editable?)
        [:> Card
         (merge attrs
                {:component "article"
@@ -238,11 +232,9 @@
                :aria-label "Next frame"
                :onClick (on-media-nav-click 1)}]])]
          [:div.subtitle-display-shell
-          [db-text/db-text
+         [db-text/db-text
            {:id (str (:frameId frame) "-subtitle")
-            :value (if editable?
-                     current-input
-                     (clamp-subtitle (:description frame)))
+            :value (clamp-subtitle (:description frame))
             :editing? editable?
             :multiline? true
             :class-name "subtitle-display-shell"
@@ -260,7 +252,8 @@
             :on-change #(rf/dispatch [:frame-direction-changed (:frameId frame) %])
             :on-save #(rf/dispatch [:save-frame-description (:frameId frame) %])
             :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
-            :keep-editing-on-blur? #(or @upload-submit-blur?*
+            :keep-editing-on-blur? #(or @action-pointer-down?*
+                                        @upload-submit-blur?*
                                         (keep-frame-editing-open? (:frameId frame)))}]
           (when editable?
             [:<>
@@ -269,7 +262,12 @@
                {:class-name "frame-action-buttons-row"
                 :actions actions
                 :menu-title "Frame actions"
-                :menu-aria-label "Frame actions"}]]
+                :menu-aria-label "Frame actions"
+                :on-action-pointer-down (fn []
+                                          (reset! action-pointer-down?* true)
+                                          (.requestAnimationFrame js/window
+                                                                  (fn []
+                                                                    (reset! action-pointer-down?* false))))}]]
              [confirm-dialog/confirm-dialog
               {:item selected-item
                :on-cancel #(reset! confirm* nil)
