@@ -455,9 +455,9 @@ button.chapter-separator.is-collapsed {
   flex-direction: column;
   align-items: stretch;
   width: 100%;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: nowrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .chapter-content {
@@ -487,13 +487,19 @@ button.chapter-separator.is-collapsed {
 }
 
 .chapter-name {
+  display: block;
+  width: min(100%, 32ch);
   margin: 0;
-  font-weight: 900;
-  color: #173655;
+  color: #111827;
+  font-size: 1.18rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .chapter-description {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: #35526e;
   font-weight: 600;
   max-width: 72ch;
@@ -954,11 +960,15 @@ button.chapter-separator.is-collapsed {
 }
 
 .chapter-name-input {
+  display: block;
+  width: min(100%, 32ch);
   margin: 0;
-  font-weight: 900;
-  color: #173655;
-  font-size: inherit;
-  line-height: inherit;
+  color: #111827;
+  font-size: 1.18rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .chapter-description-input {

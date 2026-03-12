@@ -23,17 +23,17 @@
                           padding-top
                           padding-bottom
                           border-top
-                          border-bottom))
-          scroll-height (.-scrollHeight textarea-el)
+                          border-bottom))]
+      (set! (.. textarea-el -style -height) "auto")
+      (let [scroll-height (.-scrollHeight textarea-el)
           next-height (if max-height
                         (min scroll-height max-height)
                         scroll-height)]
-      (set! (.. textarea-el -style -height) "auto")
       (set! (.. textarea-el -style -height) (str next-height "px"))
       (set! (.. textarea-el -style -overflowY)
             (if (and max-height (> scroll-height max-height))
               "auto"
-              "hidden")))))
+              "hidden"))))))
 
 (defn db-text
   [{:keys [id
@@ -97,6 +97,11 @@
           field-props {:className input-class-name
                        :value field-value
                        :readOnly (not editing-open?)
+                       :autoComplete "off"
+                       :data-form-type "other"
+                       :data-lpignore true
+                       :data-1p-ignore true
+                       :spellCheck false
                        :placeholder placeholder
                        :maxLength max-chars
                        :rows (when multiline? min-rows)

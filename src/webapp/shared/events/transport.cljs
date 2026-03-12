@@ -85,15 +85,18 @@
         (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn post-json
-  [path payload success-event fail-event ok?]
+  ([path payload success-event fail-event ok?]
+   (post-json path payload success-event fail-event ok? nil))
+  ([path payload success-event fail-event ok? request-options]
   (request-json (api-url path)
-                {:method "POST"
-                 :cache "no-store"
-                 :headers {"Content-Type" "application/json"}
-                 :body (.stringify js/JSON (clj->js payload))}
+                (merge {:method "POST"
+                        :cache "no-store"
+                        :headers {"Content-Type" "application/json"}
+                        :body (.stringify js/JSON (clj->js payload))}
+                       (or request-options {}))
                 success-event
                 fail-event
-                ok?))
+                ok?)))
 
 (defn negotiate-realtime! []
   (let [request-label "POST /api/negotiate"]
@@ -303,7 +306,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-chapter
@@ -314,7 +318,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-character
@@ -325,7 +330,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-saga
@@ -335,7 +341,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-delete-chapter

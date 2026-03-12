@@ -224,11 +224,14 @@
           {:id (str entity-label "-" entity-id "-title")
            :value entity-name
            :editing? editing?
+           :multiline? true
            :class-name "chapter-header-body"
            :display-class-name "chapter-name"
            :editing-class-name "chapter-db-item"
            :input-class-name "chapter-name-input"
            :placeholder (str "Name this " entity-singular "...")
+           :min-rows 1
+           :max-rows 3
            :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
            :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
            :on-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
