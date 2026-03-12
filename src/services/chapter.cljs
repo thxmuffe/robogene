@@ -549,8 +549,10 @@
                                     :options (:openaiOptions @state)}))
 
 (defn generate-image! [frame]
-  (let [owner-type (or (:ownerType frame) "saga")]
-    (if (= "character" (str owner-type))
+  (let [owner-type (or (:ownerType frame) "saga")
+        without-roster? (true? (:withoutRoster frame))]
+    (if (or (= "character" (str owner-type))
+            without-roster?)
       (generate-image-from-prompt-only! frame)
       (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
                                         :refs (reference-images)
@@ -582,6 +584,7 @@
                    (assoc-in [:frames idx :status] "ready")
                    (assoc-in [:frames idx :error] nil)
                    (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                   (update-in [:frames idx] dissoc :withoutRoster)
                    (update :revision inc))))
       true)))
 
@@ -600,6 +603,7 @@
                      (assoc-in [:frames idx :status] "failed")
                      (assoc-in [:frames idx :error] message)
                      (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                     (update-in [:frames idx] dissoc :withoutRoster)
                      (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
                      (update :revision inc)))))
       true)))

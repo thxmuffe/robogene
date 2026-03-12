@@ -244,12 +244,13 @@
       :else
       {:ok true :idx idx :frames frames})))
 
-(defn queue-frame! [idx direction]
+(defn queue-frame! [idx direction without-roster]
   (swap! chapter/state
          (fn [s]
            (-> s
                (assoc-in [:frames idx :status] "queued")
                (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
+               (assoc-in [:frames idx :withoutRoster] (true? without-roster))
                (assoc-in [:frames idx :error] nil)
                (assoc-in [:frames idx :description]
                          (if (str/blank? (or direction ""))
@@ -293,11 +294,12 @@
    "Missing frameId."
    (fn [frame-id body]
      (let [direction (some-> (gobj/get body "direction") str str/trim)
+           without-roster (true? (gobj/get body "withoutRoster"))
            outcome (queueable-frame-outcome frame-id)]
        (if-not (:ok outcome)
          (json-response (:status outcome) {:error (:error outcome)} request)
          (do
-           (queue-frame! (:idx outcome) direction)
+           (queue-frame! (:idx outcome) direction without-roster)
            (-> (chapter/persist-state!)
                (.then (fn [_]
                         (chapter/emit-state-changed! "queued")

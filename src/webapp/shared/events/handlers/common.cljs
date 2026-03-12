@@ -119,7 +119,9 @@
                                 [frame-id draft]))))
               (update-in [:view-state :gallery :collapsed-chapter-ids]
                          (fn [ids]
-                           (set (filter chapter-ids (or ids #{}))))))})))))
+                           (if (nil? ids)
+                             chapter-ids
+                             (set (filter chapter-ids ids))))))})))))
 
 (rf/reg-event-fx
  :set-active-frame
@@ -137,13 +139,13 @@
                                                        frame))
                                                    (or (:gallery-items db) [])))
                                "")]
-     (-> db
-         (assoc-in [:open-frame-actions frame-id] open?)
-         (cond-> open?
-           (update :frame-drafts #(if (contains? (or % {}) frame-id)
-                                    %
-                                    (assoc (or % {}) frame-id frame-description)))
-           (not open?)
+     (if open?
+       (-> db
+           (assoc :open-frame-actions {frame-id true})
+           (update :frame-drafts #(assoc {} frame-id (or (get (or % {}) frame-id)
+                                                         frame-description))))
+       (-> db
+           (assoc-in [:open-frame-actions frame-id] false)
            (update :frame-drafts dissoc frame-id))))))
 
 (rf/reg-event-db

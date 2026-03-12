@@ -8,7 +8,7 @@
    :cancel-ui-token 0
    :frame-drafts {}
    :open-frame-actions {}
-   :view-state {:gallery {:collapsed-chapter-ids #{}}
+   :view-state {:gallery {:collapsed-chapter-ids nil}
                 :saga {:name-inputs {}
                        :description-inputs {}
                        :editing-id nil

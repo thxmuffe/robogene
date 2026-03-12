@@ -10,16 +10,16 @@
 
 (defn- gallery-motion-style [seed-key]
   (let [seed (reduce (fn [acc ch] (+ acc (int ch))) 0 (str (or seed-key "")))
-        y-scale (+ 0.16 (* 0.62 (js/Math.abs (seeded-unit seed 1))))
-        x-scale (+ 0.12 (* 0.54 (js/Math.abs (seeded-unit seed 2))))
-        rot-scale (* (+ 0.14 (* 0.38 (js/Math.abs (seeded-unit seed 3))))
+        y-scale (+ 0.28 (* 0.96 (js/Math.abs (seeded-unit seed 1))))
+        x-scale (+ 0.22 (* 0.84 (js/Math.abs (seeded-unit seed 2))))
+        rot-scale (* (+ 0.2 (* 0.56 (js/Math.abs (seeded-unit seed 3))))
                      (if (neg? (seeded-unit seed 4)) -1 1))
-        float-offset (* (+ 1.0 (* 10.0 (js/Math.abs (seeded-unit seed 5))))
+        float-offset (* (+ 4.0 (* 18.0 (js/Math.abs (seeded-unit seed 5))))
                         (if (neg? (seeded-unit seed 6)) -1 1))
         settle-ms (+ 30 (js/Math.floor (* 240 (js/Math.abs (seeded-unit seed 7)))))
-        x-bias (* 0.22 (seeded-unit seed 8))
-        y-bias (* 0.26 (seeded-unit seed 9))
-        rot-bias (* 0.18 (seeded-unit seed 10))]
+        x-bias (* 0.34 (seeded-unit seed 8))
+        y-bias (* 0.4 (seeded-unit seed 9))
+        rot-bias (* 0.26 (seeded-unit seed 10))]
     #js {"--gallery-motion-y-scale" y-scale
          "--gallery-motion-x-scale" x-scale
          "--gallery-motion-y-bias" y-bias

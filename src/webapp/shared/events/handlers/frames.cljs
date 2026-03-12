@@ -310,7 +310,25 @@
          command {:id (sync/next-command-id)
                   :kind :generate-frame
                   :payload {:frame-id frame-id
-                            :direction direction}
+                            :direction direction
+                            :without-roster false}
+                  :success-status "Frame request queued."}]
+     (sync/queue-command (set-frame-status db frame-id "queued")
+                         "Queueing frame..."
+                         command))))
+
+(rf/reg-event-fx
+ :generate-frame-without-roster
+ (fn [{:keys [db]} [_ frame-id provided-direction]]
+   (let [direction (or provided-direction
+                       (get-in db [:frame-drafts frame-id])
+                       (:description (frame-by-id db frame-id))
+                       "")
+         command {:id (sync/next-command-id)
+                  :kind :generate-frame
+                  :payload {:frame-id frame-id
+                            :direction direction
+                            :without-roster true}
                   :success-status "Frame request queued."}]
      (sync/queue-command (set-frame-status db frame-id "queued")
                          "Queueing frame..."

@@ -26,8 +26,13 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     await characterBlock.waitFor({ timeout: actionTimeoutMs });
     await characterBlock.locator('.chapter-description', { hasText: initialDesc }).waitFor({ timeout: actionTimeoutMs });
 
-    await characterBlock.locator('.chapter-menu-trigger').click();
-    await page.getByRole('menuitem', { name: 'Edit character' }).click();
+    const editInlineButton = characterBlock.getByRole('button', { name: 'Edit character', exact: true });
+    if (await editInlineButton.count()) {
+      await editInlineButton.click();
+    } else {
+      await characterBlock.getByRole('button', { name: 'Character actions', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Edit character', exact: true }).click();
+    }
     const editForm = page.locator('.chapter-edit-db-item').first();
     await editForm.locator('.chapter-description-input textarea').fill(updatedDesc);
     await editForm.getByRole('button', { name: 'Submit' }).click();

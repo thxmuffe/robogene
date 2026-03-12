@@ -49,7 +49,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     await newFrame.locator('.subtitle-display-text').click();
     await newFrame.locator('.subtitle-display-input textarea').fill('bill');
     logStep('roster-generate', 'triggering image generation');
-    await newFrame.getByRole('button', { name: 'Generate' }).click();
+    await newFrame.getByRole('button', { name: 'Generate image', exact: true }).click();
 
     await page.waitForFunction(
       (fid) => {

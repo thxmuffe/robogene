@@ -2,16 +2,15 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [reagent.core :as r]
-            [webapp.components.row-dropdown-flow :as row-dropdown-flow]
+            [webapp.components.waterfall-row :as waterfall-row]
             [webapp.components.confirm-dialog :as confirm-dialog]
-            ["react-icons/fa6" :refer [FaBroom FaFolderOpen FaPenToSquare FaTrashCan]]))
+            ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaTrashCan]]))
 
-(defn chapter-actions [{:keys [entity-id entity-name entity-description entity-label singular-label]}]
+(defn chapter-actions [{:keys [entity-id entity-label singular-label]}]
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)]
     (let [label (or singular-label "chapter")
           cancel-ui-token @(rf/subscribe [:cancel-ui-token])
-          display-name (or entity-name "")
           entity-label (or entity-label "chapter")
           owner-type (if (= "character" (str entity-label)) "character" "saga")
           frames @(rf/subscribe [:frames-for-owner owner-type entity-id])
@@ -23,14 +22,9 @@
           base-items (cond-> []
                        (= "chapter" (str entity-label))
                        (conj {:id :open-chapter-page
-                         :label "Open chapter page"
-                              :icon "folder"
-                              :color "indigo"})
-                       true
-                       (conj {:id :rename-entity
-                              :label (str "Edit " label)
-                              :icon "edit"
-                              :color "blue"}))
+                              :label "Open chapter page"
+                              :icon "navigate"
+                              :color "indigo"}))
           items (cond-> base-items
                   (pos? empty-frame-count)
                   (conj {:id :delete-empty-frames
@@ -47,7 +41,7 @@
                   true
                   (conj {:id :delete-entity
                          :label (str "Delete " label)
-                          :icon "trash"
+                         :icon "trash"
                          :color "red"
                          :confirm {:title (str "Delete this " label "?")
                                    :text (str "This deletes all frames in this " label ".")
@@ -62,28 +56,24 @@
         (reset! seen-cancel-token* cancel-ui-token)
         (reset! confirm* nil))
       [:<>
-        [:div.chapter-header-actions
-        [row-dropdown-flow/row-dropdown-flow
-         {:class-name "chapter-header-actions-row"
-          :actions (mapv (fn [item]
-                           (assoc item
-                                  :icon (case (:icon item)
-                                          "folder" FaFolderOpen
-                                          "edit" FaPenToSquare
-                                          "broom" FaBroom
-                                          "trash" FaTrashCan
-                                          nil)
-                                  :on-select (fn [_]
-                                               (case (:id item)
-                                                 :open-chapter-page
-                                                 (rf/dispatch [:navigate-chapter-page entity-id])
-                                                 :rename-entity
-                                                 (rf/dispatch [:start-entity-edit entity-label entity-id display-name (or entity-description "")])
-                                                 (reset! confirm* item)))))
-                         items)
-          :mandatory-count 0
-          :menu-title (str title-case-label " actions")
-          :menu-aria-label (str title-case-label " actions")}]]
+       [waterfall-row/waterfall-row
+        {:class-name "chapter-header-actions-row"
+         :actions (mapv (fn [item]
+                          (assoc item
+                                 :icon (case (:icon item)
+                                         "navigate" FaArrowUpRightFromSquare
+                                         "broom" FaBroom
+                                         "trash" FaTrashCan
+                                         nil)
+                                 :on-select (fn [_]
+                                              (case (:id item)
+                                                :open-chapter-page
+                                                (rf/dispatch [:navigate-chapter-page entity-id])
+                                                (reset! confirm* item)))))
+                        items)
+         :mandatory-count 0
+         :menu-title (str title-case-label " actions")
+         :menu-aria-label (str title-case-label " actions")}]
        [confirm-dialog/confirm-dialog
         {:item selected-item
          :on-cancel #(reset! confirm* nil)

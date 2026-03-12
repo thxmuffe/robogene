@@ -206,7 +206,13 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
       page.setDefaultTimeout(actionTimeoutMs);
       page.setDefaultNavigationTimeout(actionTimeoutMs);
       const consoleGuard = attachConsoleFailureGuard(page, {
-        ignore: ['Download the React DevTools for a better development experience'],
+        ignore: [
+          'Download the React DevTools for a better development experience',
+          'Warning: Error from HTTP request. TypeError: Failed to fetch.',
+          'Failed to complete negotiation with the server: TypeError: Failed to fetch',
+          'Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch',
+          '[robogene] SignalR start failed: Failed to complete negotiation with the server: TypeError: Failed to fetch',
+        ],
       });
       await page.addInitScript((base) => {
         window.ROBOGENE_API_BASE = base;

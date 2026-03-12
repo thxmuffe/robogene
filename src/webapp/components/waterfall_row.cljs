@@ -1,4 +1,4 @@
-(ns webapp.components.row-dropdown-flow
+(ns webapp.components.waterfall-row
   (:require [reagent.core :as r]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [ActionIcon Menu Tooltip]]
@@ -20,9 +20,10 @@
       action-count
       (max mandatory-count (dec capacity)))))
 
-(defn row-dropdown-flow
+(defn waterfall-row
   [{:keys [actions
            class-name
+           prefix-content
            mandatory-count
            menu-title
            menu-aria-label
@@ -54,8 +55,8 @@
           visible-actions (subvec actions 0 (min visible-count (count actions)))
           overflow-actions (subvec actions (min visible-count (count actions)))]
       [:div {:className (if (seq class-name)
-                          (str "row-dropdown-flow " class-name)
-                          "row-dropdown-flow")
+                          (str "waterfall-row " class-name)
+                          "waterfall-row")
              :ref set-container-ref!
              :onMouseDownCapture (fn [_]
                                    (when on-action-pointer-down
@@ -63,7 +64,8 @@
              :onPointerDownCapture (fn [_]
                                      (when on-action-pointer-down
                                        (on-action-pointer-down)))}
-       [:div.row-dropdown-flow-inline
+       [:div.waterfall-row-inline
+        prefix-content
         (for [{:keys [id label icon on-select disabled? variant color class-name]} visible-actions]
           ^{:key (str "inline-action-" id)}
           [:> Tooltip {:label label}
@@ -88,7 +90,7 @@
           [:> (.-Target Menu)
            [:> Tooltip {:label (or menu-title "More actions")}
             [:> ActionIcon
-             {:className "row-dropdown-flow-trigger"
+             {:className "waterfall-row-trigger"
               :aria-label (or menu-aria-label menu-title "More actions")
               :title (or menu-title "More actions")
               :size inline-action-size

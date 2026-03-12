@@ -1,7 +1,7 @@
-(ns webapp.components.edit-db-item
+(ns webapp.components.db-item
   (:require ["@mantine/core" :refer [TextInput Textarea]]
             ["react-icons/fa6" :refer [FaCheck FaXmark]]
-            [webapp.components.row-dropdown-flow :as row-dropdown-flow]))
+            [webapp.components.waterfall-row :as waterfall-row]))
 
 (defn stop-propagation! [e]
   (.stopPropagation e))
@@ -10,7 +10,7 @@
   (.preventDefault e)
   (.stopPropagation e))
 
-(defn edit-db-item-actions [opts]
+(defn db-item-actions [opts]
   (let [{:keys [on-submit on-cancel submit-disabled? action-items class-name]} opts
         actions (into [{:id :submit
                         :label "Submit"
@@ -22,14 +22,14 @@
                         :icon FaXmark
                         :on-select on-cancel}]
                       (or action-items []))]
-    [row-dropdown-flow/row-dropdown-flow
+    [waterfall-row/waterfall-row
      {:class-name (or class-name "chapter-edit-actions")
       :actions actions
       :mandatory-count 2
       :menu-title "More actions"
       :menu-aria-label "More actions"}]))
 
-(defn edit-db-item [opts]
+(defn db-item [opts]
   (let [{:keys [class-name
                 show-name?
                 name-value
@@ -102,15 +102,15 @@
                                                    :else nil)))}
                                  (or description-props {}))]
     [:div {:className (if (seq class-name)
-                        (str "edit-db-item " class-name)
-                        "edit-db-item")}
+                        (str "db-item " class-name)
+                        "db-item")}
      (when show-name?
        [:> TextInput name-input])
-     [:div.edit-db-item-description-row
-      [:> Textarea description-input]
-      [edit-db-item-actions
-       {:on-submit on-submit
-        :on-cancel on-cancel
-        :submit-disabled? submit-disabled?
-        :action-items action-items
-        :class-name actions-class}]]]))
+     [:div.db-item-description-row
+      [:> Textarea description-input]]
+     [db-item-actions
+      {:on-submit on-submit
+       :on-cancel on-cancel
+       :submit-disabled? submit-disabled?
+       :action-items action-items
+       :class-name actions-class}]]))

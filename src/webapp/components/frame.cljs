@@ -25,7 +25,8 @@
 
 (defn frame-image [{:keys [imageUrl frameId]} image-fit]
   [:> Image
-   {:src (or imageUrl "")
+   {:key (str frameId "|" (or imageUrl ""))
+    :src (or imageUrl "")
     :alt (str "Frame " frameId)
     :fit image-fit
     :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])

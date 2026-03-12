@@ -31,19 +31,19 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
     logStep('mobile-actions', 'opening frame editor');
     await frame.locator('.subtitle-display-text').click();
 
-    const submitButton = frame.getByRole('button', { name: 'Submit' });
-    const cancelButton = frame.getByRole('button', { name: 'Cancel' });
-    await submitButton.waitFor({ timeout: actionTimeoutMs });
-    await cancelButton.waitFor({ timeout: actionTimeoutMs });
+    const generateButton = frame.getByRole('button', { name: 'Generate image', exact: true });
+    const uploadButton = frame.getByRole('button', { name: 'Upload or take picture', exact: true });
+    await generateButton.waitFor({ timeout: actionTimeoutMs });
+    await uploadButton.waitFor({ timeout: actionTimeoutMs });
 
-    assert.equal(await submitButton.isVisible(), true, 'Submit button must be visible on mobile');
-    assert.equal(await cancelButton.isVisible(), true, 'Cancel button must be visible on mobile');
+    assert.equal(await generateButton.isVisible(), true, 'Generate image button must be visible on mobile');
+    assert.equal(await uploadButton.isVisible(), true, 'Upload button must be visible on mobile');
 
     const viewport = page.viewportSize();
-    const submitBox = await submitButton.boundingBox();
-    const cancelBox = await cancelButton.boundingBox();
-    assert.equal(inViewport(submitBox, viewport), true, 'Submit button must be inside mobile viewport');
-    assert.equal(inViewport(cancelBox, viewport), true, 'Cancel button must be inside mobile viewport');
+    const generateBox = await generateButton.boundingBox();
+    const uploadBox = await uploadButton.boundingBox();
+    assert.equal(inViewport(generateBox, viewport), true, 'Generate image button must be inside mobile viewport');
+    assert.equal(inViewport(uploadBox, viewport), true, 'Upload button must be inside mobile viewport');
 
     logStep('mobile-actions', 'mobile controls verified');
     consoleGuard.assertClean();
