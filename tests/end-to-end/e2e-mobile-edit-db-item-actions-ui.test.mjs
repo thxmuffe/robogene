@@ -15,6 +15,7 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
   try {
     logStep('mobile-actions', 'opening gallery on mobile viewport');
     await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.chapter-separator-toggle').first().click();
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();

@@ -102,7 +102,7 @@ async function main() {
   const azuriteEntry = resolveAzuriteEntry();
   const azurite = spawn(
     process.execPath,
-    [azuriteEntry, "--silent", "--location", AZURITE_DIR, "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
+    [azuriteEntry, "--silent", "--skipApiVersionCheck", "--location", AZURITE_DIR, "--blobHost", "127.0.0.1", "--queueHost", "127.0.0.1", "--tableHost", "127.0.0.1"],
     { stdio: "inherit", shell: false }
   );
 

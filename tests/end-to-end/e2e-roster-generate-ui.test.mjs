@@ -17,10 +17,11 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
-    await page.getByPlaceholder('Name this character...').fill(characterName);
+    const createPanel = page.locator('.new-chapter-panel').first();
+    await createPanel.getByPlaceholder('Name this character...').fill(characterName);
     await page.locator('.new-chapter-panel h3').click();
     await page.waitForTimeout(300);
-    await page.locator('.new-chapter-panel').getByRole('button', { name: 'Submit' }).click();
+    await createPanel.getByRole('button', { name: 'Submit' }).click();
     logStep('roster-generate', 'character created');
 
     const chapter = page.locator('.chapter-block', { hasText: characterName }).first();
@@ -47,7 +48,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     assert.ok(frameId, 'new roster frame should expose data-frame-id');
 
     await newFrame.locator('.subtitle-display-text').click();
-    await newFrame.locator('.subtitle-display-input textarea').fill('bill');
+    await newFrame.locator('.subtitle-display-input').fill('bill');
     logStep('roster-generate', 'triggering image generation');
     await newFrame.getByRole('button', { name: 'Generate image', exact: true }).click();
 
