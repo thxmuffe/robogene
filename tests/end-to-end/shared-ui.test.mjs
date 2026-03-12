@@ -6,7 +6,7 @@ import { waitForHttpOk } from '../shared/async.mjs';
 import { attachConsoleFailureGuard } from '../shared/playwright.mjs';
 import { getFreePort } from '../shared/ports.mjs';
 import { commandAvailable, killByPattern } from '../shared/system.mjs';
-import { runGalleryScenario } from './e2e-gallery-ui.test.mjs';
+import { runGalleryScenario, runGalleryUploadScenario } from './e2e-gallery-ui.test.mjs';
 import { runMobileActionsScenario } from './e2e-mobile-edit-db-item-actions-ui.test.mjs';
 import { runRosterPersistScenario } from './e2e-roster-description-persist-ui.test.mjs';
 import { runRosterGenerateScenario } from './e2e-roster-generate-ui.test.mjs';
@@ -47,10 +47,11 @@ function createAppLogger() {
 }
 
 function runNpmCommand(args, env) {
-  const result = spawnSync('npm', args, {
+  const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
     cwd: process.cwd(),
     env,
     stdio: 'inherit',
+    shell: false,
   });
   if (result.status !== 0) {
     throw new Error(`npm ${args.join(' ')} failed with exit code ${result.status}.`);
@@ -152,7 +153,6 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
   } else {
     await stopAzureFunctionsHost();
     killByPattern('http-server dist/release/webapp -p');
-    runNpmCommand(['run', 'stop:dev'], appEnv);
     runNpmCommand(['run', 'release:build'], appEnv);
   }
 
@@ -233,6 +233,9 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     });
     await t.test('ui e2e: gallery add frame and generate image', async () => {
       await runGalleryScenario(ctx);
+    });
+    await t.test('ui e2e: gallery add frame upload image and persist description', async () => {
+      await runGalleryUploadScenario(ctx);
     });
     await t.test('ui e2e: mobile frame description edit actions stay visible', async () => {
       await runMobileActionsScenario(ctx);

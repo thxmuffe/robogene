@@ -101,6 +101,30 @@
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-description (or frames [])))))))
 
+(defn merge-frame-row [rows frame]
+  (let [target-id (:frameId frame)]
+    (mapv (fn [row]
+            (if (= (:frameId row) target-id)
+              (merge row frame)
+              row))
+          (or rows []))))
+
+(defn merge-frame-response [db frame]
+  (if (seq (or (:frameId frame) ""))
+    (-> db
+        (update :gallery-items merge-frame-row frame)
+        (update-in [:latest-state :frames] merge-frame-row frame)
+        (assoc-in [:image-ui-by-frame-id (:frameId frame)]
+                  (if (str/blank? (or (:imageUrl frame) ""))
+                    :idle
+                    :loading)))
+    db))
+
+(defn merge-command-revision [db command]
+  (if-let [revision (some-> command :response :revision)]
+    (assoc db :last-rendered-revision revision)
+    db))
+
 (defn entity-meta [entity-label]
   (if (= "character" (str entity-label))
     {:list-key :roster
@@ -233,12 +257,29 @@
                              (update :frame-drafts dissoc temp-id)
                              (update :open-frame-actions dissoc temp-id))]
         {:db (-> cleanup-maps
+                 (merge-command-revision command)
                  (update :gallery-items (fn [frames] (mapv replace-frame (or frames []))))
                  (update-in [:latest-state :frames]
                             (fn [frames] (mapv replace-frame (or frames [])))))} )
 
+      :replace-frame-image
+      {:db (-> db-with-status
+               (merge-command-revision command)
+               (merge-frame-response (get-in command [:response :frame])))}
+
+      :update-frame-description
+      {:db (-> db-with-status
+               (merge-command-revision command)
+               (merge-frame-response (get-in command [:response :frame])))}
+
+      :clear-frame-image
+      {:db (-> db-with-status
+               (merge-command-revision command)
+               (merge-frame-response (get-in command [:response :frame])))}
+
       :add-chapter
       {:db (-> db-with-status
+               (merge-command-revision command)
                (assoc-in [:view-state :saga :new-name] "")
                (assoc-in [:view-state :saga :new-description] "")
                (assoc-in [:view-state :saga :new-panel-open?] false)
@@ -247,11 +288,12 @@
 
       :add-character
       {:db (-> db-with-status
+               (merge-command-revision command)
                (assoc-in [:view-state :roster :new-name] "")
                (assoc-in [:view-state :roster :new-description] "")
                (assoc-in [:view-state :roster :new-panel-open?] false))}
 
-      {:db db-with-status})))
+      {:db (merge-command-revision db-with-status command)})))
 
 (rf/reg-event-db
  :frame-direction-changed

@@ -73,49 +73,53 @@
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
-   (let [previous-frames (:gallery-items db)
-         {:keys [saga roster frames]} (model/derived-state state)
-         existing-active-id (:active-frame-id db)
-         frame-ids (set (map :frameId frames))
-         old-open-map (:open-frame-actions db)
-         open-frame-actions (into {}
-                                 (for [[frame-id open?] old-open-map
-                                       :when (contains? frame-ids frame-id)]
-                                   [frame-id open?]))
-         active-frame-id (cond
-                           (and (some? existing-active-id) (contains? frame-ids existing-active-id))
-                           existing-active-id
-                           (= existing-active-id controls/new-chapter-frame-id)
-                           existing-active-id
-                           (seq frames)
-                           (:frameId (first frames))
-                           :else nil)
-         image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
-                               (:image-ui-by-frame-id db)
-                               previous-frames
-                               frames)
-         chapter-ids (set (map :chapterId saga))]
-     {:db
-      (-> db
-          (assoc :latest-state state
-                 :status (model/status-line state saga roster frames)
-                 :last-rendered-revision (:revision state)
-                 :saga-meta (or (:sagaMeta state) (:saga-meta db))
-                 :saga saga
-                 :roster roster
-                 :gallery-items frames
-                 :image-ui-by-frame-id image-ui-by-frame-id
-                 :open-frame-actions open-frame-actions
-                 :active-frame-id active-frame-id)
-          (update :frame-drafts
-                  (fn [drafts]
-                    (into {}
-                          (for [[frame-id draft] (or drafts {})
-                                :when (true? (get open-frame-actions frame-id))]
-                            [frame-id draft]))))
-          (update-in [:view-state :gallery :collapsed-chapter-ids]
-                     (fn [ids]
-                       (set (filter chapter-ids (or ids #{}))))))})))
+   (let [incoming-revision (or (:revision state) 0)
+         current-revision (or (:last-rendered-revision db) -1)]
+     (if (< incoming-revision current-revision)
+       {:db db}
+       (let [previous-frames (:gallery-items db)
+              {:keys [saga roster frames]} (model/derived-state state)
+              existing-active-id (:active-frame-id db)
+              frame-ids (set (map :frameId frames))
+              old-open-map (:open-frame-actions db)
+              open-frame-actions (into {}
+                                      (for [[frame-id open?] old-open-map
+                                            :when (contains? frame-ids frame-id)]
+                                        [frame-id open?]))
+              active-frame-id (cond
+                                (and (some? existing-active-id) (contains? frame-ids existing-active-id))
+                                existing-active-id
+                                (= existing-active-id controls/new-chapter-frame-id)
+                                existing-active-id
+                                (seq frames)
+                                (:frameId (first frames))
+                                :else nil)
+              image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
+                                    (:image-ui-by-frame-id db)
+                                    previous-frames
+                                    frames)
+              chapter-ids (set (map :chapterId saga))]
+         {:db
+          (-> db
+              (assoc :latest-state state
+                     :status (model/status-line state saga roster frames)
+                     :last-rendered-revision incoming-revision
+                     :saga-meta (or (:sagaMeta state) (:saga-meta db))
+                     :saga saga
+                     :roster roster
+                     :gallery-items frames
+                     :image-ui-by-frame-id image-ui-by-frame-id
+                     :open-frame-actions open-frame-actions
+                     :active-frame-id active-frame-id)
+              (update :frame-drafts
+                      (fn [drafts]
+                        (into {}
+                              (for [[frame-id draft] (or drafts {})
+                                    :when (true? (get open-frame-actions frame-id))]
+                                [frame-id draft]))))
+              (update-in [:view-state :gallery :collapsed-chapter-ids]
+                         (fn [ids]
+                           (set (filter chapter-ids (or ids #{}))))))})))))
 
 (rf/reg-event-fx
  :set-active-frame

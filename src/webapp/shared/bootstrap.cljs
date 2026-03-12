@@ -98,7 +98,7 @@
     (update-frame-pointer-weight!)
     (.addEventListener js/window "pointermove" update-frame-pointer! #js {:passive true})
     (.addEventListener js/window "pointerleave" clear-frame-pointer! #js {:passive true})
-    (.addEventListener js/window "blur" clear-frame-pointer!))))
+    (.addEventListener js/window "blur" clear-frame-pointer!)))
 
 (defn- tick-frame-motion! []
   (let [{:keys [x y rot last-scroll-y]} @frame-motion-state*
