@@ -7,10 +7,10 @@
             [webapp.shared.ui.interaction :as interaction]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.components.chapter :as chapter-component]
-            [webapp.components.db-item :as db-item]
-            [webapp.components.edit-desc-with-actions :as edit-desc-with-actions]
+            [webapp.components.db-text :as db-text]
             [webapp.components.chapter-actions :as chapter-actions]
-            ["@mantine/core" :refer [Box Button Group Stack]]))
+            [webapp.components.waterfall-row :as waterfall-row]
+            ["@mantine/core" :refer [Box Button Group Stack TextInput Textarea]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
   (case key
@@ -93,6 +93,12 @@
    [:div.rainbow-band.band-4]
    [:div.rainbow-stars "✦ ✧ ✦ ✧ ✦"]])
 
+(defn- keep-editor-open? [selector]
+  (let [active-el (.-activeElement js/document)]
+    (or (interaction/closest? active-el selector)
+        (interaction/closest? active-el "[role='dialog'][aria-modal='true']")
+        (interaction/closest? active-el "[role='menu'], .mantine-Menu-dropdown"))))
+
 (defn- ordered-character-frames [frames character-id]
   (->> (or frames [])
        (filter (fn [frame]
@@ -161,6 +167,20 @@
                              @(rf/subscribe [:gallery-chapter-collapsed? entity-id]))
         entity-name (or (:name entity) (:description entity) "")
         entity-description (or (:description entity) "")
+        editing? (= editing-entity-id entity-id)
+        name-inputs @(rf/subscribe [(if (= "character" (str entity-label))
+                                      :character-name-inputs
+                                      :chapter-name-inputs)])
+        description-inputs @(rf/subscribe [(if (= "character" (str entity-label))
+                                             :character-description-inputs
+                                             :chapter-description-inputs)])
+        current-name (if editing?
+                       (get name-inputs entity-id entity-name)
+                       entity-name)
+        current-description (if editing?
+                              (get description-inputs entity-id entity-description)
+                              entity-description)
+        editor-selector (str "[data-entity-editor-id=\"" entity-id "\"]")
         frames (when chapter-entity?
                  @(rf/subscribe [:frames-for-chapter entity-id]))
         collapsed-preview-frame (first frames)
@@ -199,44 +219,45 @@
      (if (and chapter-entity? chapter-collapsed?)
        nil
        [:div.chapter-content
-        [:> Group {:className "chapter-header"
-                   :gap "sm"
-                   :align "stretch"
-                   :wrap "wrap"}
-         [edit-desc-with-actions/edit-desc-with-actions
-          {:id (str entity-label "-" entity-id)
-           :editing? (= editing-entity-id entity-id)
-           :title entity-name
-           :desc entity-description
-           :actions []
-           :display-class-name "chapter-header-body"
+        [:div.chapter-header
+         {:data-entity-editor-id entity-id}
+         [db-text/db-text
+          {:id (str entity-label "-" entity-id "-title")
+           :value current-name
+           :editing? editing?
+           :class-name "chapter-header-body"
+           :display-class-name "chapter-name"
            :editing-class-name "chapter-db-item"
-           :title-class-name "chapter-name"
-           :desc-class-name "chapter-description"
-           :title-input-class-name "chapter-name-input"
-           :desc-input-class-name "chapter-description-input"
-           :title-input-placeholder (str "Name this " entity-singular "...")
-           :desc-input-placeholder (str "Describe this " entity-singular "...")
-           :desc-placeholder ""
-           :desc-min-rows 2
-           :desc-max-rows 6
-           :actions-class-name "chapter-header-actions"
-           :action-content [chapter-actions/chapter-actions
-                            {:entity-id entity-id
-                             :entity-label entity-label
-                             :singular-label entity-singular}]
-           :menu-title (str entity-singular " actions")
-           :menu-aria-label (str entity-singular " actions")
+           :input-class-name "chapter-name-input"
+           :placeholder (str "Name this " entity-singular "...")
            :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
            :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
-           :on-save (fn [{:keys [title desc]}]
-                      (when-not (str/blank? (or (some-> title str/trim) ""))
-                        (rf/dispatch [(if (= "character" (str entity-label))
-                                        :update-character
-                                        :update-chapter)
-                                      entity-id
-                                      (str/trim title)
-                                      desc])))}]]
+           :on-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
+           :on-save (fn [_]
+                      (rf/dispatch [:save-entity entity-label entity-id]))
+           :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
+         [db-text/db-text
+          {:id (str entity-label "-" entity-id "-desc")
+           :value current-description
+           :editing? editing?
+           :multiline? true
+           :class-name "chapter-header-body"
+           :display-class-name "chapter-description"
+           :editing-class-name "chapter-db-item"
+           :input-class-name "chapter-description-input"
+           :placeholder ""
+           :min-rows 2
+           :max-rows 6
+           :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
+           :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
+           :on-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
+           :on-save (fn [_]
+                      (rf/dispatch [:save-entity entity-label entity-id]))
+           :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
+         [chapter-actions/chapter-actions
+          {:entity-id entity-id
+           :entity-label entity-label
+           :singular-label entity-singular}]]
         [chapter-component/chapter entity-id owner-type active-frame-id]])]))
 
 (defn new-entity-form [cfg name description]
@@ -244,27 +265,32 @@
     [:> Box {:component "section"
              :className "new-chapter-panel"}
      [:h3 add-title]
-     [db-item/db-item
-      {:class-name "new-entity-db-item"
-       :show-name? true
-       :name-value (or name "")
-       :on-name-change #(rf/dispatch [name-changed-event %])
-       :name-props {:size "sm"
-                    :className "new-chapter-input"
-                    :placeholder name-input-placeholder
-                    :onKeyDown (on-new-item-name-keydown add-event set-open-event)}
-       :description-value (or description "")
-       :on-description-change #(rf/dispatch [description-changed-event %])
-       :description-props {:autosize true
-                           :minRows 3
-                           :maxRows 10
-                           :className "new-chapter-input"
-                           :placeholder description-input-placeholder}
-       :on-submit #(do
-                     (rf/dispatch [set-open-event false])
-                     (rf/dispatch [add-event]))
-       :on-cancel #(rf/dispatch [set-open-event false])
-       :actions-class "chapter-edit-actions"}]]))
+     [:> TextInput
+      {:className "new-chapter-input"
+       :value (or name "")
+       :placeholder name-input-placeholder
+       :onChange #(rf/dispatch [name-changed-event (.. % -target -value)])
+       :onKeyDown (on-new-item-name-keydown add-event set-open-event)}]
+     [:> Textarea
+      {:className "new-chapter-input"
+       :value (or description "")
+       :autosize true
+       :minRows 3
+       :maxRows 10
+       :placeholder description-input-placeholder
+       :onChange #(rf/dispatch [description-changed-event (.. % -target -value)])}]
+     [:div.chapter-edit-actions
+      [:> Button
+       {:className "new-chapter-submit"
+        :onClick #(do
+                    (rf/dispatch [set-open-event false])
+                    (rf/dispatch [add-event]))}
+       "Submit"]
+      [:> Button
+       {:variant "default"
+        :className "new-chapter-submit"
+        :onClick #(rf/dispatch [set-open-event false])}
+       "Cancel"]]]))
 
 (defn new-entity-teaser [cfg active-frame-id]
   (let [{:keys [set-open-event teaser-title teaser-sub]} cfg]
@@ -297,36 +323,56 @@
 (defn saga-header-content [page-title]
   (let [saga-meta @(rf/subscribe [:saga-meta])
         saga-meta-editing? @(rf/subscribe [:saga-meta-editing?])
+        saga-meta-name @(rf/subscribe [:saga-meta-name])
+        saga-meta-description @(rf/subscribe [:saga-meta-description])
         current-name (or (some-> (:name saga-meta) str/trim not-empty) page-title "Saga")
-        current-description (or (:description saga-meta) "")]
-    [edit-desc-with-actions/edit-desc-with-actions
-     {:id "saga-meta"
-      :editing? saga-meta-editing?
-      :title current-name
-      :desc current-description
-      :actions []
-      :display-class-name "saga-meta-header"
-      :editing-class-name "chapter-db-item saga-meta-db-item"
-      :title-class-name "chapter-name saga-title"
-      :desc-class-name "chapter-description"
-      :title-input-class-name "chapter-name-input"
-      :desc-input-class-name "chapter-description-input"
-      :title-input-placeholder "Name this saga..."
-      :desc-input-placeholder "Describe this saga..."
-      :desc-placeholder ""
-      :desc-min-rows 2
-      :desc-max-rows 6
-      :actions-class-name "chapter-header-actions saga-header-actions-row"
-      :prefix-content [page-header-action {:view-id :saga}]
-      :menu-title "Saga actions"
-      :menu-aria-label "Saga actions"
-      :display-title-as :h2
-      :display-desc-as :p
-      :on-open-edit #(rf/dispatch [:start-saga-meta-edit])
-      :on-close-edit #(rf/dispatch [:cancel-saga-meta-edit])
-      :on-save (fn [{:keys [title desc]}]
-                 (when-not (str/blank? (or (some-> title str/trim) ""))
-                   (rf/dispatch [:update-saga (str/trim title) desc])))}]))
+        current-description (or (:description saga-meta) "")
+        edit-name (if saga-meta-editing? saga-meta-name current-name)
+        edit-description (if saga-meta-editing? saga-meta-description current-description)
+        editor-selector "[data-saga-meta-editor='true']"]
+    [:div.saga-meta-header
+     {:data-saga-meta-editor "true"}
+     [db-text/db-text
+      {:id "saga-meta-title"
+       :value (or edit-name "")
+       :editing? saga-meta-editing?
+       :class-name "saga-meta-db-item"
+       :display-class-name "chapter-name saga-title"
+       :editing-class-name "chapter-db-item saga-meta-db-item"
+       :input-class-name "chapter-name-input"
+       :display-as :h2
+       :placeholder "Name this saga..."
+       :on-open-edit #(rf/dispatch [:start-saga-meta-edit])
+       :on-close-edit #(rf/dispatch [:cancel-saga-meta-edit])
+       :on-change #(rf/dispatch [:saga-meta-name-changed %])
+       :on-save (fn [_]
+                  (rf/dispatch [:save-saga-meta]))
+       :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
+     [db-text/db-text
+      {:id "saga-meta-desc"
+       :value (or edit-description "")
+       :editing? saga-meta-editing?
+       :multiline? true
+       :class-name "saga-meta-db-item"
+       :display-class-name "chapter-description"
+       :editing-class-name "chapter-db-item saga-meta-db-item"
+       :input-class-name "chapter-description-input"
+       :display-as :p
+       :placeholder ""
+       :min-rows 2
+       :max-rows 6
+       :on-open-edit #(rf/dispatch [:start-saga-meta-edit])
+       :on-close-edit #(rf/dispatch [:cancel-saga-meta-edit])
+       :on-change #(rf/dispatch [:saga-meta-description-changed %])
+       :on-save (fn [_]
+                  (rf/dispatch [:save-saga-meta]))
+       :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
+     [waterfall-row/waterfall-row
+      {:class-name "chapter-header-actions-row saga-header-actions-row"
+       :prefix-content [page-header-action {:view-id :saga}]
+       :actions []
+       :menu-title "Saga actions"
+       :menu-aria-label "Saga actions"}]]))
 
 (defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})
