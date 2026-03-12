@@ -21,6 +21,7 @@
 19. Run a build only when it is the minimal direct way to verify syntax, type errors, packaging, or another issue that cannot be checked reliably from local code inspection.
 20. Do not run tests unless the user asks, or you are preparing for a push, or a test run is the only practical way to verify the requested change.
 21. Before pushing, run the relevant tests needed to catch regressions in the changed area unless the user explicitly tells you not to.
+22. If the user explicitly says to "put this to todo list" or clearly means the same thing for a decided-not-to-implement item, treat that as a GitHub issue task: check existing repo issues for duplicates first, merge new context into the existing issue if it is a duplicate, otherwise create a new issue. Do not create duplicate todo issues for the same underlying problem.
 
 ## Optimal Change (Preferred, Non-Mandatory)
 
