@@ -48,8 +48,8 @@
         fallback))
     fallback))
 
-(defn normalize-image-path [chapter-root-id chapter-id frame-id]
-  (str "saga/" chapter-root-id "/saga/" chapter-id "/frames/" frame-id ".png"))
+(defn normalize-image-path [chapter-root-id chapter-id frame-id extension]
+  (str "saga/" chapter-root-id "/saga/" chapter-id "/frames/" frame-id "." (or extension "png")))
 
 (defn reduce-promise [items step init]
   (reduce (fn [p item]
@@ -139,24 +139,45 @@
       (gobj/set normalized "imageUrl" image-url))
     normalized))
 
+(defn parse-image-data-url [data]
+  (when-let [[_ mime-type payload] (re-matches #"^data:(image/[^;]+);base64,(.+)$" (or data ""))]
+    {:mime-type mime-type
+     :payload payload}))
+
+(defn mime-type->extension [mime-type]
+  (case (str/lower-case (or mime-type ""))
+    "image/jpeg" "jpg"
+    "image/jpg" "jpg"
+    "image/png" "png"
+    "image/webp" "webp"
+    "image/gif" "gif"
+    "image/svg+xml" "svg"
+    "image/avif" "avif"
+    "image/bmp" "bmp"
+    "bin"))
+
 (defn upload-data-url-if-needed [chapter-root-id frame]
   (let [frame (normalize-frame-image-field frame)
         data (or (gobj/get frame "imageUrl") "")]
-    (if-not (str/starts-with? data "data:image/png;base64,")
-      (js/Promise.resolve frame)
+    (if-let [{:keys [mime-type payload]} (parse-image-data-url data)]
       (let [chapter-id (gobj/get frame "chapterId")
             frame-id (gobj/get frame "frameId")
-            image-path (normalize-image-path chapter-root-id chapter-id frame-id)
+            image-path (normalize-image-path chapter-root-id
+                                             chapter-id
+                                             frame-id
+                                             (mime-type->extension mime-type))
             blob (.getBlockBlobClient image-container image-path)
-            content (js/Buffer.from (subs data (count "data:image/png;base64,")) "base64")]
-        (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType "image/png"}})
+            content (js/Buffer.from payload "base64")]
+        (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType mime-type}})
             (.then (fn [_] (set-cached-image-url! image-path)))
             (.then (fn [image-url]
                      (.assign js/Object
                               #js {}
                               frame
                               #js {:imagePath image-path
-                                   :imageUrl image-url}))))))))
+                                   :imageUrl image-url})))))
+      (js/Promise.resolve frame)
+      )))
 
 (defn get-active-meta []
   (-> (.getEntity meta-client "meta" "active")
