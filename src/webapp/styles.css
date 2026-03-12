@@ -18,6 +18,12 @@
 }
 
 * { box-sizing: border-box; }
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   font-family: "Avenir Next", "Trebuchet MS", sans-serif;
@@ -483,11 +489,11 @@ button.chapter-separator.is-collapsed {
   z-index: 2;
   transform:
     translate3d(
-      calc(var(--gallery-scroll-x) * (var(--gallery-motion-x-scale, 1) + var(--gallery-motion-x-bias, 0)) + var(--gallery-motion-float-x, 0px) * 0.18),
-      calc(var(--gallery-scroll-y) * (var(--gallery-motion-y-scale, 1) + var(--gallery-motion-y-bias, 0))),
+      calc((var(--gallery-scroll-x) * (var(--gallery-motion-x-scale, 1) + var(--gallery-motion-x-bias, 0)) + var(--gallery-motion-float-x, 0px) * 0.18) * var(--gallery-motion-pointer-weight, 1)),
+      calc(var(--gallery-scroll-y) * (var(--gallery-motion-y-scale, 1) + var(--gallery-motion-y-bias, 0)) * var(--gallery-motion-pointer-weight, 1)),
       0
     )
-    rotate(calc(var(--gallery-scroll-rot) * (var(--gallery-motion-rot-scale, 1) + var(--gallery-motion-rot-bias, 0))));
+    rotate(calc(var(--gallery-scroll-rot) * (var(--gallery-motion-rot-scale, 1) + var(--gallery-motion-rot-bias, 0)) * var(--gallery-motion-pointer-weight, 1)));
   transition-property: transform;
   transition-duration: var(--gallery-motion-duration, 420ms);
   transition-delay: 0ms;
