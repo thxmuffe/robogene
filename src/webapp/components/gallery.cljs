@@ -1,5 +1,6 @@
-(ns webapp.components.chapter
-  (:require [re-frame.core :as rf]
+(ns webapp.components.gallery
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.components.frame :as frame]
             ["@mantine/core" :refer [Box]]))
 
@@ -30,7 +31,7 @@
          "--gallery-motion-pointer-weight" "1"
          "--gallery-motion-duration" (str settle-ms "ms")}))
 
-(defn chapter [owner-id owner-type active-frame-id]
+(defn frame-gallery [owner-id owner-type active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
         character-owner? (= "character" (str owner-type))
         add-tile-title (if character-owner?
@@ -62,3 +63,45 @@
                        (rf/dispatch [:add-frame owner-id owner-type])))}
        [:div.add-frame-tile-title add-tile-title]
        [:div.add-frame-tile-sub frame-subtitle]]]]))
+
+(defn- chapter-preview-card [chapter]
+  (let [chapter-id (:chapterId chapter)
+        name (or (some-> (:name chapter) str/trim not-empty)
+                 (some-> (:description chapter) str/trim not-empty)
+                 "Chapter")
+        description (some-> (:description chapter) str/trim not-empty)
+        frames @(rf/subscribe [:frames-for-chapter chapter-id])
+        preview-url (some->> frames
+                             (keep (fn [frame-row]
+                                     (some-> (:imageUrl frame-row) str/trim not-empty)))
+                             first)
+        frame-count (count frames)]
+    [:article
+     {:className "frame frame-clickable add-frame-tile chapter-preview-tile"
+      :role "button"
+      :tabIndex 0
+      :onClick #(rf/dispatch [:navigate-chapter-page chapter-id])
+      :onKeyDown (fn [e]
+                   (when (or (= "Enter" (.-key e))
+                             (= " " (.-key e)))
+                     (.preventDefault e)
+                     (rf/dispatch [:navigate-chapter-page chapter-id])))}
+     (if preview-url
+       [:img {:className "chapter-preview-image"
+              :src preview-url
+              :alt (str name " preview")}]
+       [:div.chapter-preview-placeholder])
+     [:div.add-frame-tile-title name]
+     [:div.add-frame-tile-sub
+      (or description
+          (str frame-count " frame" (when (not= 1 frame-count) "s")))]]))
+
+(defn chapter-preview-gallery [saga-id]
+  (let [chapters @(rf/subscribe [:chapters-by-saga-id saga-id])]
+    [:> Box {:className "gallery"}
+     (map-indexed (fn [idx chapter]
+                    ^{:key (or (:chapterId chapter) (str "chapter-preview-" idx))}
+                    [:div.gallery-motion-item
+                     {:style (gallery-motion-style (:chapterId chapter))}
+                     [chapter-preview-card chapter]])
+                  chapters)]))

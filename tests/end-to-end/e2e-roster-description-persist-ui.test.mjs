@@ -15,22 +15,26 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
-    await page.getByPlaceholder('Name this character...').fill(characterName);
-    await page.getByPlaceholder('Describe aliases, style, and references...').fill(initialDesc);
+    const createPanel = page.locator('.new-chapter-panel').first();
+    await createPanel.getByPlaceholder('Name this character...').fill(characterName);
+    await createPanel.getByPlaceholder('Describe aliases, style, and references...').fill(initialDesc);
     await page.locator('.new-chapter-panel h3').click();
     await page.waitForTimeout(300);
-    await page.locator('.new-chapter-panel').getByRole('button', { name: 'Submit' }).click();
+    await createPanel.getByRole('button', { name: 'Submit' }).click();
     logStep('roster-persist', 'character created');
 
     const characterBlock = page.locator('.chapter-block', { hasText: characterName }).first();
     await characterBlock.waitFor({ timeout: actionTimeoutMs });
     await characterBlock.locator('.chapter-description', { hasText: initialDesc }).waitFor({ timeout: actionTimeoutMs });
-
-    await characterBlock.locator('.chapter-menu-trigger').click();
-    await page.getByRole('menuitem', { name: 'Edit character' }).click();
-    const editForm = page.locator('.chapter-edit-db-item').first();
-    await editForm.locator('.chapter-description-input textarea').fill(updatedDesc);
-    await editForm.getByRole('button', { name: 'Submit' }).click();
+    const descField = characterBlock.locator('.chapter-description-input').first();
+    const updateResponse = page.waitForResponse(
+      (response) => response.url().includes('/api/update-character') && response.request().method() === 'POST',
+      { timeout: actionTimeoutMs }
+    );
+    await descField.click();
+    await descField.fill(updatedDesc);
+    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+    await updateResponse;
 
     const updatedBlock = page.locator('.chapter-block', { hasText: updatedDesc }).first();
     await updatedBlock.waitFor({ timeout: actionTimeoutMs });

@@ -30,7 +30,7 @@
                        (or (some-> (:name row) str/trim not-empty)
                            (some-> (:description row) str/trim not-empty))))))))
 
-(defn top-controls [from-page owner-name saga-name]
+(defn top-controls [from-page owner-name roster-id saga-id]
   (let [show-back? (some? from-page)]
     [:> Group {:className "detail-controls"
                :gap "xs"
@@ -40,10 +40,10 @@
         {:label "Back"
          :on-click #(rf/dispatch [:navigate-from-page])}])
      [:> Button
-      {:variant "default"
+     {:variant "default"
        :size "sm"
        :className "roster-nav-btn"
-       :onClick #(rf/dispatch [:navigate-roster-page saga-name])}
+       :onClick #(rf/dispatch [:navigate-roster-page roster-id saga-id])}
       "Roster"]]))
 
 (defn nav-controls [chapter-id frame-neighbors from-page]
@@ -138,6 +138,11 @@
           owner-type (if (= :roster from-page) "character" "saga")
           ordered @(rf/subscribe [:frames-for-owner owner-type chapter-id])
           owner-name (owner-display-name from-page chapter-id saga roster)
+          roster-id (or (:roster-id route)
+                        (some (fn [character]
+                                (when (= (:characterId character) chapter-id)
+                                  (:rosterId character)))
+                              roster))
           fullscreen? (true? (:fullscreen? route))
           description-editor-open? @(rf/subscribe [:frame-edit-open? frame-id])
           frame-neighbors (prev-next-by-id ordered frame-id)
@@ -158,7 +163,7 @@
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
            (when-not fullscreen?
-             [top-controls from-page owner-name saga-name])
+             [top-controls from-page owner-name roster-id (:saga-id route)])
           [frame/frame active-frame
             {:clickable? false
              :media-nav? true

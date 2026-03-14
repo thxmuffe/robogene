@@ -85,15 +85,18 @@
         (.finally #(rf/dispatch [:api-request-finish request-label])))))
 
 (defn post-json
-  [path payload success-event fail-event ok?]
+  ([path payload success-event fail-event ok?]
+   (post-json path payload success-event fail-event ok? nil))
+  ([path payload success-event fail-event ok? request-options]
   (request-json (api-url path)
-                {:method "POST"
-                 :cache "no-store"
-                 :headers {"Content-Type" "application/json"}
-                 :body (.stringify js/JSON (clj->js payload))}
+                (merge {:method "POST"
+                        :cache "no-store"
+                        :headers {"Content-Type" "application/json"}
+                        :body (.stringify js/JSON (clj->js payload))}
+                       (or request-options {}))
                 success-event
                 fail-event
-                ok?))
+                ok?)))
 
 (defn negotiate-realtime! []
   (let [request-label "POST /api/negotiate"]
@@ -139,11 +142,14 @@
                 (reset! realtime-conn* nil)
                 (rf/dispatch [:state-failed "Realtime connection closed."]))))
   (.on conn "stateChanged"
-       (fn [_]
+       (fn [payload]
          (when (epoch-current? epoch)
+           (let [payload* (js->clj payload :keywordize-keys true)]
            (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
-           (rf/dispatch [:fetch-state])))))
+           (rf/dispatch [:realtime-state-changed payload*])
+           (when-not (= false (:requiresFetch payload*))
+             (rf/dispatch [:fetch-state])))))))
 
 (defn start-connection! [conn epoch]
   (-> (.start conn)
@@ -216,19 +222,42 @@
 
 (rf/reg-fx
  :post-generate-frame
- (fn [{:keys [frame-id direction on-success on-failure]}]
+ (fn [{:keys [frame-id direction without-roster on-success on-failure]}]
    (post-json "/api/generate-frame"
               {:frameId frame-id
-               :direction direction}
+               :direction direction
+               :withoutRoster (true? without-roster)}
               on-success
               on-failure
               (fn [ok status] (or ok (= 409 status))))))
 
 (rf/reg-fx
- :post-add-chapter
+ :post-add-saga
  (fn [{:keys [name description on-success on-failure]}]
-   (post-json "/api/add-chapter"
+   (post-json "/api/add-saga"
               {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-roster
+ (fn [{:keys [name description on-success on-failure]}]
+   (post-json "/api/add-roster"
+              {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-chapter
+ (fn [{:keys [saga-id roster-id name description on-success on-failure]}]
+   (post-json "/api/add-chapter"
+              {:sagaId saga-id
+               :rosterId roster-id
+               :name name
                :description description}
               on-success
               on-failure
@@ -236,21 +265,55 @@
 
 (rf/reg-fx
  :post-add-character
- (fn [{:keys [name description on-success on-failure]}]
+ (fn [{:keys [roster-id name description on-success on-failure]}]
    (post-json "/api/add-character"
-              {:name name
+              {:rosterId roster-id
+               :name name
                :description description}
               on-success
               on-failure
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-update-chapter-roster
+ (fn [{:keys [chapter-id roster-id on-success on-failure]}]
+   (post-json "/api/update-chapter-roster"
+              {:chapterId chapter-id
+               :rosterId roster-id}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
+
+(rf/reg-fx
+ :post-add-chapter-roster
+ (fn [{:keys [chapter-id roster-id on-success on-failure]}]
+   (post-json "/api/add-chapter-roster"
+              {:chapterId chapter-id
+               :rosterId roster-id}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
+
+(rf/reg-fx
  :post-add-frame
- (fn [{:keys [owner-id owner-type on-success on-failure]}]
+ (fn [{:keys [owner-id owner-type frame-id on-success on-failure]}]
    (post-json "/api/add-frame"
               {:ownerType (or owner-type "saga")
+               :frameId frame-id
                :chapterId (when (not= "character" (str owner-type)) owner-id)
                :characterId (when (= "character" (str owner-type)) owner-id)}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-uploaded-frames
+ (fn [{:keys [chapter-id image-data-urls on-success on-failure]}]
+   (post-json "/api/add-uploaded-frames"
+              {:chapterId chapter-id
+               :imageDataUrls image-data-urls}
               on-success
               on-failure
               (fn [ok _] ok))))
@@ -302,7 +365,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-chapter
@@ -313,7 +377,8 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-character
@@ -324,14 +389,26 @@
                :description description}
               on-success
               on-failure
-              (fn [ok _] ok))))
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-update-saga
- (fn [{:keys [name description on-success on-failure]}]
+ (fn [{:keys [saga-id name description on-success on-failure]}]
    (post-json "/api/update-saga"
-              {:name name
+              {:sagaId saga-id
+               :name name
                :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
+
+(rf/reg-fx
+ :post-delete-saga
+ (fn [{:keys [saga-id on-success on-failure]}]
+   (post-json "/api/delete-saga"
+              {:sagaId saga-id}
               on-success
               on-failure
               (fn [ok _] ok))))

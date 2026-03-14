@@ -5,12 +5,12 @@
   (let [frames (or (:frames state) [])
         failed-frames (->> frames
                            (filter (fn [frame]
-                                     (= "failed" (:status frame))))
+                                     (= "failed" (:imageStatus frame))))
                            (map (fn [frame]
                                   {:frameId (:frameId frame)
                                    :ownerType (or (:ownerType frame) "saga")
                                    :ownerId (:chapterId frame)
-                                   :status (:status frame)
+                                   :imageStatus (:imageStatus frame)
                                    :error (:error frame)}))
                            vec)
         recent-error-events (->> (or (:events state) [])
@@ -26,7 +26,7 @@
 (defn frame-status-stats [frames]
   (reduce
    (fn [{:keys [pending errors]} frame]
-     (let [status (:status frame)]
+     (let [status (:imageStatus frame)]
        {:pending (if (or (= "queued" status)
                          (= "processing" status))
                    (inc pending)

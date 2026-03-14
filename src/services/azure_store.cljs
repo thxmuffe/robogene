@@ -48,8 +48,8 @@
         fallback))
     fallback))
 
-(defn normalize-image-path [chapter-root-id chapter-id frame-id]
-  (str "saga/" chapter-root-id "/saga/" chapter-id "/frames/" frame-id ".png"))
+(defn normalize-image-path [chapter-root-id chapter-id frame-id extension]
+  (str "saga/" chapter-root-id "/saga/" chapter-id "/frames/" frame-id "." (or extension "png")))
 
 (defn reduce-promise [items step init]
   (reduce (fn [p item]
@@ -139,24 +139,45 @@
       (gobj/set normalized "imageUrl" image-url))
     normalized))
 
+(defn parse-image-data-url [data]
+  (when-let [[_ mime-type payload] (re-matches #"^data:(image/[^;]+);base64,(.+)$" (or data ""))]
+    {:mime-type mime-type
+     :payload payload}))
+
+(defn mime-type->extension [mime-type]
+  (case (str/lower-case (or mime-type ""))
+    "image/jpeg" "jpg"
+    "image/jpg" "jpg"
+    "image/png" "png"
+    "image/webp" "webp"
+    "image/gif" "gif"
+    "image/svg+xml" "svg"
+    "image/avif" "avif"
+    "image/bmp" "bmp"
+    "bin"))
+
 (defn upload-data-url-if-needed [chapter-root-id frame]
   (let [frame (normalize-frame-image-field frame)
         data (or (gobj/get frame "imageUrl") "")]
-    (if-not (str/starts-with? data "data:image/png;base64,")
-      (js/Promise.resolve frame)
+    (if-let [{:keys [mime-type payload]} (parse-image-data-url data)]
       (let [chapter-id (gobj/get frame "chapterId")
             frame-id (gobj/get frame "frameId")
-            image-path (normalize-image-path chapter-root-id chapter-id frame-id)
+            image-path (normalize-image-path chapter-root-id
+                                             chapter-id
+                                             frame-id
+                                             (mime-type->extension mime-type))
             blob (.getBlockBlobClient image-container image-path)
-            content (js/Buffer.from (subs data (count "data:image/png;base64,")) "base64")]
-        (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType "image/png"}})
+            content (js/Buffer.from payload "base64")]
+        (-> (.uploadData blob content #js {:blobHTTPHeaders #js {:blobContentType mime-type}})
             (.then (fn [_] (set-cached-image-url! image-path)))
             (.then (fn [image-url]
                      (.assign js/Object
                               #js {}
                               frame
                               #js {:imagePath image-path
-                                   :imageUrl image-url}))))))))
+                                   :imageUrl image-url})))))
+      (js/Promise.resolve frame)
+      )))
 
 (defn get-active-meta []
   (-> (.getEntity meta-client "meta" "active")
@@ -174,6 +195,12 @@
                       :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
                  "Replace"))
 
+(defn saga-row-key [saga]
+  (str "saga:" (gobj/get saga "sagaId")))
+
+(defn roster-row-key [roster]
+  (str "roster:" (gobj/get roster "rosterId")))
+
 (defn chapter-row-key [chapter]
   (str "chapter:" (gobj/get chapter "chapterId")))
 
@@ -183,7 +210,15 @@
 (defn chapter-row? [row]
   (let [row-key (or (gobj/get row "rowKey") "")]
     (or (str/starts-with? row-key "chapter:")
-        (not (str/starts-with? row-key "character:")))))
+        (and (not (str/starts-with? row-key "character:"))
+             (not (str/starts-with? row-key "roster:"))
+             (not (str/starts-with? row-key "saga:"))))))
+
+(defn saga-row? [row]
+  (str/starts-with? (or (gobj/get row "rowKey") "") "saga:"))
+
+(defn roster-row? [row]
+  (str/starts-with? (or (gobj/get row "rowKey") "") "roster:"))
 
 (defn character-row? [row]
   (str/starts-with? (or (gobj/get row "rowKey") "") "character:"))
@@ -198,6 +233,20 @@
       :else (or (some-> (parse-row-payload row) (gobj/get "chapterId"))
                 row-key))))
 
+(defn saga-id-from-row [row]
+  (let [row-key (or (gobj/get row "rowKey") "")]
+    (cond
+      (str/starts-with? row-key "saga:") (subs row-key (count "saga:"))
+      :else (or (some-> (parse-row-payload row) (gobj/get "sagaId"))
+                row-key))))
+
+(defn roster-id-from-row [row]
+  (let [row-key (or (gobj/get row "rowKey") "")]
+    (cond
+      (str/starts-with? row-key "roster:") (subs row-key (count "roster:"))
+      :else (or (some-> (parse-row-payload row) (gobj/get "rosterId"))
+                row-key))))
+
 (defn character-id-from-row [row]
   (let [row-key (or (gobj/get row "rowKey") "")]
     (cond
@@ -207,6 +256,12 @@
 
 (defn canonical-chapter-row-key [chapter-id]
   (str "chapter:" chapter-id))
+
+(defn canonical-saga-row-key [saga-id]
+  (str "saga:" saga-id))
+
+(defn canonical-roster-row-key [roster-id]
+  (str "roster:" roster-id))
 
 (defn canonical-character-row-key [character-id]
   (str "character:" character-id))
@@ -222,7 +277,86 @@
        vals
        vec))
 
-(defn save-saga! [chapter-root-id saga]
+(defn prefer-canonical-rows [id-from-row canonical-row-key row-pred? rows]
+  (->> rows
+       (filter row-pred?)
+       (reduce (fn [acc row]
+                 (let [entity-id (id-from-row row)
+                       canonical-key (canonical-row-key entity-id)
+                       row-key (or (gobj/get row "rowKey") "")
+                       existing (get acc entity-id)
+                       existing-key (or (some-> existing (gobj/get "rowKey")) "")
+                       prefer-row? (or (nil? existing)
+                                       (and (= row-key canonical-key)
+                                            (not= existing-key canonical-key)))]
+                   (if (seq (or entity-id ""))
+                     (if prefer-row?
+                       (assoc acc entity-id row)
+                       acc)
+                     acc)))
+               {})
+       vals
+       vec))
+
+(defn save-sagas! [chapter-root-id sagas]
+  (-> (list-entities saga-client chapter-root-id)
+      (.then
+       (fn [existing]
+         (let [sagas (vec sagas)
+               keep (set (map #(gobj/get % "sagaId") sagas))]
+           (-> (reduce-promise sagas
+                               (fn [_ saga]
+                                 (.upsertEntity saga-client
+                                                #js {:partitionKey chapter-root-id
+                                                     :rowKey (saga-row-key saga)
+                                                     :payloadJson (.stringify js/JSON saga)}
+                                                "Replace"))
+                               nil)
+               (.then
+                (fn [_]
+                  (reduce-promise existing
+                                  (fn [_ row]
+                                    (let [row-key (or (gobj/get row "rowKey") "")
+                                          saga-id (saga-id-from-row row)
+                                          canonical-key (canonical-saga-row-key saga-id)
+                                          keep-canonical? (and (contains? keep saga-id)
+                                                               (= row-key canonical-key))]
+                                      (if (or (not (saga-row? row)) keep-canonical?)
+                                        (js/Promise.resolve nil)
+                                        (.catch (.deleteEntity saga-client chapter-root-id row-key)
+                                                (fn [_] nil)))))
+                                  nil)))))))))
+
+(defn save-rosters! [chapter-root-id rosters]
+  (-> (list-entities saga-client chapter-root-id)
+      (.then
+       (fn [existing]
+         (let [rosters (vec rosters)
+               keep (set (map #(gobj/get % "rosterId") rosters))]
+           (-> (reduce-promise rosters
+                               (fn [_ roster]
+                                 (.upsertEntity saga-client
+                                                #js {:partitionKey chapter-root-id
+                                                     :rowKey (roster-row-key roster)
+                                                     :payloadJson (.stringify js/JSON roster)}
+                                                "Replace"))
+                               nil)
+               (.then
+                (fn [_]
+                  (reduce-promise existing
+                                  (fn [_ row]
+                                    (let [row-key (or (gobj/get row "rowKey") "")
+                                          roster-id (roster-id-from-row row)
+                                          canonical-key (canonical-roster-row-key roster-id)
+                                          keep-canonical? (and (contains? keep roster-id)
+                                                               (= row-key canonical-key))]
+                                      (if (or (not (roster-row? row)) keep-canonical?)
+                                        (js/Promise.resolve nil)
+                                        (.catch (.deleteEntity saga-client chapter-root-id row-key)
+                                                (fn [_] nil)))))
+                                  nil)))))))))
+
+(defn save-chapters! [chapter-root-id saga]
   (-> (list-entities saga-client chapter-root-id)
       (.then
        (fn [existing]
@@ -331,14 +465,26 @@
                                              (js/Promise.resolve (conj acc (normalize-frame-image-field frame)))))))
                                      [])
                     (.then (fn [frames]
-                              #js {:saga (->> chapter-rows
-                                              (filter chapter-row?)
+                              #js {:sagas (->> chapter-rows
+                                               (prefer-canonical-rows saga-id-from-row canonical-saga-row-key saga-row?)
+                                               (map parse-row-payload)
+                                               (filter some?)
+                                               (dedupe-by-id "sagaId")
+                                               clj->js)
+                                   :rosters (->> chapter-rows
+                                                 (prefer-canonical-rows roster-id-from-row canonical-roster-row-key roster-row?)
+                                                 (map parse-row-payload)
+                                                 (filter some?)
+                                                 (dedupe-by-id "rosterId")
+                                                 clj->js)
+                                   :saga (->> chapter-rows
+                                              (prefer-canonical-rows chapter-id-from-row canonical-chapter-row-key chapter-row?)
                                               (map parse-row-payload)
                                               (filter some?)
                                               (dedupe-by-id "chapterId")
                                               clj->js)
                                    :roster (->> chapter-rows
-                                                (filter character-row?)
+                                                (prefer-canonical-rows character-id-from-row canonical-character-row-key character-row?)
                                                 (map parse-row-payload)
                                                 (filter some?)
                                                 (dedupe-by-id "characterId")
@@ -362,7 +508,13 @@
                                         :revision (or (gobj/get initial-state "revision") 1)
                                         :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
                  (.then (fn [_]
-                          (save-saga! (read-chapter-id initial-state)
+                          (save-sagas! (read-chapter-id initial-state)
+                                       (or (gobj/get initial-state "sagas") #js []))))
+                 (.then (fn [_]
+                          (save-rosters! (read-chapter-id initial-state)
+                                         (or (gobj/get initial-state "rosters") #js []))))
+                 (.then (fn [_]
+                          (save-chapters! (read-chapter-id initial-state)
                                           (or (gobj/get initial-state "saga") #js []))))
                  (.then (fn [_]
                           (save-roster! (read-chapter-id initial-state)
@@ -375,7 +527,9 @@
                           initial-state)))
              (let [chapter-root-id (read-chapter-id meta)
                    revision (js/Number (or (gobj/get meta "revision") 1))
-                   failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])]
+                   failed-jobs (or (parse-json (gobj/get meta "failedJobsJson") #js []) #js [])
+                   saga-meta (or (parse-json (gobj/get meta "sagaMetaJson") #js {:name "" :description ""})
+                                 #js {:name "" :description ""})]
                (-> (load-rows chapter-root-id)
                    (.then
                     (fn [rows]
@@ -383,11 +537,12 @@
                         (gobj/set "chapterId" chapter-root-id)
                         (gobj/set "revision" revision)
                         (gobj/set "failedJobs" failed-jobs)
+                        (gobj/set "sagas" (or (gobj/get rows "sagas") #js []))
+                        (gobj/set "rosters" (or (gobj/get rows "rosters") #js []))
+                        (gobj/set "sagaMeta" saga-meta)
                         (gobj/set "saga" (gobj/get rows "saga"))
                         (gobj/set "roster" (or (gobj/get rows "roster") #js []))
-                        (gobj/set "frames" (gobj/get rows "frames"))
-                        (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
-                        (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
+                        (gobj/set "frames" (gobj/get rows "frames")))))))))))))
 
 (defn save-state [state]
   (if smoke-dev-storage?
@@ -400,7 +555,11 @@
                    (save-frames! chapter-root-id (or (gobj/get state "frames") #js []))))
           (.then
            (fn [frames]
-             (-> (save-saga! chapter-root-id (or (gobj/get state "saga") #js []))
+             (-> (save-sagas! chapter-root-id (or (gobj/get state "sagas") #js []))
+                 (.then (fn [_]
+                          (save-rosters! chapter-root-id (or (gobj/get state "rosters") #js []))))
+                 (.then (fn [_]
+                          (save-chapters! chapter-root-id (or (gobj/get state "saga") #js []))))
                  (.then (fn [_]
                           (save-roster! chapter-root-id (or (gobj/get state "roster") #js []))))
                  (.then (fn [_]

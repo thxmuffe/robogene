@@ -7,6 +7,9 @@ export async function runSmokeScenario({ openPage, actionTimeoutMs, logStep }) {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: 'RoboGene' }).waitFor({ timeout: actionTimeoutMs });
 
+    logStep('smoke', 'expanding first chapter');
+    await page.locator('.chapter-separator-toggle').first().click();
+
     logStep('smoke', 'waiting for first frame');
     await page.waitForFunction(
       () => document.querySelectorAll('.gallery .frame[data-frame-id]').length > 0,

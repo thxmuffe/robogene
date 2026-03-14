@@ -1,11 +1,16 @@
 @base = {{$processEnv ROBOGENE_API_BASE}}
 
+### Read current state to pick the default saga
+# @name state
+GET {{base}}/api/state
+
 ### Seed one chapter and its first frame
 # @name createChapter
 POST {{base}}/api/add-chapter
 Content-Type: application/json
 
 {
+  "sagaId": "{{state.sagas.0.sagaId}}",
   "name": "Smoke Chapter",
   "description": "A deterministic chapter for local E2E runs."
 }

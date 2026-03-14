@@ -63,7 +63,7 @@
   "devDependencies": {
     "azurite": "^3.35.0",
     "concurrently": "^9.2.1",
-    "dotenv-cli": "^8.0.0",
+    "dotenv-cli": "^11.0.0",
     "http-server": "^14.1.1",
     "httpyac": "^6.16.4",
     "kill-port": "^2.0.1",

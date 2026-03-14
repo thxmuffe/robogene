@@ -8,7 +8,6 @@ const { spawn } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const HOST_SRC_DIR = path.join(ROOT, "src", "host");
-const AI_SRC_DIR = path.join(ROOT, "ai", "robot emperor");
 const WEBAPI_DIST_DIR = path.join(ROOT, "dist", "release", "webapi");
 const APP_DIST_DIR = path.join(WEBAPI_DIST_DIR, "app");
 const COMPILED_WEBAPI_JS = path.join(WEBAPI_DIST_DIR, "webapi_compiled.js");
@@ -104,10 +103,6 @@ async function main() {
 
   await fsp.mkdir(path.join(APP_DIST_DIR, "dist"), { recursive: true });
   await fsp.copyFile(COMPILED_WEBAPI_JS, path.join(APP_DIST_DIR, "dist", "webapi_compiled.js"));
-
-  if (await exists(AI_SRC_DIR)) {
-    await copyDirFiltered(AI_SRC_DIR, path.join(APP_DIST_DIR, "ai", "robot emperor"));
-  }
 
   const zipCode = await makeZip(WEBAPI_ZIP, APP_DIST_DIR);
   if (zipCode !== 0) process.exit(zipCode);

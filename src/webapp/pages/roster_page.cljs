@@ -21,15 +21,17 @@
    :add-title "Add New Character"
    :teaser-title "Add New Character"
    :teaser-sub "Create a character profile with image frames"
+   :search-placeholder "Search characters..."
+   :empty-label "No characters match this search."
    :saga-back-label nil})
 
-(defn roster-page [saga-name roster active-frame-id new-character-name new-character-description new-character-panel-open?]
+(defn roster-page [selected-roster saga-name roster-characters active-frame-id new-character-name new-character-description new-character-panel-open?]
   (let [safe-saga-name (or saga-name "Saga")
-        title (str safe-saga-name " roster")]
+        title (or (:name selected-roster) "Roster")]
     [gallery-page/collection-page (assoc roster-config
                                          :page-title title
                                          :saga-back-label (str "Back to " safe-saga-name))
-   roster
+   roster-characters
    active-frame-id
    {:name new-character-name
     :description new-character-description}
