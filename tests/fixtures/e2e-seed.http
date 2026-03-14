@@ -1,16 +1,33 @@
 @base = {{$processEnv ROBOGENE_API_BASE}}
 
-### Read current state to pick the default saga
-# @name state
-GET {{base}}/api/state
+### Create a test saga
+# @name createSaga
+POST {{base}}/api/add-saga
+Content-Type: application/json
 
-### Seed one chapter and its first frame
+{
+  "name": "Smoke Test Saga",
+  "description": "A test saga for E2E runs"
+}
+
+### Create a roster for the saga
+# @name createRoster
+POST {{base}}/api/add-roster
+Content-Type: application/json
+
+{
+  "name": "Test Roster",
+  "description": "A roster for E2E runs"
+}
+
+### Seed one chapter for the created saga and roster
 # @name createChapter
 POST {{base}}/api/add-chapter
 Content-Type: application/json
 
 {
-  "sagaId": "{{state.sagas.0.sagaId}}",
+  "sagaId": "{{createSaga.saga.sagaId}}",
+  "rosterId": "{{createRoster.rosterEntity.characterId}}",
   "name": "Smoke Chapter",
   "description": "A deterministic chapter for local E2E runs."
 }

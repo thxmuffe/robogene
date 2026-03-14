@@ -192,6 +192,19 @@
     {:chapter entity
      :frame frame}))
 
+(defn add-chapter-with-saga-roster! [saga-id roster-id name description]
+  (let [saga-meta (:sagaMeta @state)]
+    (when-not (and saga-meta (= (:sagaId saga-meta) saga-id))
+      (throw (js/Error. "Saga not found.")))
+    (let [roster (entity-by-id (:roster @state) :characterId roster-id)]
+      (when-not roster
+        (throw (js/Error. "Roster not found.")))
+      (add-chapter-with-details! name description))))
+
+(defn add-roster! [name description]
+  (let [{:keys [entity frame]} (add-entity! "character" name description)]
+    entity))
+
 (defn add-character-with-details! [name description]
   (let [{:keys [entity frame]} (add-entity! "character" name description)]
     {:character entity
@@ -255,6 +268,23 @@
                                    :description normalized-description})
                  (update :revision inc))))
     (:sagaMeta @state)))
+
+(defn add-saga! [name description]
+  (let [saga-id (new-uuid)]
+    (let [normalized-name (some-> (or name "") str str/trim)
+          normalized-description (or (some-> (or description "") str str/trim) "")]
+      (when (str/blank? normalized-name)
+        (throw (js/Error. "Missing saga name.")))
+      (swap! state
+             (fn [s]
+               (-> s
+                   (assoc :sagaMeta {:sagaId saga-id
+                                     :name normalized-name
+                                     :description normalized-description})
+                   (update :revision inc))))
+      {:sagaId saga-id
+       :name normalized-name
+       :description normalized-description})))
 
 (defn normalize-entity [entity-label entity]
   (let [name (some-> (or (:name entity) (:description entity)) str str/trim)
@@ -387,8 +417,10 @@
                  (assoc :failedJobs (vec (:failedJobs persisted)))
                  (assoc :sagaMeta (let [meta* (:sagaMeta persisted)
                                         name (some-> (or (:name meta*) "Robot Emperor") str str/trim not-empty)
-                                        description (some-> (or (:description meta*) "") str str/trim)]
-                                    {:name (or name "Robot Emperor")
+                                        description (some-> (or (:description meta*) "") str str/trim)
+                                        saga-id (or (:sagaId meta*) "")]
+                                    {:sagaId saga-id
+                                     :name (or name "Robot Emperor")
                                      :description (or description "")}))
                  (assoc :saga (->> (or (:saga persisted) [])
                                    (map #(normalize-entity "chapter" %))

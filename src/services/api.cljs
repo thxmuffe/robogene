@@ -395,7 +395,7 @@
            (json-response 400 {:error "Missing rosterId."} request)
            (run-command
             request
-            {:run! #(chapter/add-chapter-with-details! saga-id roster-id name description)
+            {:run! #(chapter/add-chapter-with-saga-roster! saga-id roster-id name description)
              :reason "chapter-added"
              :default-error "Create chapter failed."
              :status-by-message {"Saga not found." 404
