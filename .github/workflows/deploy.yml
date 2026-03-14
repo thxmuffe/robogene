@@ -53,7 +53,6 @@ jobs:
           test -f /tmp/robogene-webapi-smoke/host.json
           test -f /tmp/robogene-webapi-smoke/dist/main.js
           test -f /tmp/robogene-webapi-smoke/dist/webapi_compiled.js
-          test -f "/tmp/robogene-webapi-smoke/ai/robot emperor/references/robot_emperor_ep22_p01.png"
           (
             cd /tmp/robogene-webapi-smoke
             AzureWebJobsStorage='UseDevelopmentStorage=true' \
