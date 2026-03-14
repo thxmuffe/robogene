@@ -252,6 +252,24 @@ h2 { margin: 24px 0 10px; }
   grid-template-columns: repeat(var(--cols), minmax(0, var(--card-width)));
 }
 
+.index-page {
+  --card-width: 216px;
+  --card-gap: 12px;
+  width: 100%;
+  max-width: none;
+}
+
+.index-page .collection-header,
+.index-page .index-grid,
+.index-page .collection-add-region {
+  width: 100%;
+}
+
+.index-page .index-grid {
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), var(--card-width)));
+  justify-content: center;
+}
+
 .index-card {
   display: flex;
   flex-direction: column;
@@ -259,17 +277,38 @@ h2 { margin: 24px 0 10px; }
   border-radius: 18px;
   overflow: hidden;
   background: rgba(255, 250, 241, 0.92);
+  border: 1px solid transparent;
   box-shadow: 0 12px 28px rgba(40, 27, 10, 0.12);
   cursor: pointer;
 }
 
+.index-card.is-saga {
+  border-color: rgba(199, 176, 119, 0.95);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 245, 214, 0.46),
+    0 0 0 1px rgba(223, 205, 154, 0.92),
+    0 0 0 4px rgba(188, 171, 132, 0.34),
+    0 10px 26px rgba(54, 39, 16, 0.14),
+    0 0 24px rgba(240, 225, 180, 0.28);
+}
+
 .index-card.is-chapter {
   background: rgba(252, 247, 237, 0.96);
+  border-color: rgba(146, 177, 107, 0.95);
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 247, 221, 0.42),
+    0 0 0 1px rgba(201, 220, 162, 0.9),
+    0 0 0 4px rgba(163, 193, 122, 0.28),
+    0 10px 24px rgba(47, 58, 26, 0.12),
+    0 0 18px rgba(191, 209, 145, 0.2);
 }
 
 .index-card-media {
   aspect-ratio: 16 / 10;
   background: linear-gradient(145deg, rgba(238, 226, 202, 0.9), rgba(220, 205, 174, 0.78));
+  display: grid;
+  place-items: stretch;
+  overflow: hidden;
 }
 
 .index-card-image,
@@ -289,6 +328,54 @@ h2 { margin: 24px 0 10px; }
     linear-gradient(135deg, rgba(112, 86, 38, 0.14), rgba(57, 41, 18, 0.08));
 }
 
+.index-mini-gallery {
+  width: 100%;
+  height: 100%;
+  align-content: stretch;
+  border-radius: 0;
+  background: transparent;
+}
+
+.index-card .roster-nav-btn-grid.index-mini-gallery {
+  width: 100%;
+  height: 100%;
+  gap: 3px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.index-card .roster-nav-btn-grid.index-mini-gallery.is-row {
+  height: 100%;
+}
+
+.index-card .roster-nav-btn-grid.index-mini-gallery.is-count-1 {
+  width: 100%;
+}
+
+.index-card .roster-nav-btn-grid.index-mini-gallery.is-row.is-count-2 {
+  width: 100%;
+}
+
+.index-mini-gallery-cell {
+  min-height: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.index-mini-gallery-cell.is-empty {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.28), transparent 28%),
+    linear-gradient(135deg, rgba(112, 86, 38, 0.12), rgba(57, 41, 18, 0.06));
+}
+
+.index-mini-gallery-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .index-card-body {
   padding: 14px 16px 8px;
   display: flex;
@@ -296,40 +383,33 @@ h2 { margin: 24px 0 10px; }
   gap: 8px;
 }
 
-.index-card-topline {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(73, 53, 23, 0.78);
-}
-
-.index-card-kind,
-.index-card-saga {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .index-card-title {
   margin: 0;
-  font-size: 1.05rem;
-  line-height: 1.2;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.index-card-title.saga-title {
   color: #143b5c;
+  font-size: 1.35rem;
+  line-height: 1.04;
+  letter-spacing: 0.02em;
+  font-weight: 900;
+}
+
+.index-card-title.chapter-name {
+  width: 100%;
+  color: #111827;
+  font-size: 1.18rem;
+  line-height: 1.2;
+  font-weight: 700;
 }
 
 .index-card-description {
   margin: 0;
   color: rgba(38, 27, 14, 0.78);
   line-height: 1.45;
-}
-
-.index-card-actions {
-  margin-top: auto;
-  padding: 0 12px 12px;
 }
 
 .saga-meta-header {

@@ -101,30 +101,29 @@
         (interaction/closest? active-el "[role='dialog'][aria-modal='true']")
         (interaction/closest? active-el "[role='menu'], .mantine-Menu-dropdown"))))
 
-(defn- ordered-character-frames [frames character-id]
+(defn- ordered-owner-frames [frames owner-id owner-type]
   (->> (or frames [])
        (filter (fn [frame]
-                 (and (= "character" (str (or (:ownerType frame) "saga")))
-                      (= (:chapterId frame) character-id))))
+                 (and (= (str owner-type) (str (or (:ownerType frame) "saga")))
+                      (= (:chapterId frame) owner-id))))
        (sort-by (fn [frame]
                   [(or (:frameNumber frame) js/Number.MAX_SAFE_INTEGER)
                    (or (:createdAt frame) "")
                    (or (:frameId frame) "")]))))
 
-(defn- roster-button-image-urls [roster frames]
-  (let [character-ids (->> (or roster [])
-                           (keep :characterId)
-                           (take 4))
-        urls-by-character (mapv (fn [character-id]
-                                  (->> (ordered-character-frames frames character-id)
+(defn- owner-button-image-urls [owner-ids frames owner-type]
+  (let [owner-ids (->> (or owner-ids [])
+                       (take 4))
+        urls-by-owner (mapv (fn [owner-id]
+                              (->> (ordered-owner-frames frames owner-id owner-type)
                                        (keep (fn [frame]
                                                (some-> (:imageUrl frame) str/trim not-empty)))
                                        (take 3)
                                        vec))
-                                character-ids)
-        max-depth (apply max 0 (map count urls-by-character))]
+                            owner-ids)
+        max-depth (apply max 0 (map count urls-by-owner))]
     (->> (for [depth (range max-depth)
-               urls urls-by-character
+               urls urls-by-owner
                :let [url (nth urls depth nil)]
                :when url]
            url)
@@ -134,7 +133,7 @@
 (defn roster-nav-button []
   (let [roster @(rf/subscribe [:roster])
         frames @(rf/subscribe [:gallery-items])
-        image-urls (roster-button-image-urls roster frames)
+        image-urls (owner-button-image-urls (keep :characterId roster) frames "character")
         image-count (count image-urls)
         single-row? (< image-count 3)
         visible-cell-count (if single-row?
@@ -160,6 +159,26 @@
                    :src image-url
                    :alt ""}])])]
       [:span.roster-nav-btn-label "Roster"]]]))
+
+(defn mini-gallery-grid [image-urls label]
+  (let [image-count (count image-urls)
+        single-row? (< image-count 3)
+        visible-cell-count (if single-row?
+                             (max 1 image-count)
+                             4)
+        cells (concat image-urls (repeat nil))]
+    [:span {:className (str "roster-nav-btn-grid"
+                            " index-mini-gallery"
+                            (when single-row? " is-row")
+                            (str " is-count-" visible-cell-count))}
+     (for [[idx image-url] (map-indexed vector (take visible-cell-count cells))]
+       ^{:key (str label "-mini-gallery-cell-" idx)}
+       [:span {:className (str "roster-nav-btn-cell index-mini-gallery-cell"
+                               (when-not image-url " is-empty"))}
+        (when image-url
+          [:img {:className "roster-nav-btn-cell-image index-mini-gallery-image"
+                 :src image-url
+                 :alt ""}])])]))
 
 (defn entity-actions [{:keys [entity-id entity-label singular-label]}]
   (r/with-let [confirm* (r/atom nil)
@@ -579,41 +598,46 @@
            vec))))
 
 (defn index-card [entry]
-  (let [{:keys [kind id saga-id saga-name name description image-url]} entry
+  (let [{:keys [kind id name description image-url]} entry
         chapter? (= :chapter kind)
+        frames @(rf/subscribe [:gallery-items])
+        chapter-ids (when-not chapter?
+                      (map :chapterId @(rf/subscribe [:chapters-by-saga-id id])))
+        saga-image-urls (when-not chapter?
+                          (owner-button-image-urls chapter-ids frames "saga"))
         click-handler (fn []
                         (if chapter?
                           (rf/dispatch [:navigate-chapter-page id])
                           (rf/dispatch [:navigate-saga-page id])))]
     [:article
-     {:className (str "index-card" (when chapter? " is-chapter"))
+     {:className (str "index-card " (if chapter? "is-chapter" "is-saga"))
       :role "button"
       :tabIndex 0
       :onClick click-handler
-      :onKeyDown (fn [e]
+     :onKeyDown (fn [e]
                    (when (or (= "Enter" (.-key e))
                              (= " " (.-key e)))
                      (interaction/prevent! e)
                      (click-handler)))}
      [:div.index-card-media
-      (if (and chapter? (seq (or image-url "")))
-        [:img {:className "index-card-image"
-               :src image-url
-               :alt (str name " preview")}]
+      (cond
+        chapter?
+        (if (seq (or image-url ""))
+          [:img {:className "index-card-image"
+                 :src image-url
+                 :alt (str name " preview")}]
+          [:div.index-card-placeholder])
+
+        (seq saga-image-urls)
+        [mini-gallery-grid saga-image-urls (str "saga-" id)]
+
+        :else
         [:div.index-card-placeholder])]
      [:div.index-card-body
-      [:div.index-card-topline
-       [:span.index-card-kind (if chapter? "Chapter" "Saga")]
-       (when chapter?
-         [:span.index-card-saga saga-name])]
-      [:h3.index-card-title name]
+      [:h3 {:className (str "index-card-title " (if chapter? "chapter-name" "saga-title"))}
+       name]
       (when (seq (str/trim (or description "")))
-        [:p.index-card-description description])]
-     [:div.index-card-actions
-      [entity-actions
-       {:entity-id id
-        :entity-label (if chapter? "chapter" "saga")
-        :singular-label (if chapter? "chapter" "saga")}]]]))
+        [:p.index-card-description description])]]))
 
 (defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})

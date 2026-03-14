@@ -10,7 +10,7 @@
             [webapp.shared.events.handlers.gallery]
             [webapp.shared.events.handlers.frame-page]
             [webapp.shared.events.handlers.saga]
-            [webapp.shared.events.handlers.frames]
+            [webapp.shared.events.handlers.frames :as frames]
             [webapp.shared.model :as model]))
 
 (defn push-wait-lights-event [db kind message]
@@ -121,7 +121,8 @@
                          (fn [ids]
                            (if (nil? ids)
                              chapter-ids
-                             (set (filter chapter-ids ids))))))})))))
+                             (set (filter chapter-ids ids)))))
+              (frames/reapply-pending-commands))})))))
 
 (rf/reg-event-fx
  :set-active-frame
