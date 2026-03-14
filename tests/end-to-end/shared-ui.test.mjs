@@ -88,20 +88,10 @@ async function runSeedScript({ apiBase, fixturePath, logStep }) {
   if (!fixturePath || !fs.existsSync(fixturePath)) return {};
   logStep('seed', `running ${fixturePath}`);
   
-  let seedOutput = '';
   const script = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['httpyac', 'send', path.resolve(fixturePath), '--all'], {
     cwd: process.cwd(),
     env: { ...process.env, ROBOGENE_API_BASE: apiBase },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  
-  script.stdout.on('data', (chunk) => {
-    seedOutput += chunk.toString();
-    process.stdout.write(chunk);
-  });
-  script.stderr.on('data', (chunk) => {
-    seedOutput += chunk.toString();
-    process.stderr.write(chunk);
+    stdio: ['ignore', 'inherit', 'inherit'],
   });
   
   const exitCode = await new Promise((resolve, reject) => {
@@ -113,14 +103,24 @@ async function runSeedScript({ apiBase, fixturePath, logStep }) {
   }
   logStep('seed', 'done');
   
-  // Extract IDs from seed output
-  const sagaIdMatch = seedOutput.match(/"sagaId"\s*:\s*"([^"]+)"/);
-  const rosterIdMatch = seedOutput.match(/"characterId"\s*:\s*"([^"]+)"/);
+  // Fetch state from backend and extract first saga and roster IDs
+  const stateResponse = await fetch(`${apiBase}/api/state`);
+  if (!stateResponse.ok) {
+    throw new Error(`Failed to fetch state: ${stateResponse.statusText}`);
+  }
+  const state = await stateResponse.json();
   
-  return {
-    sagaId: sagaIdMatch ? sagaIdMatch[1] : null,
-    rosterId: rosterIdMatch ? rosterIdMatch[1] : null,
-  };
+  const sagas = state.sagaMeta ? Object.values(state.sagaMeta) : [];
+  const sagaId = sagas.length > 0 ? sagas[0].sagaId : null;
+  
+  // Rosters are stored in the chapter collection, find first roster
+  const chapters = state.saga ? Object.values(state.saga) : [];
+  const firstChapterWithRoster = chapters.find(chapter => chapter.rosterId);
+  const rosterId = firstChapterWithRoster?.rosterId || null;
+  
+  logStep('seed', `extracted sagaId: ${sagaId}, rosterId: ${rosterId}`);
+  
+  return { sagaId, rosterId };
 }
 
 function spawnLoggedProcess(command, args, options, appLogs) {
