@@ -85,13 +85,25 @@ async function forceStopApp(children) {
 }
 
 async function runSeedScript({ apiBase, fixturePath, logStep }) {
-  if (!fixturePath || !fs.existsSync(fixturePath)) return;
+  if (!fixturePath || !fs.existsSync(fixturePath)) return {};
   logStep('seed', `running ${fixturePath}`);
+  
+  let seedOutput = '';
   const script = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['httpyac', 'send', path.resolve(fixturePath), '--all'], {
     cwd: process.cwd(),
     env: { ...process.env, ROBOGENE_API_BASE: apiBase },
-    stdio: ['ignore', 'inherit', 'inherit'],
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  
+  script.stdout.on('data', (chunk) => {
+    seedOutput += chunk.toString();
+    process.stdout.write(chunk);
+  });
+  script.stderr.on('data', (chunk) => {
+    seedOutput += chunk.toString();
+    process.stderr.write(chunk);
+  });
+  
   const exitCode = await new Promise((resolve, reject) => {
     script.on('exit', resolve);
     script.on('error', reject);
@@ -100,6 +112,15 @@ async function runSeedScript({ apiBase, fixturePath, logStep }) {
     throw new Error(`Seed script failed with exit code ${exitCode}.`);
   }
   logStep('seed', 'done');
+  
+  // Extract IDs from seed output
+  const sagaIdMatch = seedOutput.match(/"sagaId"\s*:\s*"([^"]+)"/);
+  const rosterIdMatch = seedOutput.match(/"characterId"\s*:\s*"([^"]+)"/);
+  
+  return {
+    sagaId: sagaIdMatch ? sagaIdMatch[1] : null,
+    rosterId: rosterIdMatch ? rosterIdMatch[1] : null,
+  };
 }
 
 function spawnLoggedProcess(command, args, options, appLogs) {
@@ -186,7 +207,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     logStep('suite', 'web app is reachable');
     await waitForHttpOk(`http://localhost:${apiPort}/api/state`, startupTimeoutMs);
     logStep('suite', 'api is reachable');
-    await runSeedScript({
+    const seedIds = await runSeedScript({
       apiBase: `http://localhost:${apiPort}`,
       fixturePath: process.env.ROBOGENE_E2E_SEED_FILE,
       logStep,
@@ -227,15 +248,9 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
       };
     };
 
-    const ctx = { openPage, actionTimeoutMs, logStep };
-    let smokeError = null;
+    const ctx = { openPage, actionTimeoutMs, logStep, seedIds };
     await t.test('ui e2e: smoke app boots and shows first frame', async () => {
-      try {
-        await runSmokeScenario(ctx);
-      } catch (err) {
-        smokeError = err;
-        throw err;
-      }
+      await runSmokeScenario(ctx);
     });
     await t.test('ui e2e: gallery add frame and generate image', async () => {
       await runGalleryScenario(ctx);
@@ -252,9 +267,6 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await t.test('ui e2e: roster add character and generate image', async () => {
       await runRosterGenerateScenario(ctx);
     });
-    if (smokeError) {
-      throw smokeError;
-    }
   } catch (err) {
     suiteFailed = true;
     throw new Error(`${String(err.message || err)}\n\nRecent app logs:\n${appLogs.get()}`);

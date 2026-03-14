@@ -2,18 +2,21 @@ import assert from 'node:assert/strict';
 
 const generationTimeoutMs = 15000;
 
-export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('roster-generate');
   try {
-    logStep('roster-generate', 'opening roster');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    logStep('roster-generate', 'navigating to roster page');
+    if (!seedIds?.rosterId || !seedIds?.sagaId) {
+      throw new Error('Roster ID or Saga ID not found in seed response');
+    }
+    await page.goto(`/#/roster/${encodeURIComponent(seedIds.rosterId)}?sagaId=${encodeURIComponent(seedIds.sagaId)}`, {
+      waitUntil: 'domcontentloaded',
+    });
 
     const stamp = Date.now();
     const characterName = `Bill ${stamp}`;
 
-    await page.getByRole('button', { name: 'Open roster' }).waitFor({ timeout: actionTimeoutMs });
-    await page.getByRole('button', { name: 'Open roster' }).click();
-    logStep('roster-generate', 'roster opened');
+    logStep('roster-generate', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();

@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 
-export async function runSmokeScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runSmokeScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('smoke');
   try {
-    logStep('smoke', 'opening gallery');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.getByRole('heading', { name: 'RoboGene' }).waitFor({ timeout: actionTimeoutMs });
+    logStep('smoke', 'navigating to saga page');
+    if (!seedIds?.sagaId) {
+      throw new Error('Saga ID not found in seed response');
+    }
+    await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
+
+    logStep('smoke', 'waiting for RoboGene content');
+    await page.getByText('RoboGene').waitFor({ timeout: actionTimeoutMs });
 
     logStep('smoke', 'expanding first chapter');
     await page.locator('.chapter-separator-toggle').first().click();

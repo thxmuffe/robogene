@@ -1,17 +1,20 @@
-export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('roster-persist');
   try {
-    logStep('roster-persist', 'opening roster');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    logStep('roster-persist', 'navigating to roster page');
+    if (!seedIds?.rosterId || !seedIds?.sagaId) {
+      throw new Error('Roster ID or Saga ID not found in seed response');
+    }
+    await page.goto(`/#/roster/${encodeURIComponent(seedIds.rosterId)}?sagaId=${encodeURIComponent(seedIds.sagaId)}`, {
+      waitUntil: 'domcontentloaded',
+    });
 
     const stamp = Date.now();
     const characterName = `Bill ${stamp}`;
     const initialDesc = 'Initial alias text';
     const updatedDesc = `Updated character description ${stamp}`;
 
-    await page.getByRole('button', { name: 'Open roster' }).waitFor({ timeout: actionTimeoutMs });
-    await page.getByRole('button', { name: 'Open roster' }).click();
-    logStep('roster-persist', 'roster opened');
+    logStep('roster-persist', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
