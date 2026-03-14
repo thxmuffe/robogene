@@ -125,6 +125,23 @@
     (assoc db :last-rendered-revision revision)
     db))
 
+(defn update-saga-row [rows saga-id f]
+  (mapv (fn [row]
+          (if (= (:sagaId row) saga-id)
+            (f row)
+            row))
+        (or rows [])))
+
+(defn add-saga-row [db saga]
+  (-> db
+      (update :sagas (fn [rows] (conj (vec (or rows [])) saga)))
+      (update-in [:latest-state :sagas] (fn [rows] (conj (vec (or rows [])) saga)))))
+
+(defn remove-saga-row [rows saga-id]
+  (->> (or rows [])
+       (remove (fn [row] (= (:sagaId row) saga-id)))
+       vec))
+
 (defn entity-meta [entity-label]
   (if (= "character" (str entity-label))
     {:list-key :roster
@@ -216,6 +233,9 @@
       :update-frame-description
       {:post-update-frame-description (merge payload callbacks)}
 
+      :add-saga
+      {:post-add-saga (merge payload callbacks)}
+
       :add-chapter
       {:post-add-chapter (merge payload callbacks)}
 
@@ -230,6 +250,9 @@
 
       :update-saga
       {:post-update-saga (merge payload callbacks)}
+
+      :delete-saga
+      {:post-delete-saga (merge payload callbacks)}
 
       :delete-chapter
       {:post-delete-chapter (merge payload callbacks)}
@@ -276,6 +299,23 @@
       {:db (-> db-with-status
                (merge-command-revision command)
                (merge-frame-response (get-in command [:response :frame])))}
+
+      :add-saga
+      (let [temp-id (get-in command [:payload :optimistic-saga-id])
+            created-saga (:saga (:response command))]
+        {:db (-> db-with-status
+                 (merge-command-revision command)
+                 (update :sagas update-saga-row temp-id
+                         (fn [_]
+                           (or created-saga
+                               {:sagaId temp-id})))
+                 (update-in [:latest-state :sagas] update-saga-row temp-id
+                            (fn [_]
+                              (or created-saga
+                                  {:sagaId temp-id})))
+                 (assoc-in [:view-state :index :new-name] "")
+                 (assoc-in [:view-state :index :new-description] "")
+                 (assoc-in [:view-state :index :new-panel-open?] false))})
 
       :add-chapter
       {:db (-> db-with-status
@@ -350,6 +390,35 @@
                          command))))
 
 (rf/reg-event-fx
+ :upload-chapter-images
+ (fn [{:keys [db]} [_ chapter-id image-data-urls]]
+   (let [image-count (count (or image-data-urls []))]
+     (if (or (str/blank? (or chapter-id ""))
+             (zero? image-count))
+       {:db db}
+       {:db (assoc db :status (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "..."))
+        :post-add-uploaded-frames {:chapter-id chapter-id
+                                   :image-data-urls image-data-urls
+                                   :on-success [:upload-chapter-images/succeeded chapter-id]
+                                   :on-failure [:upload-chapter-images/failed chapter-id]}}))))
+
+(rf/reg-event-fx
+ :upload-chapter-images/succeeded
+ (fn [{:keys [db]} [_ _chapter-id response]]
+   (let [first-frame-id (some-> response :frames first :frameId)]
+     (if first-frame-id
+       {:db (assoc db :status "Images uploaded.")
+        :dispatch-n [[:set-active-frame first-frame-id]
+                     [:fetch-state]]}
+       {:db (assoc db :status "Images uploaded.")
+        :dispatch [:fetch-state]}))))
+
+(rf/reg-event-db
+ :upload-chapter-images/failed
+ (fn [db [_ _chapter-id error-message]]
+   (assoc db :status (or error-message "Upload images failed."))))
+
+(rf/reg-event-fx
  :delete-frame
   (fn [{:keys [db]} [_ frame-id]]
      (let [frame (frame-by-id db frame-id)
@@ -416,11 +485,31 @@
                          command))))
 
 (rf/reg-event-fx
+:enqueue-add-saga
+ (fn [{:keys [db]} [_ name description]]
+   (let [command-id (sync/next-command-id)
+         optimistic-saga-id (str "temp-saga-" command-id)
+         next-saga-number (inc (reduce max 0 (map :sagaNumber (or (:sagas db) []))))
+         optimistic-saga {:sagaId optimistic-saga-id
+                          :sagaNumber next-saga-number
+                          :name name
+                          :description (or description "")
+                          :createdAt (.toISOString (js/Date.))}
+         command {:id command-id
+                  :kind :add-saga
+                  :payload {:name name
+                            :optimistic-saga-id optimistic-saga-id
+                            :description description}
+                  :success-status "Saga created."}]
+     (sync/queue-command (add-saga-row db optimistic-saga) "Creating saga..." command))))
+
+(rf/reg-event-fx
 :enqueue-add-chapter
-  (fn [{:keys [db]} [_ name description]]
+  (fn [{:keys [db]} [_ saga-id name description]]
    (let [command {:id (sync/next-command-id)
                   :kind :add-chapter
-                  :payload {:name name
+                  :payload {:saga-id saga-id
+                            :name name
                             :description description}
                   :success-status "Chapter created."}]
      (sync/queue-command db "Creating chapter..." command))))
@@ -465,20 +554,73 @@
 
 (rf/reg-event-fx
  :update-saga
- (fn [{:keys [db]} [_ name description]]
+ (fn [{:keys [db]} [_ saga-id name description]]
    (let [normalized-name (some-> (or name "") str str/trim)
          normalized-description (some-> (or description "") str)
          command {:id (sync/next-command-id)
                   :kind :update-saga
-                  :payload {:name normalized-name
+                  :payload {:saga-id saga-id
+                            :name normalized-name
                             :description normalized-description}
                   :success-status "Saga updated."}]
-     (if (str/blank? (or normalized-name ""))
+     (if (or (str/blank? (or saga-id ""))
+             (str/blank? (or normalized-name "")))
        {:db db}
-       (sync/queue-command (assoc db :saga-meta {:name normalized-name
-                                                  :description (or normalized-description "")})
+       (sync/queue-command (-> db
+                               (update :sagas update-saga-row saga-id
+                                       (fn [saga]
+                                         (assoc saga
+                                                :name normalized-name
+                                                :description (or normalized-description ""))))
+                               (update-in [:latest-state :sagas] update-saga-row saga-id
+                                          (fn [saga]
+                                            (assoc saga
+                                                   :name normalized-name
+                                                   :description (or normalized-description "")))))
                            "Updating saga..."
                            command)))))
+
+(rf/reg-event-fx
+ :delete-saga
+ (fn [{:keys [db]} [_ saga-id]]
+   (let [chapter-ids (->> (or (:saga db) [])
+                          (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
+                          (map :chapterId)
+                          set)
+         frame-ids (->> (or (:gallery-items db) [])
+                        (filter (fn [frame] (contains? chapter-ids (:chapterId frame))))
+                        (map :frameId)
+                        vec)
+         command {:id (sync/next-command-id)
+                  :kind :delete-saga
+                  :payload {:saga-id saga-id}
+                  :success-status "Saga deleted."}]
+     (sync/queue-command (-> db
+                             (update :sagas remove-saga-row saga-id)
+                             (update :saga (fn [rows]
+                                             (->> (or rows [])
+                                                  (remove (fn [row] (= (:sagaId row) saga-id)))
+                                                  vec)))
+                             (update :gallery-items (fn [rows]
+                                                      (->> (or rows [])
+                                                           (remove (fn [frame]
+                                                                     (contains? chapter-ids (:chapterId frame))))
+                                                           vec)))
+                             (update-in [:latest-state :sagas] remove-saga-row saga-id)
+                             (update-in [:latest-state :saga] (fn [rows]
+                                                                (->> (or rows [])
+                                                                     (remove (fn [row] (= (:sagaId row) saga-id)))
+                                                                     vec)))
+                             (update-in [:latest-state :frames] (fn [rows]
+                                                                  (->> (or rows [])
+                                                                       (remove (fn [frame]
+                                                                                 (contains? chapter-ids (:chapterId frame))))
+                                                                       vec)))
+                             (update :frame-drafts (fn [m] (apply dissoc (or m {}) frame-ids)))
+                             (update :open-frame-actions (fn [m] (apply dissoc (or m {}) frame-ids)))
+                             (update :image-ui-by-frame-id (fn [m] (reduce image-ui/remove-frame (or m {}) frame-ids))))
+                         "Deleting saga..."
+                         command))))
 
 (rf/reg-event-fx
  :delete-chapter

@@ -21,6 +21,8 @@
    :add-title "Add New Character"
    :teaser-title "Add New Character"
    :teaser-sub "Create a character profile with image frames"
+   :search-placeholder "Search characters..."
+   :empty-label "No characters match this search."
    :saga-back-label nil})
 
 (defn roster-page [saga-name roster active-frame-id new-character-name new-character-description new-character-panel-open?]

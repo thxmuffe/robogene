@@ -229,10 +229,21 @@
               (fn [ok status] (or ok (= 409 status))))))
 
 (rf/reg-fx
- :post-add-chapter
+ :post-add-saga
  (fn [{:keys [name description on-success on-failure]}]
-   (post-json "/api/add-chapter"
+   (post-json "/api/add-saga"
               {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-chapter
+ (fn [{:keys [saga-id name description on-success on-failure]}]
+   (post-json "/api/add-chapter"
+              {:sagaId saga-id
+               :name name
                :description description}
               on-success
               on-failure
@@ -255,6 +266,16 @@
               {:ownerType (or owner-type "saga")
                :chapterId (when (not= "character" (str owner-type)) owner-id)
                :characterId (when (= "character" (str owner-type)) owner-id)}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-add-uploaded-frames
+ (fn [{:keys [chapter-id image-data-urls on-success on-failure]}]
+   (post-json "/api/add-uploaded-frames"
+              {:chapterId chapter-id
+               :imageDataUrls image-data-urls}
               on-success
               on-failure
               (fn [ok _] ok))))
@@ -335,14 +356,24 @@
 
 (rf/reg-fx
  :post-update-saga
- (fn [{:keys [name description on-success on-failure]}]
+ (fn [{:keys [saga-id name description on-success on-failure]}]
    (post-json "/api/update-saga"
-              {:name name
+              {:sagaId saga-id
+               :name name
                :description description}
               on-success
               on-failure
               (fn [ok _] ok)
               {:keepalive true})))
+
+(rf/reg-fx
+ :post-delete-saga
+ (fn [{:keys [saga-id on-success on-failure]}]
+   (post-json "/api/delete-saga"
+              {:sagaId saga-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-delete-chapter

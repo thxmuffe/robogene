@@ -31,8 +31,13 @@ test('api mutation: add chapter works independently', async (t) => {
   try {
     const before = await getState(baseFromEnv);
     const beforeCount = (before.saga || []).length;
+    const targetSagaId = before.sagas?.[0]?.sagaId;
+    assert.ok(targetSagaId, 'state should expose at least one saga');
 
-    const { res, body } = await postJson(baseFromEnv, '/api/add-chapter', { description: unique });
+    const { res, body } = await postJson(baseFromEnv, '/api/add-chapter', {
+      sagaId: targetSagaId,
+      description: unique,
+    });
     assert.equal(res.status, 201, `POST /api/add-chapter -> HTTP ${res.status}`);
     assert.equal(body.created, true, 'response.created should be true');
     assert.ok(body.chapter && body.chapter.chapterId, 'response should include chapter.chapterId');

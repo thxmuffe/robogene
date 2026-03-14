@@ -2,10 +2,10 @@
   (:require [re-frame.core :as rf]
             [webapp.shared.model :as model]))
 
-(defn- from-page->hash [from-page]
+(defn- from-page->hash [from-page saga-id]
   (case from-page
-    :roster (model/roster-hash)
-    :saga (model/saga-hash)
+    :roster (model/roster-hash saga-id)
+    :saga (model/saga-hash saga-id)
     nil))
 
 (rf/reg-event-fx
@@ -13,42 +13,51 @@
  (fn [{:keys [db]} [_ chapter-id frame-id from-page]]
    (let [route (:route db)
          chapter (or chapter-id (:chapter route) (get-in db [:latest-state :chapterId]) "local")
-         from-page* (or from-page (:from-page route))]
+         from-page* (or from-page (:from-page route))
+         saga-id (or (get-in route [:saga-id])
+                     (some (fn [row]
+                             (when (= (:chapterId row) chapter)
+                               (:sagaId row)))
+                           (:saga db)))]
      {:db db
-      :set-hash (model/frame-hash chapter frame-id (true? (:fullscreen? route)) from-page*)})))
+      :set-hash (model/frame-hash chapter frame-id (true? (:fullscreen? route)) from-page* saga-id)})))
 
 (rf/reg-event-fx
  :navigate-index
  (fn [{:keys [db]} _]
    {:db db
-    :set-hash (model/saga-hash)}))
+    :set-hash (model/index-hash)}))
 
 (rf/reg-event-fx
  :navigate-from-page
  (fn [{:keys [db]} _]
-   (if-let [target (from-page->hash (get-in db [:route :from-page]))]
+   (if-let [target (from-page->hash (get-in db [:route :from-page])
+                                    (get-in db [:route :saga-id]))]
      {:db db
       :set-hash target}
      {:db db})))
 
 (rf/reg-event-fx
  :navigate-saga-page
- (fn [{:keys [db]} _]
+ (fn [{:keys [db]} [_ saga-id]]
    {:db db
-    :set-hash (model/saga-hash)}))
+    :set-hash (model/saga-hash (or saga-id (get-in db [:route :saga-id])))}))
 
 (rf/reg-event-fx
  :navigate-chapter-page
  (fn [{:keys [db]} [_ chapter-id]]
    {:db db
-    :set-hash (model/chapter-hash chapter-id)}))
+    :set-hash (model/chapter-hash chapter-id
+                                  (some (fn [row]
+                                          (when (= (:chapterId row) chapter-id)
+                                            (:sagaId row)))
+                                        (:saga db)))}))
 
 (rf/reg-event-fx
  :navigate-roster-page
- (fn [{:keys [db]} [_ saga-name]]
-   (let [route-saga-name (or saga-name (get-in db [:route :saga-name]))]
+ (fn [{:keys [db]} [_ saga-id]]
    {:db db
-    :set-hash (model/roster-hash route-saga-name)})))
+    :set-hash (model/roster-hash (or saga-id (get-in db [:route :saga-id])))}))
 
 (rf/reg-event-fx
  :navigate-relative-frame
@@ -59,7 +68,7 @@
              ordered (model/frames-for-chapter (:gallery-items db) chapter-id)
              active-frame-id (:frame-id route)
              target-frame (model/relative-frame-by-id ordered active-frame-id delta)]
-         (if target-frame
+       (if target-frame
            {:db db
             :dispatch [:navigate-frame chapter-id (:frameId target-frame) (:from-page route)]}
            {:db db}))
@@ -71,7 +80,11 @@
    (let [route (:route db)]
      (if (= :frame (:view route))
        {:db db
-        :set-hash (model/frame-hash (:chapter route) (:frame-id route) (true? fullscreen?) (:from-page route))}
+        :set-hash (model/frame-hash (:chapter route)
+                                    (:frame-id route)
+                                    (true? fullscreen?)
+                                    (:from-page route)
+                                    (:saga-id route))}
        {:db db}))))
 
 (rf/reg-event-fx
@@ -97,7 +110,8 @@
         :set-hash (model/frame-hash (:chapterId active-frame)
                                     (:frameId active-frame)
                                     (not fullscreen?)
-                                    (get-in db [:route :from-page]))}
+                                    (get-in db [:route :from-page])
+                                    (get-in db [:route :saga-id]))}
        {:db db}))))
 
 (rf/reg-event-fx

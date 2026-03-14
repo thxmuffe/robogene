@@ -17,11 +17,19 @@
     (set! (.-onload reader) (fn [_] (on-result (.-result reader))))
     (.readAsDataURL reader file)))
 
-(defn first-image-file [file-list]
-  (some (fn [file]
-          (when (str/starts-with? (or (.-type file) "") "image/")
-            file))
-        (array-seq file-list)))
+(defn file->data-url-promise [file]
+  (js/Promise.
+   (fn [resolve reject]
+     (let [reader (js/FileReader.)]
+       (set! (.-onload reader) (fn [_] (resolve (.-result reader))))
+       (set! (.-onerror reader) (fn [_] (reject (js/Error. "Image read failed."))))
+       (.readAsDataURL reader file)))))
+
+(defn image-files [file-list]
+  (->> (array-seq file-list)
+       (filter (fn [file]
+                 (str/starts-with? (or (.-type file) "") "image/")))
+       vec))
 
 (defn clipboard-read-supported? []
   (fn? (some-> js/navigator .-clipboard .-read)))
@@ -29,7 +37,7 @@
 (defn webcam-supported? []
   (fn? (some-> js/navigator .-mediaDevices .-getUserMedia)))
 
-(defn upload-dialog [{:keys [open on-close on-submit active-frame-id]}]
+(defn upload-dialog [{:keys [open on-close on-submit on-submit-many active-frame-id multiple? title]}]
   (r/with-let [drag-over?* (r/atom false)
                error* (r/atom nil)
                file-input-id (str "upload-input-" (random-uuid))
@@ -67,13 +75,34 @@
                           (reset! error* nil)
                           (on-submit image-data-url)
                           (on-close))
-          set-file! (fn [file]
-                      (if file
-                        (do
-                          (stop-webcam!)
-                          (reset! error* nil)
-                          (file->data-url file commit-image!))
-                        (reset! error* "Please provide an image file.")))
+          commit-images! (fn [image-data-urls]
+                           (stop-webcam!)
+                           (reset! error* nil)
+                           (if multiple?
+                             (when on-submit-many
+                               (on-submit-many image-data-urls))
+                             (when-let [first-image (first image-data-urls)]
+                               (on-submit first-image)))
+                           (on-close))
+          set-files! (fn [file-list]
+                       (let [files (image-files file-list)]
+                         (if (seq files)
+                           (do
+                             (stop-webcam!)
+                             (reset! error* nil)
+                             (if multiple?
+                               (-> (js/Promise.all (clj->js (map file->data-url-promise files)))
+                                   (.then (fn [results]
+                                            (commit-images! (vec (array-seq results)))))
+                                   (.catch (fn [err]
+                                             (reset! error* (or (some-> err .-message)
+                                                                "Image read failed.")))))
+                               (file->data-url (first files)
+                                               (fn [result]
+                                                 (commit-images! [result])))))
+                           (reset! error* (if multiple?
+                                           "Please provide image files."
+                                           "Please provide an image file.")))))
           start-webcam! (fn [e]
                           (interaction/halt! e)
                           (if-not (webcam-supported?)
@@ -106,15 +135,15 @@
                                     (set! (.-width canvas) width)
                                     (set! (.-height canvas) height)
                                     (.drawImage ctx video 0 0 width height)
-                                    (commit-image! (.toDataURL canvas "image/png")))))
+                                    (commit-images! [(.toDataURL canvas "image/png")]))))
                               (reset! error* "Camera is not ready yet.")))
           on-file-change (fn [e]
                            (interaction/stop! e)
-                           (set-file! (first-image-file (.. e -target -files))))
+                           (set-files! (.. e -target -files)))
           on-drop (fn [e]
                     (interaction/halt! e)
                     (reset! drag-over?* false)
-                    (set-file! (first-image-file (.. e -dataTransfer -files))))
+                    (set-files! (.. e -dataTransfer -files)))
           on-drag-over (fn [e]
                          (interaction/halt! e)
                          (reset! drag-over?* true))
@@ -129,7 +158,7 @@
                                             items)]
                        (when image-item
                          (interaction/halt! e)
-                         (set-file! (.getAsFile image-item)))))
+                         (set-files! #js [(.getAsFile image-item)]))))
           read-clipboard-image! (fn [e]
                                   (interaction/halt! e)
                                   (if-not (clipboard-read-supported?)
@@ -147,7 +176,7 @@
                                                    (if image-entry
                                                      (-> (.getType (.-item image-entry) (.-type image-entry))
                                                          (.then (fn [blob]
-                                                                  (set-file! blob))))
+                                                                  (set-files! #js [blob]))))
                                                      (do
                                                        (reset! error* "Clipboard does not contain an image.")
                                                        (some-> @surface-el* .focus))))))
@@ -187,7 +216,7 @@
                                    :color "grape"
                                    :on-select read-clipboard-image!}
                                   {:id :choose-file
-                                   :label "Choose file"
+                                   :label (if multiple? "Choose files" "Choose file")
                                    :icon FaFolderOpen
                                    :color "blue"
                                    :on-select #(open-file-picker! % file-input-id)}
@@ -196,7 +225,8 @@
                                    :icon FaCamera
                                    :color "cyan"
                                    :on-select #(open-file-picker! % camera-input-id)}]
-                           (webcam-supported?)
+                           (and (not multiple?)
+                                (webcam-supported?))
                            (conj {:id :webcam
                                   :label (if @webcam-open?* "Capture photo" "Use webcam")
                                   :icon FaVideo
@@ -236,7 +266,7 @@
          :onPointerCancel end-drag!
          :onPaste on-paste}
         [:div.upload-dialog-title-bar
-         [:h3.upload-dialog-title "Upload photo"]
+         [:h3.upload-dialog-title (or title (if multiple? "Upload images" "Upload photo"))]
          [:> ActionIcon
           {:className "upload-dialog-close"
            :aria-label "Close upload dialog"
@@ -249,6 +279,7 @@
          {:id file-input-id
           :type "file"
           :accept "image/*"
+          :multiple (true? multiple?)
           :onChange on-file-change}]
         [:input.upload-file-input
          {:id camera-input-id
@@ -283,7 +314,9 @@
            :else
            [:div.upload-image-placeholder
             [:> FaImage]
-            [:span "Drop, paste, or choose image"]])
+            [:span (if multiple?
+                     "Drop, paste, or choose images"
+                     "Drop, paste, or choose image")]])
          [:video.upload-webcam-buffer
           {:ref #(reset! video-el* %)
            :autoPlay true

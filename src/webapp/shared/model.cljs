@@ -1,10 +1,5 @@
 (ns webapp.shared.model
-  (:require [clojure.string :as str]
-            [webapp.pages.gallery-page :as gallery-page]))
-
-(defn default-saga-route-name []
-  (or (some-> gallery-page/saga-config :route-name str/trim not-empty)
-      "robot emperor"))
+  (:require [clojure.string :as str]))
 
 (defn frame-id-of [frame]
   (:frameId frame))
@@ -37,6 +32,13 @@
       (some? active-frame) active-frame
       :else first-frame)))
 
+(defn parse-query-param [query key]
+  (some-> (re-find (re-pattern (str "(^|&)" key "=([^&]+)")) query)
+          (nth 2 nil)
+          js/decodeURIComponent
+          str/trim
+          not-empty))
+
 (defn parse-hash-route [hash]
   (let [raw (or hash "")]
     (or
@@ -51,52 +53,59 @@
           :chapter chapter
           :frame-id frame
           :fullscreen? fullscreen?
-          :from-page from-page}))
-     (when-let [[_ chapter] (re-matches #"^#/chapter/([^/?#]+)(?:\?.*)?$" raw)]
+          :from-page from-page
+          :saga-id (parse-query-param query* "sagaId")}))
+     (when-let [[_ chapter query] (re-matches #"^#/chapter/([^/?#]+)(?:\?(.*))?$" raw)]
        {:view :chapter
-        :chapter chapter})
+        :chapter chapter
+        :saga-id (parse-query-param (or query "") "sagaId")})
      (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
-       (let [query* (or query "")
-             saga-name (some-> (re-find #"(^|&)saga=([^&]+)" query*)
-                               (nth 2 nil)
-                               js/decodeURIComponent
-                               str/trim
-                               not-empty)]
+       (let [query* (or query "")]
          {:view :roster
-          :saga-name (or saga-name (default-saga-route-name))}))
-     (when-let [[_ saga-name] (re-matches #"^#/([^/?#][^?#]*)/?$" raw)]
+          :saga-id (parse-query-param query* "sagaId")}))
+     (when-let [[_ saga-id] (re-matches #"^#/saga/([^/?#]+)(?:\?.*)?$" raw)]
        {:view :saga
-        :saga-name (or (some-> saga-name js/decodeURIComponent str/trim not-empty)
-                       (default-saga-route-name))})
+        :saga-id (some-> saga-id js/decodeURIComponent str/trim not-empty)})
      (when (or (str/blank? raw)
                (re-matches #"^#/?$" raw))
-       {:view :saga
-        :saga-name (default-saga-route-name)})
-     {:view :saga
-      :saga-name (default-saga-route-name)})))
+       {:view :index})
+     {:view :index})))
 
-(defn saga-hash
-  ([] (saga-hash (default-saga-route-name)))
-  ([saga-name]
-   (str "#/" (js/encodeURIComponent (or saga-name (default-saga-route-name))))))
+(defn index-hash []
+  "#/")
+
+(defn saga-hash [saga-id]
+  (if (str/blank? (or saga-id ""))
+    (index-hash)
+    (str "#/saga/" (js/encodeURIComponent saga-id))))
 
 (defn roster-hash
-  ([] (roster-hash (default-saga-route-name)))
-  ([saga-name]
-   (str "#/roster?saga=" (js/encodeURIComponent (or saga-name (default-saga-route-name))))))
+  ([] (roster-hash nil))
+  ([saga-id]
+   (if (str/blank? (or saga-id ""))
+     "#/roster"
+     (str "#/roster?sagaId=" (js/encodeURIComponent saga-id)))))
 
-(defn chapter-hash [chapter-id]
-  (str "#/chapter/" chapter-id))
+(defn chapter-hash
+  ([chapter-id]
+   (chapter-hash chapter-id nil))
+  ([chapter-id saga-id]
+   (str "#/chapter/" chapter-id
+        (when-not (str/blank? (or saga-id ""))
+          (str "?sagaId=" (js/encodeURIComponent saga-id))))))
 
 (defn frame-hash
   ([chapter frame-id]
-   (frame-hash chapter frame-id false nil))
+   (frame-hash chapter frame-id false nil nil))
   ([chapter frame-id fullscreen?]
-   (frame-hash chapter frame-id fullscreen? nil))
+   (frame-hash chapter frame-id fullscreen? nil nil))
   ([chapter frame-id fullscreen? from-page]
+   (frame-hash chapter frame-id fullscreen? from-page nil))
+  ([chapter frame-id fullscreen? from-page saga-id]
    (let [query-parts (cond-> []
                        fullscreen? (conj "fullscreen=1")
-                       (#{:saga :roster} from-page) (conj (str "from=" (name from-page))))
+                       (#{:saga :roster} from-page) (conj (str "from=" (name from-page)))
+                       (not (str/blank? (or saga-id ""))) (conj (str "sagaId=" (js/encodeURIComponent saga-id))))
          query (when (seq query-parts)
                  (str "?" (str/join "&" query-parts)))]
      (str "#/chapter/" chapter "/frame/" frame-id (or query "")))))
@@ -138,6 +147,15 @@
                      (assoc acc map-key row))))
                {})
        vals))
+
+(defn derived-sagas [state]
+  (->> (or (:sagas state) [])
+       (dedupe-by-id :sagaId)
+       (sort-by (fn [saga]
+                  [(or (:sagaNumber saga) js/Number.MAX_SAFE_INTEGER)
+                   (or (:createdAt saga) "")
+                   (or (:sagaId saga) "")]))
+       vec))
 
 (defn derived-saga [state]
   (->> (or (:saga state) [])
@@ -181,7 +199,8 @@
                     chapter-id))
 
 (defn derived-state [state]
-  (let [saga (derived-saga state)
+  (let [sagas (derived-sagas state)
+        saga (derived-saga state)
         roster (derived-roster state)
         enriched-frames (->> (or (:frames state) [])
                              (map (fn [f]
@@ -191,13 +210,15 @@
                                                (assoc enriched :ownerType "saga"))
                                              :frameDescription (frame-description enriched)))))
                              vec)]
-    {:saga saga
+    {:sagas sagas
+     :saga saga
      :roster roster
      :frames enriched-frames}))
 
-(defn status-line [state saga roster frames]
+(defn status-line [state sagas saga roster frames]
   (let [pending (or (:pendingCount state) 0)]
-    (str "Saga: " (count saga)
+    (str "Sagas: " (count sagas)
+         " | Chapters: " (count saga)
          " | Roster: " (count roster)
          " | Frames: " (count frames)
          (if (pos? pending)

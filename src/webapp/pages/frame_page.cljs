@@ -30,7 +30,7 @@
                        (or (some-> (:name row) str/trim not-empty)
                            (some-> (:description row) str/trim not-empty))))))))
 
-(defn top-controls [from-page owner-name saga-name]
+(defn top-controls [from-page owner-name saga-id]
   (let [show-back? (some? from-page)]
     [:> Group {:className "detail-controls"
                :gap "xs"
@@ -43,7 +43,7 @@
       {:variant "default"
        :size "sm"
        :className "roster-nav-btn"
-       :onClick #(rf/dispatch [:navigate-roster-page saga-name])}
+       :onClick #(rf/dispatch [:navigate-roster-page saga-id])}
       "Roster"]]))
 
 (defn nav-controls [chapter-id frame-neighbors from-page]
@@ -158,7 +158,7 @@
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
            (when-not fullscreen?
-             [top-controls from-page owner-name saga-name])
+             [top-controls from-page owner-name (:saga-id route)])
           [frame/frame active-frame
             {:clickable? false
              :media-nav? true

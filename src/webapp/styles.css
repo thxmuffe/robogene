@@ -245,6 +245,93 @@ h2 { margin: 24px 0 10px; }
   gap: 8px;
 }
 
+.index-grid {
+  width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
+  display: grid;
+  gap: var(--card-gap);
+  grid-template-columns: repeat(var(--cols), minmax(0, var(--card-width)));
+}
+
+.index-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 250, 241, 0.92);
+  box-shadow: 0 12px 28px rgba(40, 27, 10, 0.12);
+  cursor: pointer;
+}
+
+.index-card.is-chapter {
+  background: rgba(252, 247, 237, 0.96);
+}
+
+.index-card-media {
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(145deg, rgba(238, 226, 202, 0.9), rgba(220, 205, 174, 0.78));
+}
+
+.index-card-image,
+.index-card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.index-card-image {
+  object-fit: cover;
+}
+
+.index-card-placeholder {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.42), transparent 28%),
+    linear-gradient(135deg, rgba(112, 86, 38, 0.14), rgba(57, 41, 18, 0.08));
+}
+
+.index-card-body {
+  padding: 14px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.index-card-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(73, 53, 23, 0.78);
+}
+
+.index-card-kind,
+.index-card-saga {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.index-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  color: #143b5c;
+}
+
+.index-card-description {
+  margin: 0;
+  color: rgba(38, 27, 14, 0.78);
+  line-height: 1.45;
+}
+
+.index-card-actions {
+  margin-top: auto;
+  padding: 0 12px 12px;
+}
+
 .saga-meta-header {
   width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap) - 140px));
   display: flex;
@@ -1578,9 +1665,10 @@ button.chapter-separator.is-collapsed {
   align-self: center;
   padding: 14px;
   background: linear-gradient(145deg, rgba(247, 251, 255, 0.42), rgba(232, 241, 251, 0.34));
-  border: 2px dashed rgba(32, 99, 155, 0.7);
+  border: 0;
   border-radius: 14px;
   color: #16324f;
+  box-shadow: 0 8px 18px rgba(32, 99, 155, 0.12);
 }
 
 .add-frame-tile-title {
@@ -1597,6 +1685,49 @@ button.chapter-separator.is-collapsed {
 
 .add-frame-tile:hover {
   background: linear-gradient(145deg, rgba(241, 248, 255, 0.54), rgba(221, 234, 248, 0.46));
+}
+
+.chapter-preview-tile {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.chapter-preview-image,
+.chapter-preview-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  display: block;
+}
+
+.chapter-preview-image {
+  object-fit: cover;
+  background: #050608;
+}
+
+.chapter-preview-placeholder {
+  background:
+    linear-gradient(135deg, rgba(230, 236, 243, 0.35), rgba(214, 223, 234, 0.12)),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.12) 0 10px,
+      rgba(255, 255, 255, 0.04) 10px 20px
+    );
+}
+
+.chapter-preview-tile .add-frame-tile-title,
+.chapter-preview-tile .add-frame-tile-sub {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.chapter-preview-tile .add-frame-tile-title {
+  padding-top: 12px;
+}
+
+.chapter-preview-tile .add-frame-tile-sub {
+  padding-bottom: 14px;
 }
 
 @media (max-width: 320px) {

@@ -13,37 +13,58 @@
 (def app-name
   "robogene")
 
-(defn saga-name [saga-meta]
-  (or (some-> (:name saga-meta) str/trim not-empty)
-      "Robot Emperor"))
+(defn display-saga-name [saga]
+  (or (some-> (:name saga) str/trim not-empty)
+      "Saga"))
 
-(defn frame-page-title [route saga saga-meta]
-  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
+(defn chapter-by-id [chapters chapter-id]
+  (some (fn [row]
+          (when (= (:chapterId row) chapter-id)
+            row))
+        chapters))
+
+(defn saga-for-chapter [sagas chapters chapter-id]
+  (let [chapter (chapter-by-id chapters chapter-id)]
+    (some (fn [saga]
+            (when (= (:sagaId saga) (:sagaId chapter))
+              saga))
+          sagas)))
+
+(defn frame-page-title [route sagas chapters]
+  (let [chapter (chapter-by-id chapters (:chapter route))
+        saga (saga-for-chapter sagas chapters (:chapter route))
         chapter-name (or (some-> chapter :name str/trim not-empty)
                          (some-> chapter :description str/trim not-empty)
                          "Chapter")]
-    (str "Frame Page · " chapter-name " · " (saga-name saga-meta))))
+    (str "Frame Page · " chapter-name " · " (display-saga-name saga))))
 
-(defn chapter-page-title [route saga saga-meta]
-  (let [chapter (some (fn [row] (when (= (:chapterId row) (:chapter route)) row)) saga)
+(defn chapter-page-title [route sagas chapters]
+  (let [chapter (chapter-by-id chapters (:chapter route))
+        saga (saga-for-chapter sagas chapters (:chapter route))
         chapter-name (or (some-> chapter :name str/trim not-empty)
                          (some-> chapter :description str/trim not-empty)
                          "Chapter")]
-    (str "Chapter Page · " chapter-name " · " (saga-name saga-meta))))
+    (str "Chapter Page · " chapter-name " · " (display-saga-name saga))))
 
-(defn main-page-title [route saga-meta]
-  (let [page-title (if (= :roster (:view route))
-                     (:page-title roster-page/roster-config)
-                     (saga-name saga-meta))]
+(defn main-page-title [route selected-saga]
+  (let [page-title (case (:view route)
+                     :index "Index"
+                     :roster (:page-title roster-page/roster-config)
+                     (display-saga-name selected-saga))]
     (str app-name " · " page-title)))
 
 (defn main-view []
-  (let [saga @(rf/subscribe [:saga])
-        saga-meta @(rf/subscribe [:saga-meta])
+  (let [sagas @(rf/subscribe [:sagas])
+        chapters @(rf/subscribe [:saga])
+        selected-saga @(rf/subscribe [:selected-saga])
+        selected-saga-chapters @(rf/subscribe [:chapters-for-selected-saga])
         roster @(rf/subscribe [:roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         active-frame-id @(rf/subscribe [:active-frame-id])
+        new-saga-name @(rf/subscribe [:new-saga-name])
+        new-saga-description @(rf/subscribe [:new-saga-description])
+        new-saga-panel-open? @(rf/subscribe [:new-saga-panel-open?])
         new-chapter-name @(rf/subscribe [:new-chapter-name])
         new-chapter-description @(rf/subscribe [:new-chapter-description])
         new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
@@ -57,12 +78,12 @@
         route @(rf/subscribe [:route])
         frame-view? (= :frame (:view route))
         collection-view? (not frame-view?)
-        saga-name* (saga-name saga-meta)]
+        saga-name* (display-saga-name selected-saga)]
     (set! (.-title js/document)
           (case (:view route)
-            :frame (frame-page-title route saga saga-meta)
-            :chapter (chapter-page-title route saga saga-meta)
-            (main-page-title route saga-meta)))
+            :frame (frame-page-title route sagas chapters)
+            :chapter (chapter-page-title route sagas chapters)
+            (main-page-title route selected-saga)))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
                     :px (when frame-view? 0)
@@ -71,15 +92,15 @@
               :style (when frame-view?
                        {:padding-left 0
                         :padding-right 0})}
-        [:> Stack {:gap "md"
-                   :style (when frame-view? {:width "100%"})
-                   :className (when frame-view? "app-stack-frame")}
+       [:> Stack {:gap "md"
+                  :style (when frame-view? {:width "100%"})
+                  :className (when frame-view? "app-stack-frame")}
         [:> Box {:component "header"
                  :className (str "hero"
                                  (when frame-view? " hero-frame")
                                  (when collection-view? " hero-collection"))}
          [:h1
-          [:a {:href (model/saga-hash)
+          [:a {:href (model/index-hash)
                :className "hero-home-link"}
            app-name]]]
         (case (:view route)
@@ -97,12 +118,21 @@
            new-character-description
            new-character-panel-open?]
 
-          [gallery-page/saga-page saga
+          :saga
+          [gallery-page/saga-page selected-saga
+           selected-saga-chapters
            active-frame-id
            new-chapter-name
            new-chapter-description
            new-chapter-panel-open?
-           show-chapter-celebration?])
+           show-chapter-celebration?]
+
+          [gallery-page/index-page sagas
+           chapters
+           gallery-items
+           new-saga-name
+           new-saga-description
+           new-saga-panel-open?])
         [traffic-indicator/traffic-indicator
          {:pending-api-requests pending-api-requests
           :wait-lights-visible? wait-lights-visible?

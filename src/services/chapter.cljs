@@ -83,8 +83,7 @@
     (atom {:chapterId nil
            :descriptions []
            :visual {:globalStyle "" :pagePrompts {}}
-           :sagaMeta {:name "Robot Emperor"
-                      :description ""}
+           :sagas []
            :saga []
            :roster []
            :frames []
@@ -94,8 +93,18 @@
            :openaiOptions openai-options
            :referenceImageBytes nil})))
 
-(defn make-chapter [chapter-number name description]
+(def default-saga-name "Robot Emperor")
+
+(defn make-saga [saga-number name description]
+  {:sagaId (new-uuid)
+   :sagaNumber saga-number
+   :name (str/trim (or name ""))
+   :description (str/trim (or description ""))
+   :createdAt (.toISOString (js/Date.))})
+
+(defn make-chapter [saga-id chapter-number name description]
   {:chapterId (new-uuid)
+   :sagaId saga-id
    :chapterNumber chapter-number
    :name (str/trim (or name ""))
    :description (str/trim (or description ""))
@@ -132,14 +141,22 @@
    :status "draft"
    :createdAt (.toISOString (js/Date.))}))
 
-(defn next-chapter-number [saga]
-  (inc (reduce max 0 (map :chapterNumber saga))))
+(defn next-saga-number [sagas]
+  (inc (reduce max 0 (map :sagaNumber sagas))))
+
+(defn next-chapter-number [chapters saga-id]
+  (inc (reduce max 0 (map :chapterNumber (filter (fn [chapter]
+                                                   (= (:sagaId chapter) saga-id))
+                                                 chapters)))))
 
 (defn next-character-number [roster]
   (inc (reduce max 0 (map :characterNumber roster))))
 
 (defn chapter-by-id [saga chapter-id]
   (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter)) saga))
+
+(defn saga-by-id [sagas saga-id]
+  (some (fn [saga] (when (= (:sagaId saga) saga-id) saga)) sagas))
 
 (defn character-by-id [roster character-id]
   (some (fn [character] (when (= (:characterId character) character-id) character)) roster))
@@ -176,19 +193,42 @@
 (defn next-entity-number [entities number-key]
   (inc (reduce max 0 (map number-key entities))))
 
-(defn make-entity [entity-label number name description]
+(defn make-entity [entity-label saga-id number name description]
   (if (= "character" (str entity-label))
     (make-character number name description)
-    (make-chapter number name description)))
+    (make-chapter saga-id number name description)))
 
-(defn add-entity! [entity-label name description]
+(defn add-saga! [name description]
+  (let [normalized-name (str/trim (or name ""))
+        normalized-description (str/trim (or description ""))
+        saga-number (next-saga-number (:sagas @state))
+        saga (make-saga saga-number
+                        (if (str/blank? normalized-name)
+                          (str default-saga-name " " saga-number)
+                          normalized-name)
+                        normalized-description)]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :sagas conj saga)
+                 (update :revision inc))))
+    saga))
+
+(defn add-entity! [entity-label saga-id name description]
   (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
-        entities (collection-key @state)
+        snapshot @state
+        entities (collection-key snapshot)
         number-key (if (= "character" (str entity-label)) :characterNumber :chapterNumber)
-        entity-number (next-entity-number entities number-key)
+        entity-number (if (= "character" (str entity-label))
+                        (next-entity-number entities number-key)
+                        (next-chapter-number entities saga-id))
         normalized-name (str/trim (or name ""))
         normalized-description (str/trim (or description ""))
+        _ (when (and (not= "character" (str entity-label))
+                     (nil? (saga-by-id (:sagas snapshot) saga-id)))
+            (throw (js/Error. "Saga not found.")))
         entity (make-entity entity-label
+                            saga-id
                             entity-number
                             (if (str/blank? normalized-name)
                               (str default-name " " entity-number)
@@ -210,23 +250,23 @@
     {:entity entity
      :frame first-frame}))
 
-(defn add-chapter! [name]
-  (let [{:keys [entity frame]} (add-entity! "chapter" name "")]
+(defn add-chapter! [saga-id name]
+  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id name "")]
     {:chapter entity
      :frame frame}))
 
 (defn add-character! [name]
-  (let [{:keys [entity frame]} (add-entity! "character" name "")]
+  (let [{:keys [entity frame]} (add-entity! "character" nil name "")]
     {:character entity
      :frame frame}))
 
-(defn add-chapter-with-details! [name description]
-  (let [{:keys [entity frame]} (add-entity! "chapter" name description)]
+(defn add-chapter-with-details! [saga-id name description]
+  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id name description)]
     {:chapter entity
      :frame frame}))
 
 (defn add-character-with-details! [name description]
-  (let [{:keys [entity frame]} (add-entity! "character" name description)]
+  (let [{:keys [entity frame]} (add-entity! "character" nil name description)]
     {:character entity
      :frame frame}))
 
@@ -247,6 +287,39 @@
                    (update :frames conj frame)
                    (update :revision inc))))
       frame))))
+
+(defn add-uploaded-frames! [chapter-id image-data-urls]
+  (let [snapshot @state
+        chapter (chapter-by-id (:saga snapshot) chapter-id)
+        normalized-images (->> (or image-data-urls [])
+                               (map #(some-> % str str/trim))
+                               (filter seq)
+                               vec)]
+    (when-not chapter
+      (throw (js/Error. "Chapter not found.")))
+    (when-not (seq normalized-images)
+      (throw (js/Error. "Missing image data.")))
+    (when (some (fn [image-data-url]
+                  (not (str/starts-with? (or image-data-url "") "data:image/")))
+                normalized-images)
+      (throw (js/Error. "Invalid imageDataUrl.")))
+    (let [start-frame-number (next-frame-number (:frames snapshot) chapter-id "saga")
+          completed-at (.toISOString (js/Date.))
+          new-frames (mapv (fn [idx image-data-url]
+                             (assoc (make-draft-frame chapter-id (+ start-frame-number idx) "saga")
+                                    :description ""
+                                    :imageUrl image-data-url
+                                    :status "ready"
+                                    :error nil
+                                    :completedAt completed-at))
+                           (range (count normalized-images))
+                           normalized-images)]
+      (swap! state
+             (fn [s]
+               (-> s
+                   (update :frames into new-frames)
+                   (update :revision inc))))
+      new-frames)))
 
 (defn update-entity-details! [entity-label entity-id name description]
   (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
@@ -276,18 +349,24 @@
 (defn update-character-details! [character-id name description]
   (update-entity-details! "character" character-id name description))
 
-(defn update-saga-meta! [name description]
+(defn update-saga-details! [saga-id name description]
   (let [normalized-name (some-> (or name "") str str/trim)
-        normalized-description (or (some-> (or description "") str str/trim) "")]
+        normalized-description (or (some-> (or description "") str str/trim) "")
+        idx (first (keep-indexed (fn [i saga]
+                                   (when (= (:sagaId saga) saga-id)
+                                     i))
+                                 (:sagas @state)))]
+    (when-not (number? idx)
+      (throw (js/Error. "Saga not found.")))
     (when (str/blank? normalized-name)
       (throw (js/Error. "Missing saga name.")))
     (swap! state
            (fn [s]
              (-> s
-                 (assoc :sagaMeta {:name normalized-name
-                                   :description normalized-description})
+                 (assoc-in [:sagas idx :name] normalized-name)
+                 (assoc-in [:sagas idx :description] normalized-description)
                  (update :revision inc))))
-    (:sagaMeta @state)))
+    (get-in @state [:sagas idx])))
 
 (defn normalize-entity [entity-label entity]
   (let [name (some-> (or (:name entity) (:description entity)) str str/trim)
@@ -296,6 +375,15 @@
                       "")]
     (assoc entity
            :name (or name "")
+           :description (or description ""))))
+
+(defn normalize-saga [saga]
+  (let [name (some-> (or (:name saga) default-saga-name) str str/trim not-empty)
+        description (some-> (or (:description saga) "") str str/trim)]
+    (assoc saga
+           :sagaId (or (:sagaId saga) (new-uuid))
+           :sagaNumber (or (:sagaNumber saga) 1)
+           :name (or name default-saga-name)
            :description (or description ""))))
 
 (defn delete-entity! [entity-label entity-id]
@@ -326,6 +414,34 @@
 
 (defn delete-character! [character-id]
   (delete-entity! "character" character-id))
+
+(defn delete-saga! [saga-id]
+  (let [snapshot @state
+        saga (saga-by-id (:sagas snapshot) saga-id)
+        chapter-ids (->> (:saga snapshot)
+                         (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
+                         (map :chapterId)
+                         set)]
+    (when-not saga
+      (throw (js/Error. "Saga not found.")))
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :sagas (fn [rows]
+                                  (->> (or rows [])
+                                       (remove (fn [row] (= (:sagaId row) saga-id)))
+                                       vec)))
+                 (update :saga (fn [rows]
+                                 (->> (or rows [])
+                                      (remove (fn [row] (= (:sagaId row) saga-id)))
+                                      vec)))
+                 (update :frames (fn [rows]
+                                   (->> (or rows [])
+                                        (remove (fn [frame]
+                                                  (contains? chapter-ids (:chapterId frame))))
+                                        vec)))
+                 (update :revision inc))))
+    saga))
 
 (declare find-frame-index)
 
@@ -395,8 +511,7 @@
             {:chapterId (new-uuid)
              :descriptions descriptions
              :visual visual
-             :sagaMeta {:name "Robot Emperor"
-                        :description ""}
+             :sagas [(make-saga 1 default-saga-name "")]
              :saga []
              :roster []
              :frames []
@@ -410,7 +525,27 @@
 
 (defn apply-persisted-state! [raw]
   (let [current @state
-        persisted (js->clj raw :keywordize-keys true)]
+        persisted (js->clj raw :keywordize-keys true)
+        raw-sagas (vec (or (:sagas persisted) []))
+        legacy-meta (:sagaMeta persisted)
+        default-saga-id (or (some-> raw-sagas first :sagaId)
+                            (:chapterId persisted)
+                            (new-uuid))
+        sagas (if (seq raw-sagas)
+                (->> raw-sagas
+                     (map normalize-saga)
+                     (sort-by (fn [saga]
+                                [(or (:sagaNumber saga) js/Number.MAX_SAFE_INTEGER)
+                                 (or (:createdAt saga) "")
+                                 (or (:sagaId saga) "")]))
+                     vec)
+                [(normalize-saga {:sagaId default-saga-id
+                                  :sagaNumber 1
+                                  :name (or (some-> legacy-meta :name str str/trim not-empty)
+                                            default-saga-name)
+                                  :description (or (some-> legacy-meta :description str str/trim)
+                                                   "")})])
+        fallback-saga-id (:sagaId (first sagas))]
     (when (or (nil? (:chapterId persisted))
               (nil? (:revision persisted))
               (nil? (:failedJobs persisted))
@@ -423,13 +558,15 @@
                  (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
-                 (assoc :sagaMeta (let [meta* (:sagaMeta persisted)
-                                        name (some-> (or (:name meta*) "Robot Emperor") str str/trim not-empty)
-                                        description (some-> (or (:description meta*) "") str str/trim)]
-                                    {:name (or name "Robot Emperor")
-                                     :description (or description "")}))
+                 (assoc :sagas sagas)
                  (assoc :saga (->> (or (:saga persisted) [])
-                                   (map #(normalize-entity "chapter" %))
+                                   (map #(assoc (normalize-entity "chapter" %)
+                                                :sagaId (or (:sagaId %) fallback-saga-id)))
+                                   (sort-by (fn [chapter]
+                                              [(or (:sagaId chapter) "")
+                                               (or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
+                                               (or (:createdAt chapter) "")
+                                               (or (:chapterId chapter) "")]))
                                    vec))
                  (assoc :roster (->> (or (:roster persisted) [])
                                      (map #(normalize-entity "character" %))
@@ -444,8 +581,8 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :saga :roster :frames
-                              :sagaMeta :descriptions :visual])))
+                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames
+                              :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -454,7 +591,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :sagaMeta :saga :roster :frames])))
+                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)

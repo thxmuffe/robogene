@@ -78,7 +78,7 @@
      (if (< incoming-revision current-revision)
        {:db db}
        (let [previous-frames (:gallery-items db)
-              {:keys [saga roster frames]} (model/derived-state state)
+              {:keys [sagas saga roster frames]} (model/derived-state state)
               existing-active-id (:active-frame-id db)
               frame-ids (set (map :frameId frames))
               old-open-map (:open-frame-actions db)
@@ -102,9 +102,9 @@
          {:db
           (-> db
               (assoc :latest-state state
-                     :status (model/status-line state saga roster frames)
+                     :status (model/status-line state sagas saga roster frames)
                      :last-rendered-revision incoming-revision
-                     :saga-meta (or (:sagaMeta state) (:saga-meta db))
+                     :sagas sagas
                      :saga saga
                      :roster roster
                      :gallery-items frames
@@ -163,11 +163,12 @@
   (-> db
       (update :cancel-ui-token (fnil inc 0))
       (assoc :open-frame-actions {})
+      (assoc-in [:view-state :index :editing-id] nil)
       (assoc-in [:view-state :saga :editing-id] nil)
       (assoc-in [:view-state :roster :editing-id] nil)
+      (assoc-in [:view-state :index :new-panel-open?] false)
       (assoc-in [:view-state :saga :new-panel-open?] false)
       (assoc-in [:view-state :roster :new-panel-open?] false)
-      (assoc-in [:view-state :saga :meta-editing?] false)
       (assoc :frame-drafts {})))
 
 (rf/reg-event-fx

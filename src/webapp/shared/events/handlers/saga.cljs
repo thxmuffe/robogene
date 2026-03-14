@@ -1,15 +1,25 @@
 (ns webapp.shared.events.handlers.saga
-  (:require [re-frame.core :as rf]
-            [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]))
 
 (defn entity-label->keys [entity-label]
-  (if (= "character" (str entity-label))
+  (case (str entity-label)
+    "saga"
+    {:editing-key [:view-state :index :editing-id]
+     :name-inputs-key [:view-state :index :name-inputs]
+     :description-inputs-key [:view-state :index :description-inputs]
+     :name-key [:view-state :index :new-name]
+     :description-key [:view-state :index :new-description]
+     :panel-open-key [:view-state :index :new-panel-open?]}
+
+    "character"
     {:editing-key [:view-state :roster :editing-id]
      :name-inputs-key [:view-state :roster :name-inputs]
      :description-inputs-key [:view-state :roster :description-inputs]
      :name-key [:view-state :roster :new-name]
      :description-key [:view-state :roster :new-description]
      :panel-open-key [:view-state :roster :new-panel-open?]}
+
     {:editing-key [:view-state :saga :editing-id]
      :name-inputs-key [:view-state :saga :name-inputs]
      :description-inputs-key [:view-state :saga :description-inputs]
@@ -18,23 +28,33 @@
      :panel-open-key [:view-state :saga :new-panel-open?]}))
 
 (rf/reg-event-db
-:new-chapter-name-changed
-(fn [db [_ value]]
+ :new-saga-name-changed
+ (fn [db [_ value]]
+   (assoc-in db [:view-state :index :new-name] value)))
+
+(rf/reg-event-db
+ :new-chapter-name-changed
+ (fn [db [_ value]]
    (assoc-in db [:view-state :saga :new-name] value)))
 
 (rf/reg-event-db
-:new-character-name-changed
-(fn [db [_ value]]
+ :new-character-name-changed
+ (fn [db [_ value]]
    (assoc-in db [:view-state :roster :new-name] value)))
 
 (rf/reg-event-db
-:new-chapter-description-changed
-(fn [db [_ value]]
+ :new-saga-description-changed
+ (fn [db [_ value]]
+   (assoc-in db [:view-state :index :new-description] value)))
+
+(rf/reg-event-db
+ :new-chapter-description-changed
+ (fn [db [_ value]]
    (assoc-in db [:view-state :saga :new-description] value)))
 
 (rf/reg-event-db
-:new-character-description-changed
-(fn [db [_ value]]
+ :new-character-description-changed
+ (fn [db [_ value]]
    (assoc-in db [:view-state :roster :new-description] value)))
 
 (rf/reg-event-db
@@ -79,95 +99,85 @@
      (if (str/blank? (or name ""))
        {:db db}
        {:db (assoc-in db editing-key nil)
-        :dispatch [(if (= "character" (str entity-label))
-                     :update-character
+        :dispatch [(case (str entity-label)
+                     "saga" :update-saga
+                     "character" :update-character
                      :update-chapter)
                    entity-id
                    name
                    description]}))))
 
 (rf/reg-event-db
-:set-new-chapter-panel-open
-(fn [db [_ open?]]
+ :set-new-saga-panel-open
+ (fn [db [_ open?]]
+   (assoc-in db [:view-state :index :new-panel-open?] (true? open?))))
+
+(rf/reg-event-db
+ :set-new-chapter-panel-open
+ (fn [db [_ open?]]
    (assoc-in db [:view-state :saga :new-panel-open?] (true? open?))))
 
 (rf/reg-event-db
-:set-new-character-panel-open
-(fn [db [_ open?]]
+ :set-new-character-panel-open
+ (fn [db [_ open?]]
    (assoc-in db [:view-state :roster :new-panel-open?] (true? open?))))
 
 (rf/reg-event-db
-:chapter-celebration-ended
-(fn [db _]
+ :chapter-celebration-ended
+ (fn [db _]
    (assoc-in db [:view-state :saga :show-celebration?] false)))
 
 (rf/reg-event-fx
-:add-chapter
-(fn [{:keys [db]} _]
-   (let [name (some-> (get-in db [:view-state :saga :new-name]) str str/trim)
-         description (get-in db [:view-state :saga :new-description])]
+ :add-saga
+ (fn [{:keys [db]} _]
+   (let [name (some-> (get-in db [:view-state :index :new-name]) str str/trim)
+         description (get-in db [:view-state :index :new-description])]
      (if (str/blank? (or name ""))
+       {:db (-> db
+                (assoc-in [:view-state :index :new-panel-open?] true)
+                (assoc :status "Add a saga name first."))}
+       {:db db
+        :dispatch [:enqueue-add-saga name description]}))))
+
+(rf/reg-event-fx
+ :add-chapter
+ (fn [{:keys [db]} _]
+   (let [saga-id (get-in db [:route :saga-id])
+         name (some-> (get-in db [:view-state :saga :new-name]) str str/trim)
+         description (get-in db [:view-state :saga :new-description])]
+     (cond
+       (str/blank? (or saga-id ""))
+       {:db (assoc db :status "Open a saga before adding chapters.")}
+
+       (str/blank? (or name ""))
        {:db (-> db
                 (assoc-in [:view-state :saga :new-panel-open?] true)
                 (assoc :status "Add a chapter name first."))}
-     {:db db
-      :dispatch [:enqueue-add-chapter name description]}))))
+
+       :else
+       {:db db
+        :dispatch [:enqueue-add-chapter saga-id name description]}))))
 
 (rf/reg-event-fx
-:add-character
-(fn [{:keys [db]} _]
+ :add-character
+ (fn [{:keys [db]} _]
    (let [name (some-> (get-in db [:view-state :roster :new-name]) str str/trim)
          description (get-in db [:view-state :roster :new-description])]
      (if (str/blank? (or name ""))
        {:db (-> db
                 (assoc-in [:view-state :roster :new-panel-open?] true)
                 (assoc :status "Add a character name first."))}
-     {:db db
-      :dispatch [:enqueue-add-character name description]}))))
+       {:db db
+        :dispatch [:enqueue-add-character name description]}))))
 
 (rf/reg-event-db
- :start-saga-meta-edit
- (fn [db _]
-   (let [meta* (or (:saga-meta db) {})
-         name (or (some-> (:name meta*) str) "")
-         description (or (some-> (:description meta*) str) "")]
-     (-> db
-         (assoc-in [:view-state :saga :meta-editing?] true)
-         (assoc-in [:view-state :saga :meta-name] name)
-         (assoc-in [:view-state :saga :meta-description] description)))))
+ :collection-search-changed
+ (fn [db [_ view-id value]]
+   (-> db
+       (assoc-in [:view-state view-id :search] (or value ""))
+       (assoc-in [:view-state view-id :page] 1))))
 
 (rf/reg-event-db
- :saga-meta-name-changed
- (fn [db [_ value]]
-   (assoc-in db [:view-state :saga :meta-name] value)))
-
-(rf/reg-event-db
- :saga-meta-description-changed
- (fn [db [_ value]]
-   (assoc-in db [:view-state :saga :meta-description] value)))
-
-(rf/reg-event-db
- :cancel-saga-meta-edit
- (fn [db _]
-   (assoc db :view-state
-          (-> (:view-state db)
-              (assoc-in [:saga :meta-editing?] false)))))
-
-(rf/reg-event-fx
- :save-saga-meta
- (fn [{:keys [db]} [_ provided-name provided-description]]
-   (let [name-source (if (some? provided-name)
-                       provided-name
-                       (get-in db [:view-state :saga :meta-name]))
-         description-source (if (some? provided-description)
-                              provided-description
-                              (get-in db [:view-state :saga :meta-description]))
-         name (some-> name-source str str/trim)
-         description (some-> description-source str)]
-     (if (str/blank? (or name ""))
-       {:db db}
-       {:db (-> db
-                (assoc :saga-meta {:name name
-                                   :description (or description "")})
-                (assoc-in [:view-state :saga :meta-editing?] false))
-        :dispatch [:update-saga name description]}))))
+ :collection-page-selected
+ (fn [db [_ view-id page]]
+   (assoc-in db [:view-state view-id :page] (max 1 (or page 1)))))

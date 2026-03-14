@@ -277,13 +277,13 @@
                      pending-count (chapter/active-queue-count frames)]
                  (json-response 200
                                 {:chapterId (:chapterId snapshot)
-                 :revision (:revision snapshot)
-                 :processing (:processing snapshot)
-                 :pendingCount pending-count
-                 :sagaMeta (:sagaMeta snapshot)
-                 :saga (:saga snapshot)
-                 :roster (:roster snapshot)
-                 :frames frames
+                                 :revision (:revision snapshot)
+                                 :processing (:processing snapshot)
+                                 :pendingCount pending-count
+                                 :sagas (:sagas snapshot)
+                                 :saga (:saga snapshot)
+                                 :roster (:roster snapshot)
+                                 :frames frames
                                  :failed (:failedJobs snapshot)}
                                 request))))))
 
@@ -331,7 +331,7 @@
         " ownerType=" (or (:ownerType frame) "saga")
         " ownerId=" (:chapterId frame))))
 
-(defn handle-add-chapter [request]
+(defn handle-add-saga [request]
   (with-synced-body
    request
    (fn [body]
@@ -341,18 +341,71 @@
            description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
        (run-command
         request
-        {:run! #(chapter/add-chapter-with-details! name description)
-         :reason "chapter-added"
-         :default-error "Create chapter failed."
+        {:run! #(chapter/add-saga! name description)
+         :reason "saga-added"
+         :default-error "Create saga failed."
          :status-by-message {}
-         :on-success (fn [result snapshot]
-                       (let [{:keys [chapter frame]} result]
+         :on-success (fn [saga snapshot]
+                       (json-response 201
+                                      (with-revision {:created true
+                                                      :saga saga}
+                                                     snapshot)
+                                      request))})))))
+
+(defn handle-add-chapter [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [saga-id (some-> (gobj/get body "sagaId") str str/trim)
+           raw-name (or (gobj/get body "name") (gobj/get body "description"))
+           raw-description (gobj/get body "description")
+           name (if (some? raw-name) (some-> raw-name str str/trim) nil)
+           description (if (some? raw-description) (some-> raw-description str str/trim) nil)]
+       (if (str/blank? saga-id)
+         (json-response 400 {:error "Missing sagaId."} request)
+         (run-command
+          request
+          {:run! #(chapter/add-chapter-with-details! saga-id name description)
+           :reason "chapter-added"
+           :default-error "Create chapter failed."
+           :status-by-message {"Saga not found." 404}
+           :on-success (fn [result snapshot]
+                         (let [{:keys [chapter frame]} result]
+                           (json-response 201
+                                          (with-revision {:created true
+                                                          :chapter chapter
+                                                          :frame frame}
+                                                         snapshot)
+                                          request)))}))))))
+
+(defn handle-add-uploaded-frames [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [chapter-id (some-> (gobj/get body "chapterId") str str/trim)
+           image-data-urls (js->clj (or (gobj/get body "imageDataUrls") #js []))]
+       (cond
+         (str/blank? chapter-id)
+         (json-response 400 {:error "Missing chapterId."} request)
+
+         (empty? image-data-urls)
+         (json-response 400 {:error "Missing imageDataUrls."} request)
+
+         :else
+         (run-command
+          request
+          {:run! #(chapter/add-uploaded-frames! chapter-id image-data-urls)
+           :reason "chapter-images-uploaded"
+           :default-error "Upload images failed."
+           :status-by-message {"Chapter not found." 404
+                               "Missing image data." 400
+                               "Invalid imageDataUrl." 400}
+           :on-success (fn [frames snapshot]
                          (json-response 201
                                         (with-revision {:created true
-                                                        :chapter chapter
-                                                        :frame frame}
+                                                        :frames frames}
                                                        snapshot)
-                                        request)))})))))
+                                        request))}))))))
 
 (defn handle-add-character [request]
   (with-synced-body
@@ -490,20 +543,28 @@
   (with-synced-body
    request
    (fn [body]
-     (let [name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
+     (let [saga-id (some-> (gobj/get body "sagaId") str str/trim)
+           name (some-> (or (gobj/get body "name") (gobj/get body "description")) str str/trim)
            description (some-> (gobj/get body "description") str str/trim)]
-       (if (str/blank? name)
+       (cond
+         (str/blank? saga-id)
+         (json-response 400 {:error "Missing sagaId."} request)
+
+         (str/blank? name)
          (json-response 400 {:error "Missing saga name."} request)
+
+         :else
          (run-command
           request
-          {:run! #(chapter/update-saga-meta! name description)
+          {:run! #(chapter/update-saga-details! saga-id name description)
            :reason "saga-updated"
            :default-error "Update saga failed."
-           :status-by-message {"Missing saga name." 400}
-           :on-success (fn [saga-meta snapshot]
+           :status-by-message {"Missing saga name." 400
+                               "Saga not found." 404}
+           :on-success (fn [saga snapshot]
                          (json-response 200
                                         (with-revision {:updated true
-                                                        :sagaMeta saga-meta}
+                                                        :saga saga}
                                                        snapshot)
                                         request))}))))))
 
@@ -648,6 +709,20 @@
                                     :character character}
                                    snapshot))}))
 
+(def handle-delete-saga
+  (make-required-mutation-handler
+   {:field-key "sagaId"
+    :missing-msg "Missing sagaId."
+    :mutate! chapter/delete-saga!
+    :default-error "Delete saga failed."
+    :status-by-message (messages->status-map #{"Saga not found."} 404)
+    :emit-reason "saga-deleted"
+    :success-status 200
+    :success-body (fn [saga snapshot]
+                    (with-revision {:deleted true
+                                    :saga saga}
+                                   snapshot))}))
+
 (defn handle-signalr-negotiate [request]
   (json-response 200
                  (or (realtime/create-client-connection-info)
@@ -671,11 +746,14 @@
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
    {:method :post :name "post-update-frame-description" :route "update-frame-description" :handler handle-update-frame-description}
    {:method :post :name "post-replace-frame-image" :route "replace-frame-image" :handler handle-replace-frame-image}
+   {:method :post :name "post-add-saga" :route "add-saga" :handler handle-add-saga}
    {:method :post :name "post-update-chapter" :route "update-chapter" :handler handle-update-chapter}
    {:method :post :name "post-update-character" :route "update-character" :handler handle-update-character}
    {:method :post :name "post-update-saga" :route "update-saga" :handler handle-update-saga}
    {:method :post :name "post-add-chapter" :route "add-chapter" :handler handle-add-chapter}
+   {:method :post :name "post-add-uploaded-frames" :route "add-uploaded-frames" :handler handle-add-uploaded-frames}
    {:method :post :name "post-add-character" :route "add-character" :handler handle-add-character}
+   {:method :post :name "post-delete-saga" :route "delete-saga" :handler handle-delete-saga}
    {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
    {:method :post :name "post-delete-character" :route "delete-character" :handler handle-delete-character}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}
