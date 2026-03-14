@@ -10,8 +10,8 @@
   (throw (js/Error. "Frame not found.")))
 
 (defn- ensure-frame-editable! [frame error-msg]
-  (when (or (= "queued" (:status frame))
-            (= "processing" (:status frame)))
+  (when (or (= "queued" (:imageStatus frame))
+            (= "processing" (:imageStatus frame)))
     (throw (js/Error. error-msg))))
 
 (defn clear-frame-image! [state* frame-id]
@@ -26,7 +26,7 @@
            (fn [s]
              (-> s
                  (assoc-in [:frames idx :imageUrl] nil)
-                 (assoc-in [:frames idx :status] "draft")
+                 (assoc-in [:frames idx :imageStatus] "draft")
                  (assoc-in [:frames idx :error] nil)
                  (assoc-in [:frames idx :completedAt] nil)
                  (update :revision inc))))
@@ -47,7 +47,7 @@
            (fn [s]
              (-> s
                  (assoc-in [:frames idx :imageUrl] normalized-image)
-                 (assoc-in [:frames idx :status] "ready")
+                 (assoc-in [:frames idx :imageStatus] "ready")
                  (assoc-in [:frames idx :error] nil)
                  (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
                  (update :revision inc))))

@@ -128,9 +128,16 @@
 (defn enrich-frame [frame]
   (let [description (str/trim (or (:description frame) ""))
         image-url (or (:imageUrl frame) (:imageDataUrl frame))
+        image-status (or (:imageStatus frame)
+                         (:status frame)
+                         (if (str/blank? (or image-url ""))
+                           "draft"
+                           "ready"))
         normalized (-> frame
                        (dissoc :imageDataUrl)
-                       (assoc :imageUrl image-url))]
+                       (assoc :imageUrl image-url
+                              :imageStatus image-status)
+                       (dissoc :status))]
     (if (or (str/blank? description) (generic-frame-text? description))
       (assoc normalized :description description)
       normalized)))

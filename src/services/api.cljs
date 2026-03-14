@@ -232,8 +232,8 @@
         idx (chapter/find-frame-index frames frame-id)
         frame (when (number? idx) (get frames idx))
         processing? (true? (:processing snapshot))
-        queued? (= "queued" (:status frame))
-        actively-processing? (and processing? (= "processing" (:status frame)))]
+        queued? (= "queued" (:imageStatus frame))
+        actively-processing? (and processing? (= "processing" (:imageStatus frame)))]
     (cond
       (nil? idx)
       {:ok false :status 404 :error "Frame not found."}
@@ -248,7 +248,7 @@
   (swap! chapter/state
          (fn [s]
            (-> s
-               (assoc-in [:frames idx :status] "queued")
+               (assoc-in [:frames idx :imageStatus] "queued")
                (assoc-in [:frames idx :queuedAt] (.toISOString (js/Date.)))
                (assoc-in [:frames idx :withoutRoster] (true? without-roster))
                (assoc-in [:frames idx :error] nil)
@@ -326,7 +326,7 @@
    (str "[robogene] image db modified"
         " kind=" kind
         " frameId=" (:frameId frame)
-        " status=" (:status frame)
+        " imageStatus=" (:imageStatus frame)
         " revision=" (:revision snapshot)
         " ownerType=" (or (:ownerType frame) "saga")
         " ownerId=" (:chapterId frame))))

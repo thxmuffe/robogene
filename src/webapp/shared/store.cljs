@@ -11,15 +11,20 @@
             frame))
         (or (:gallery-items db) [])))
 
-(defn set-frame-status [db frame-id status]
+(defn set-frame-image-status [db frame-id image-status]
   (let [set-status (fn [frame]
                      (if (= (:frameId frame) frame-id)
-                       (assoc frame :status status)
+                       (assoc frame :imageStatus image-status)
                        frame))]
     (-> db
         (update :gallery-items (fn [frames] (mapv set-status (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-status (or frames [])))))))
+
+(defn queue-frame-image-status [db frame-id]
+  (if (= "processing" (:imageStatus (frame-by-id db frame-id)))
+    db
+    (set-frame-image-status db frame-id "queued")))
 
 (defn add-frame-row [db frame]
   (let [frame-id (:frameId frame)]
@@ -35,7 +40,7 @@
                      :ownerType (or owner-type "saga")
                      :description ""
                      :imageUrl nil
-                     :status "draft"
+                     :imageStatus "draft"
                      :error nil
                      :createdAt (.toISOString (js/Date.))
                      :frameDescription ""}))
@@ -77,7 +82,7 @@
                         (if (= (:frameId frame) frame-id)
                           (-> frame
                               (assoc :imageUrl image-data-url)
-                              (assoc :status "ready")
+                              (assoc :imageStatus "ready")
                               (assoc :error nil))
                           frame))]
     (-> db
@@ -273,7 +278,7 @@
    :ownerType (or owner-type "saga")
    :description ""
    :imageUrl nil
-   :status "draft"
+   :imageStatus "draft"
    :error nil
    :createdAt (.toISOString (js/Date.))
    :frameDescription ""})
@@ -361,7 +366,12 @@
     :generate-frame
     {:transport-fx :post-generate-frame
      :optimistic (fn [db payload]
-                   (set-frame-status db (:frame-id payload) "queued"))}
+                   (queue-frame-image-status db (:frame-id payload)))
+     :success (fn [db command]
+                (let [response-frame (get-in command [:response :frame])]
+                  {:db (cond-> (merge-command-revision db command)
+                         response-frame
+                         (merge-frame-response response-frame))}))}
 
     :add-frame
     {:transport-fx :post-add-frame
@@ -525,9 +535,11 @@
                     (assoc :sync-inflight nil))
         db-with-status (assoc base-db :status (or (:success-status command) "Done."))
         success-handler (get-in (mutation-spec (:kind command)) [:success])]
-    (if success-handler
-      (success-handler db-with-status command)
-      {:db (merge-command-revision db-with-status command)})))
+    (update (if success-handler
+              (success-handler db-with-status command)
+              {:db (merge-command-revision db-with-status command)})
+            :db
+            reapply-pending-commands)))
 
 (defn apply-sync-failure [db command msg]
   (let [base-db (-> db
@@ -535,9 +547,10 @@
                     (assoc :sync-inflight nil
                            :status (str "Request failed: " msg)))
         failure-handler (get-in (mutation-spec (:kind command)) [:failure])]
-    {:db (if failure-handler
-           (failure-handler base-db command)
-           base-db)}))
+    {:db (reapply-pending-commands
+          (if failure-handler
+            (failure-handler base-db command)
+            base-db))}))
 
 (rf/reg-event-fx
  :sync-outbox/process

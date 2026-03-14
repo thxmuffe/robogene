@@ -138,7 +138,7 @@
    :ownerType (or owner-type "saga")
    :frameNumber frame-number
    :description (default-frame-description frame-number)
-   :status "draft"
+   :imageStatus "draft"
    :createdAt (.toISOString (js/Date.))}))
 
 (defn next-saga-number [sagas]
@@ -309,7 +309,7 @@
                              (assoc (make-draft-frame chapter-id (+ start-frame-number idx) "saga")
                                     :description ""
                                     :imageUrl image-data-url
-                                    :status "ready"
+                                    :imageStatus "ready"
                                     :error nil
                                     :completedAt completed-at))
                            (range (count normalized-images))
@@ -385,6 +385,16 @@
            :sagaNumber (or (:sagaNumber saga) 1)
            :name (or name default-saga-name)
            :description (or description ""))))
+
+(defn normalize-frame [frame]
+  (let [image-status (or (:imageStatus frame)
+                         (:status frame)
+                         (if (str/blank? (or (:imageUrl frame) ""))
+                           "draft"
+                           "ready"))]
+    (-> frame
+        (dissoc :status)
+        (assoc :imageStatus image-status))))
 
 (defn delete-entity! [entity-label entity-id]
   (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
@@ -571,7 +581,9 @@
                  (assoc :roster (->> (or (:roster persisted) [])
                                      (map #(normalize-entity "character" %))
                                      vec))
-                 (assoc :frames (vec (:frames persisted)))
+                 (assoc :frames (->> (or (:frames persisted) [])
+                                     (map normalize-frame)
+                                     vec))
                  (assoc :descriptions (:descriptions current))
                  (assoc :visual (:visual current))
                  (assoc :referenceImageBytes (:referenceImageBytes current))
@@ -697,7 +709,7 @@
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
-                         (when (= "queued" (:status frame)) idx))
+                         (when (= "queued" (:imageStatus frame)) idx))
                        frames)))
 
 (defn mark-frame-processing! [frame-id]
@@ -706,7 +718,7 @@
       (swap! state
              (fn [s]
                (-> s
-                   (assoc-in [:frames idx :status] "processing")
+                   (assoc-in [:frames idx :imageStatus] "processing")
                    (assoc-in [:frames idx :startedAt] (.toISOString (js/Date.)))
                    (update :revision inc))))
       true)))
@@ -718,7 +730,7 @@
              (fn [s]
                (-> s
                    (assoc-in [:frames idx :imageUrl] image-data-url)
-                   (assoc-in [:frames idx :status] "ready")
+                   (assoc-in [:frames idx :imageStatus] "ready")
                    (assoc-in [:frames idx :error] nil)
                    (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
                    (update-in [:frames idx] dissoc :withoutRoster)
@@ -737,7 +749,7 @@
                              :error message
                              :createdAt (.toISOString (js/Date.))}]
                  (-> s
-                     (assoc-in [:frames idx :status] "failed")
+                     (assoc-in [:frames idx :imageStatus] "failed")
                      (assoc-in [:frames idx :error] message)
                      (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
                      (update-in [:frames idx] dissoc :withoutRoster)
@@ -747,14 +759,18 @@
 
 (declare process-step! active-queue-count)
 
-(defn emit-state-changed! [reason]
-  (let [snapshot @state
-        payload (clj->js {:reason reason
-                          :chapterId (:chapterId snapshot)
-                          :revision (:revision snapshot)
-                          :processing (:processing snapshot)
-                          :pendingCount (active-queue-count (:frames snapshot))
-                          :emittedAt (.toISOString (js/Date.))})]
+(defn emit-state-changed!
+  ([reason]
+   (emit-state-changed! reason nil))
+  ([reason extra]
+   (let [snapshot @state
+         payload (clj->js (merge {:reason reason
+                                  :chapterId (:chapterId snapshot)
+                                  :revision (:revision snapshot)
+                                  :processing (:processing snapshot)
+                                  :pendingCount (active-queue-count (:frames snapshot))
+                                  :emittedAt (.toISOString (js/Date.))}
+                                 (or extra {})))]
     (js/console.info
      (str "[robogene] emit stateChanged"
           " reason=" reason
@@ -764,7 +780,7 @@
         (.catch (fn [err]
                   (js/console.warn
                    (str "[robogene] SignalR publish skipped/failed: "
-                        (or (some-> err .-message) err))))))))
+                        (or (some-> err .-message) err)))))))))
 
 (defn log-generation-start! [frame queue-size]
   (let [chapter-number (some->> (:saga @state)
@@ -819,7 +835,7 @@
       (js/console.info
        (str "[robogene] image persisted"
             " frameId=" frame-id
-            " status=" (:status frame)
+            " imageStatus=" (:imageStatus frame)
             " revision=" (:revision snapshot)
             " ownerType=" (or (:ownerType frame) "saga")
             " ownerId=" (:chapterId frame))))))
@@ -863,7 +879,9 @@
             (process-step!))
           (-> (persist-state!)
               (.then (fn [_]
-                       (emit-state-changed! "processing")
+                       (emit-state-changed! "processing"
+                                            {:frameId frame-id
+                                             :imageStatus "processing"})
                        (generate-image! frame)))
               (.then (fn [image-data-url]
                        (let [duration-ms (- (.now js/Date) started-ms)]
@@ -912,8 +930,8 @@
 
 (defn active-queue-count [frames]
   (count (filter (fn [f]
-                   (or (= "queued" (:status f))
-                       (= "processing" (:status f))))
+                   (or (= "queued" (:imageStatus f))
+                       (= "processing" (:imageStatus f))))
                  frames)))
 
 (defn find-frame-index [frames frame-id]

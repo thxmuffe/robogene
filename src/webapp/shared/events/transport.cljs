@@ -142,10 +142,11 @@
                 (reset! realtime-conn* nil)
                 (rf/dispatch [:state-failed "Realtime connection closed."]))))
   (.on conn "stateChanged"
-       (fn [_]
+       (fn [payload]
          (when (epoch-current? epoch)
            (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
+           (rf/dispatch [:realtime-state-changed (js->clj payload :keywordize-keys true)])
            (rf/dispatch [:fetch-state])))))
 
 (defn start-connection! [conn epoch]

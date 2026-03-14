@@ -35,27 +35,27 @@
     :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
     :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}])
 
-(defn frame-placeholder [{:keys [status]}]
-  (let [label (case status
+(defn frame-placeholder [{:keys [imageStatus]}]
+  (let [label (case imageStatus
                 "processing" "Generating..."
                 "queued" "Queued..."
                 "failed" "Generation failed"
                 "Edit subtitle and generate")]
     [:> Box {:className "placeholder-img"}
-     (when (or (= status "queued") (= status "processing"))
+     (when (or (= imageStatus "queued") (= imageStatus "processing"))
       [:div.spinner])
      [:div.placeholder-text label]]))
 
-(defn frame-status-note [{:keys [status image-loading? image-error?]}]
+(defn frame-status-note [{:keys [imageStatus image-loading? image-error?]}]
   (let [label (cond
-                (= status "processing") "Generating..."
-                (= status "queued") "Queued..."
+                (= imageStatus "processing") "Generating..."
+                (= imageStatus "queued") "Queued..."
                 image-loading? "Loading image..."
-                (or image-error? (= status "failed")) "Image failed to load"
+                (or image-error? (= imageStatus "failed")) "Image failed to load"
                 :else nil)]
     (when label
       [:div.frame-status-note
-       (when (or (= status "processing") (= status "queued") image-loading?)
+       (when (or (= imageStatus "processing") (= imageStatus "queued") image-loading?)
          [:div.spinner])
        [:div.placeholder-text label]])))
 
@@ -112,7 +112,9 @@
                 upload-open?* (r/atom false)
                 seen-cancel-token* (r/atom nil)]
      (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
-           busy? (or (= "queued" (:status frame)) (= "processing" (:status frame)))
+           busy? (or (= "queued" (:imageStatus frame)) (= "processing" (:imageStatus frame)))
+           image-status-overlay? (and has-image?
+                                      (#{"queued" "processing" "failed"} (:imageStatus frame)))
            image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
            image-loading? (= :loading image-ui)
            image-error? (= :error image-ui)
@@ -210,10 +212,14 @@
           [:> Box nav-attrs
            (if has-image?
              [:<>
-              [frame-status-note {:status (:status frame)
+              [frame-image frame* image-fit]
+              (when image-status-overlay?
+                [:div {:className (str "frame-image-status-overlay"
+                                       (when busy? " is-busy")
+                                       (when (= "failed" (:imageStatus frame)) " is-failed"))}])
+              [frame-status-note {:imageStatus (:imageStatus frame)
                                   :image-loading? image-loading?
-                                  :image-error? image-error?}]
-              [frame-image frame* image-fit]]
+                                  :image-error? image-error?}]]
              [frame-placeholder frame])]
           (when (and media-nav? (not editable?))
             [:div.media-nav-zones

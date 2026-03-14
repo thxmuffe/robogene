@@ -125,6 +125,18 @@
                              (set (filter chapter-ids ids)))))
               (store/reapply-pending-commands))})))))
 
+(rf/reg-event-db
+ :realtime-state-changed
+ (fn [db [_ payload]]
+   (let [{:keys [processing frameId imageStatus]} (or payload {})
+         db-with-processing (cond-> db
+                              (some? processing)
+                              (assoc-in [:latest-state :processing] processing))]
+     (if (and (seq (or frameId ""))
+              (seq (or imageStatus "")))
+       (store/set-frame-image-status db-with-processing frameId imageStatus)
+       db-with-processing))))
+
 (rf/reg-event-fx
  :set-active-frame
  (fn [{:keys [db]} [_ frame-id]]
