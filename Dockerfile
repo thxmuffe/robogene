@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     # Java dependencies
-    openjdk-21-jdk-headless \
+    openjdk-21-jre-headless \
     # Clojure deps
     rlwrap \
     # Playwright/Chromium deps
@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxrandr2 \
     libpango-1.0-0 \
-    libpangofontconfig1 \
+    libpango-fontconfig1 \
     libdbus-1-3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
