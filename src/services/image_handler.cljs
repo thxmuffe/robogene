@@ -9,19 +9,13 @@
 (defn- frame-not-found! []
   (throw (js/Error. "Frame not found.")))
 
-(defn- ensure-frame-editable! [frame error-msg]
-  (when (or (= "queued" (:imageStatus frame))
-            (= "processing" (:imageStatus frame)))
-    (throw (js/Error. error-msg))))
-
 (defn clear-frame-image! [state* frame-id]
   (let [snapshot @state*
         frames (:frames snapshot)
         idx (find-frame-index frames frame-id)
-        frame (when (number? idx) (get frames idx))]
+        _frame (when (number? idx) (get frames idx))]
     (when (nil? idx)
       (frame-not-found!))
-    (ensure-frame-editable! frame "Cannot clear image while queued or processing.")
     (swap! state*
            (fn [s]
              (-> s
@@ -29,6 +23,9 @@
                  (assoc-in [:frames idx :imageStatus] "draft")
                  (assoc-in [:frames idx :error] nil)
                  (assoc-in [:frames idx :completedAt] nil)
+                 (assoc-in [:frames idx :queuedAt] nil)
+                 (assoc-in [:frames idx :startedAt] nil)
+                 (update-in [:frames idx] dissoc :withoutRoster)
                  (update :revision inc))))
     (get (:frames @state*) idx)))
 
@@ -36,11 +33,10 @@
   (let [snapshot @state*
         frames (:frames snapshot)
         idx (find-frame-index frames frame-id)
-        frame (when (number? idx) (get frames idx))
+        _frame (when (number? idx) (get frames idx))
         normalized-image (some-> image-data-url str str/trim)]
     (when (nil? idx)
       (frame-not-found!))
-    (ensure-frame-editable! frame "Cannot replace image while queued or processing.")
     (when-not (str/starts-with? (or normalized-image "") "data:image/")
       (throw (js/Error. "Invalid imageDataUrl.")))
     (swap! state*
@@ -50,5 +46,8 @@
                  (assoc-in [:frames idx :imageStatus] "ready")
                  (assoc-in [:frames idx :error] nil)
                  (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
+                 (assoc-in [:frames idx :queuedAt] nil)
+                 (assoc-in [:frames idx :startedAt] nil)
+                 (update-in [:frames idx] dissoc :withoutRoster)
                  (update :revision inc))))
     (get (:frames @state*) idx)))

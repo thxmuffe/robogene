@@ -21,17 +21,13 @@
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-status (or frames [])))))))
 
-(defn queue-frame-image-status [db frame-id]
-  (if (= "processing" (:imageStatus (frame-by-id db frame-id)))
-    db
-    (set-frame-image-status db frame-id "queued")))
-
 (defn add-frame-row [db frame]
   (let [frame-id (:frameId frame)]
     (-> db
         (update :gallery-items (fn [frames] (conj (vec (or frames [])) frame)))
         (update-in [:latest-state :frames]
                    (fn [frames] (conj (vec (or frames [])) frame)))
+        (update :hidden-frame-images dissoc frame-id)
         (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
 (defn add-frame [db owner-id owner-type frame-id]
@@ -61,6 +57,7 @@
                :active-frame-id next-active-id)
         (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
+        (update :hidden-frame-images dissoc-ids)
         (update :image-ui-by-frame-id
                 (fn [ui-map]
                   (reduce image-ui/remove-frame (or ui-map {}) frame-ids)))
@@ -75,6 +72,7 @@
         (update :gallery-items (fn [frames] (mapv clear-image (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv clear-image (or frames []))))
+        (assoc-in [:hidden-frame-images frame-id] true)
         (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
 
 (defn replace-frame-image [db frame-id image-data-url]
@@ -89,6 +87,7 @@
         (update :gallery-items (fn [frames] (mapv replace-image (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv replace-image (or frames []))))
+        (update :hidden-frame-images dissoc frame-id)
         (assoc-in [:image-ui-by-frame-id frame-id] :loading))))
 
 (defn update-frame-description [db frame-id description]
@@ -116,6 +115,9 @@
     (-> db
         (update :gallery-items merge-frame-row frame)
         (update-in [:latest-state :frames] merge-frame-row frame)
+        (cond-> (and (= "ready" (:imageStatus frame))
+                     (not (str/blank? (or (:imageUrl frame) ""))))
+          (update :hidden-frame-images dissoc (:frameId frame)))
         (assoc-in [:image-ui-by-frame-id (:frameId frame)]
                   (if (str/blank? (or (:imageUrl frame) ""))
                     :idle
@@ -234,6 +236,7 @@
           (assoc-in editing-key nil))
         (update :frame-drafts dissoc-ids)
         (update :open-frame-actions dissoc-ids)
+        (update :hidden-frame-images dissoc-ids)
         (update :image-ui-by-frame-id dissoc-ids)
         (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
         (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
@@ -366,7 +369,7 @@
     :generate-frame
     {:transport-fx :post-generate-frame
      :optimistic (fn [db payload]
-                   (queue-frame-image-status db (:frame-id payload)))
+                   (set-frame-image-status db (:frame-id payload) "queued"))
      :success (fn [db command]
                 (let [response-frame (get-in command [:response :frame])]
                   {:db (cond-> (merge-command-revision db command)
@@ -580,13 +583,17 @@
  (fn [{:keys [db]} [_ command-id data]]
    (let [inflight (:sync-inflight db)]
      (if (= command-id (:id inflight))
-       (cond-> (merge (apply-sync-success db (assoc inflight :response data))
-                      {:dispatch-n [[:sync-outbox/process]
-                                    [:fetch-state]]})
-         (and (= :generate-frame (:kind inflight))
-              (transport/realtime-disabled?))
-         (assoc :dispatch-after-burst {:delays [250 1000 2500]
-                                       :event [:fetch-state]}))
+       (let [generate-frame? (= :generate-frame (:kind inflight))
+             fx (cond-> (merge (apply-sync-success db (assoc inflight :response data))
+                               (if generate-frame?
+                                 {:dispatch [:sync-outbox/process]}
+                                 {:dispatch-n [[:sync-outbox/process]
+                                               [:fetch-state]]}))
+                  (and generate-frame?
+                       (transport/realtime-disabled?))
+                  (assoc :dispatch-after-burst {:delays [250 1000 2500]
+                                                :event [:fetch-state]}))]
+         fx)
        {:db db}))))
 
 (rf/reg-event-fx

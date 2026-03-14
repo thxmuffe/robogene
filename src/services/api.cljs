@@ -302,7 +302,9 @@
            (queue-frame! (:idx outcome) direction without-roster)
            (-> (chapter/persist-state!)
                (.then (fn [_]
-                        (chapter/emit-state-changed! "queued")
+                        (chapter/emit-state-changed! "queued"
+                                                     {:frame (get-in @chapter/state [:frames (:idx outcome)])
+                                                      :requiresFetch false})
                         (chapter/process-queue!)
                         (queue-success-response request (:idx outcome)))))))))))
 
@@ -617,11 +619,9 @@
   (make-required-mutation-handler
    {:field-key "frameId"
     :missing-msg "Missing frameId."
-    :mutate! #(image-handler/clear-frame-image! chapter/state %)
+   :mutate! #(image-handler/clear-frame-image! chapter/state %)
     :default-error "Clear image failed."
-    :status-by-message (messages->status-map #{"Frame not found."
-                                               "Cannot clear image while queued or processing."}
-                                             409)
+    :status-by-message {"Frame not found." 404}
     :emit-reason "frame-image-cleared"
     :success-status 200
     :success-body (fn [frame snapshot]
@@ -650,7 +650,6 @@
            :reason "frame-image-replaced"
            :default-error "Replace image failed."
            :status-by-message {"Frame not found." 404
-                               "Cannot replace image while queued or processing." 409
                                "Invalid imageDataUrl." 400}
            :on-success (fn [frame snapshot]
                          (log-image-db-change! "replaced" frame snapshot)

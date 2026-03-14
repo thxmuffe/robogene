@@ -34,6 +34,9 @@
 (rf/reg-sub :frame-image-ui
             (fn [db [_ frame-id]]
               (get-in db [:image-ui-by-frame-id frame-id] :idle)))
+(rf/reg-sub :frame-image-hidden?
+            (fn [db [_ frame-id]]
+              (true? (get-in db [:hidden-frame-images frame-id]))))
 (rf/reg-sub :active-frame-id (fn [db _] (:active-frame-id db)))
 (rf/reg-sub :new-saga-name (fn [db _] (get-in db [:view-state :index :new-name])))
 (rf/reg-sub :new-saga-description (fn [db _] (get-in db [:view-state :index :new-description])))

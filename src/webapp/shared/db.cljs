@@ -35,6 +35,7 @@
                          :new-description ""
                          :new-panel-open? false}}
    :image-ui-by-frame-id {}
+   :hidden-frame-images {}
    :last-rendered-revision nil
    :active-frame-id nil
    :sagas []

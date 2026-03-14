@@ -25,6 +25,19 @@
                          vec)]
     (assoc db :wait-lights-events next-events)))
 
+(defn refresh-derived-status [db]
+  (let [latest-state (merge {:sagas (:sagas db)
+                             :saga (:saga db)
+                             :roster (:roster db)
+                             :frames (:gallery-items db)}
+                            (or (:latest-state db) {}))]
+    (assoc db :status
+           (model/status-line latest-state
+                              (:sagas db)
+                              (:saga db)
+                              (:roster db)
+                              (:gallery-items db)))))
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -110,6 +123,10 @@
                      :roster roster
                      :gallery-items frames
                      :image-ui-by-frame-id image-ui-by-frame-id
+                     :hidden-frame-images (into {}
+                                               (for [[frame-id hidden?] (or (:hidden-frame-images db) {})
+                                                     :when (and hidden? (contains? frame-ids frame-id))]
+                                                 [frame-id true]))
                      :open-frame-actions open-frame-actions
                      :active-frame-id active-frame-id)
               (update :frame-drafts
@@ -128,14 +145,31 @@
 (rf/reg-event-db
  :realtime-state-changed
  (fn [db [_ payload]]
-   (let [{:keys [processing frameId imageStatus]} (or payload {})
-         db-with-processing (cond-> db
-                              (some? processing)
-                              (assoc-in [:latest-state :processing] processing))]
-     (if (and (seq (or frameId ""))
-              (seq (or imageStatus "")))
-       (store/set-frame-image-status db-with-processing frameId imageStatus)
-       db-with-processing))))
+   (let [{:keys [processing frameId imageStatus frame revision pendingCount]} (or payload {})
+         current-revision (or (:last-rendered-revision db) -1)
+         next-revision (if (some? revision)
+                         (max current-revision revision)
+                         current-revision)
+         db* (cond-> db
+               (some? revision)
+               (assoc :last-rendered-revision next-revision)
+
+               (some? processing)
+               (assoc-in [:latest-state :processing] processing)
+
+               (some? pendingCount)
+               (assoc-in [:latest-state :pendingCount] pendingCount))
+         db** (cond
+                (map? frame)
+                (store/merge-frame-response db* frame)
+
+                (and (seq (or frameId ""))
+                     (seq (or imageStatus "")))
+                (store/set-frame-image-status db* frameId imageStatus)
+
+                :else
+                db*)]
+     (refresh-derived-status db**))))
 
 (rf/reg-event-fx
  :set-active-frame

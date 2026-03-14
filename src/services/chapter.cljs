@@ -712,6 +712,12 @@
                          (when (= "queued" (:imageStatus frame)) idx))
                        frames)))
 
+(defn frame-by-id [frames frame-id]
+  (some (fn [frame]
+          (when (= (:frameId frame) frame-id)
+            frame))
+        frames))
+
 (defn mark-frame-processing! [frame-id]
   (let [idx (find-frame-index (:frames @state) frame-id)]
     (when (number? idx)
@@ -758,6 +764,11 @@
       true)))
 
 (declare process-step! active-queue-count)
+
+(defn state-changed-frame-payload [frame-id]
+  (when-let [frame (frame-by-id (:frames @state) frame-id)]
+    {:frame frame
+     :requiresFetch false}))
 
 (defn emit-state-changed!
   ([reason]
@@ -857,12 +868,13 @@
   (let [snapshot @state
         idx (next-queued-frame-index (:frames snapshot))]
     (if (nil? idx)
-      (let [previously-processing? (:processing snapshot)]
+          (let [previously-processing? (:processing snapshot)]
         (swap! state assoc :processing false)
         (if previously-processing?
           (-> (persist-state!)
               (.then (fn [_]
-                       (emit-state-changed! "queue-idle")
+                       (emit-state-changed! "queue-idle"
+                                            {:requiresFetch false})
                        nil))
               (.catch (fn [err]
                         (js/console.error "[robogene] persist failed while queue-idle" err)
@@ -877,12 +889,15 @@
           (do
             (js/console.warn (str "[robogene] generation skipped; frame deleted before processing frameId=" frame-id))
             (process-step!))
-          (-> (persist-state!)
-              (.then (fn [_]
-                       (emit-state-changed! "processing"
-                                            {:frameId frame-id
-                                             :imageStatus "processing"})
-                       (generate-image! frame)))
+          (let [processing-payload (merge {:frameId frame-id
+                                           :imageStatus "processing"}
+                                          (state-changed-frame-payload frame-id))]
+            (emit-state-changed! "processing" processing-payload)
+            (-> (persist-state!)
+                (.catch (fn [err]
+                          (js/console.error "[robogene] persist failed while processing started" err)
+                          nil)))
+            (-> (generate-image! frame)
               (.then (fn [image-data-url]
                        (let [duration-ms (- (.now js/Date) started-ms)]
                          (log-generation-success! frame duration-ms)
@@ -892,7 +907,8 @@
                            (-> (persist-state!)
                                (.then (fn [_]
                                         (log-image-persisted! frame-id)
-                                        (emit-state-changed! "ready")
+                                        (emit-state-changed! "ready"
+                                                             (state-changed-frame-payload frame-id))
                                         (process-step!)
                                         nil))))
                          (do
@@ -904,18 +920,20 @@
                         (if (mark-frame-failed! frame-id frame (str (or (.-message err) err)))
                           (-> (persist-state!)
                               (.then (fn [_]
-                                       (emit-state-changed! "failed")
+                                       (emit-state-changed! "failed"
+                                                            (state-changed-frame-payload frame-id))
                                        (process-step!)
                                        nil))
                               (.catch (fn [persist-err]
                                         (js/console.error "[robogene] persist failed after generation error" persist-err)
-                                        (emit-state-changed! "failed")
+                                        (emit-state-changed! "failed"
+                                                             (state-changed-frame-payload frame-id))
                                         (process-step!)
                                         nil)))
                           (do
                             (js/console.warn (str "[robogene] generation failure dropped; frame deleted frameId=" frame-id))
                             (process-step!)
-                            nil))))))))))
+                            nil)))))))))))
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)

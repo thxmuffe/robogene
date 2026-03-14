@@ -47,15 +47,23 @@
      [:div.placeholder-text label]]))
 
 (defn frame-status-note [{:keys [imageStatus image-loading? image-error?]}]
-  (let [label (cond
-                (= imageStatus "processing") "Generating..."
-                (= imageStatus "queued") "Queued..."
-                image-loading? "Loading image..."
-                (or image-error? (= imageStatus "failed")) "Image failed to load"
-                :else nil)]
+  (let [note-kind (cond
+                    (= imageStatus "processing") :processing
+                    (= imageStatus "queued") :queued
+                    image-loading? :loading-image
+                    (or image-error? (= imageStatus "failed")) :failed
+                    :else nil)
+        label (case note-kind
+                :processing "Generating..."
+                :queued "Queued..."
+                :loading-image "Loading image..."
+                :failed "Image failed to load"
+                nil)]
     (when label
-      [:div.frame-status-note
-       (when (or (= imageStatus "processing") (= imageStatus "queued") image-loading?)
+      [:div {:className (str "frame-status-note"
+                             (when (= note-kind :loading-image) " is-image-loading")
+                             (when (= note-kind :failed) " is-failed"))}
+       (when (#{:processing :queued :loading-image} note-kind)
          [:div.spinner])
        [:div.placeholder-text label]])))
 
@@ -112,6 +120,9 @@
                 upload-open?* (r/atom false)
                 seen-cancel-token* (r/atom nil)]
      (let [has-image? (not (str/blank? (or (:imageUrl frame) "")))
+           image-hidden? @(rf/subscribe [:frame-image-hidden? (:frameId frame)])
+           visible-image-url (when-not image-hidden? (:imageUrl frame))
+           has-image? (not (str/blank? (or visible-image-url "")))
            busy? (or (= "queued" (:imageStatus frame)) (= "processing" (:imageStatus frame)))
            image-status-overlay? (and has-image?
                                       (#{"queued" "processing" "failed"} (:imageStatus frame)))
@@ -121,7 +132,9 @@
            editable? @(rf/subscribe [:frame-edit-open? (:frameId frame)])
            current-input (clamp-subtitle @(rf/subscribe [:frame-draft (:frameId frame)]))
            cancel-ui-token @(rf/subscribe [:cancel-ui-token])
-           frame* (assoc frame :actionsOpen editable?)
+           frame* (assoc frame
+                         :actionsOpen editable?
+                         :imageUrl visible-image-url)
            remove-image-item {:id :remove-image
                               :label "Remove image"
                               :confirm {:title "Remove image from this frame?"
