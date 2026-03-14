@@ -9,10 +9,12 @@
             [webapp.components.gallery :as gallery]
             [webapp.components.db-text :as db-text]
             [webapp.components.confirm-dialog :as confirm-dialog]
+            [webapp.components.roster-button :as roster-button]
+            [webapp.components.roster-select-dialog :as roster-select-dialog]
             [webapp.components.upload-dialog :as upload-dialog]
             [webapp.components.waterfall-row :as waterfall-row]
             ["@mantine/core" :refer [Box Button Group Pagination Stack TextInput Textarea]]
-            ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaImages FaTrashCan]]))
+            ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaDownload FaImages FaPlus FaTrashCan]]))
 
 (defn next-frame-id-for-key [active-frame-id key]
   (case key
@@ -130,35 +132,23 @@
          (take 4)
          vec)))
 
-(defn roster-nav-button []
-  (let [roster @(rf/subscribe [:roster])
-        frames @(rf/subscribe [:gallery-items])
-        image-urls (owner-button-image-urls (keep :characterId roster) frames "character")
-        image-count (count image-urls)
-        single-row? (< image-count 3)
-        visible-cell-count (if single-row?
-                             (max 1 image-count)
-                             4)
-        cells (concat image-urls (repeat nil))]
-    [:> Button
-     {:aria-label "Open roster"
-      :title "Open roster"
-      :variant "default"
-      :size "sm"
-      :className "roster-nav-btn"
-      :onClick #(rf/dispatch [:navigate-roster-page])}
-     [:span.roster-nav-btn-content
-      [:span {:className (str "roster-nav-btn-grid"
-                              (when single-row? " is-row")
-                              (str " is-count-" visible-cell-count))}
-       (for [[idx image-url] (map-indexed vector (take visible-cell-count cells))]
-         ^{:key (str "roster-cell-" idx)}
-         [:span.roster-nav-btn-cell
-          (when image-url
-            [:img {:className "roster-nav-btn-cell-image"
-                   :src image-url
-                   :alt ""}])])]
-      [:span.roster-nav-btn-label "Roster"]]]))
+(defn roster-search-text [roster]
+  (str/lower-case
+   (str (or (:name roster) "")
+        "\n"
+        (or (:description roster) ""))))
+
+(defn roster-button-view [roster characters frames {:keys [class-name title aria-label on-click empty-label]}]
+  (let [image-urls (owner-button-image-urls (keep :characterId characters) frames "character")
+        label (or (some-> (:name roster) str/trim not-empty) empty-label "Roster")
+        description (some-> (:description roster) str/trim not-empty)]
+    [roster-button/roster-button {:label label
+                                  :description description
+                                  :image-urls image-urls
+                                  :class-name class-name
+                                  :title (or title label)
+                                  :aria-label (or aria-label label)
+                                  :on-click on-click}]))
 
 (defn mini-gallery-grid [image-urls label]
   (let [image-count (count image-urls)
@@ -180,7 +170,7 @@
                  :src image-url
                  :alt ""}])])]))
 
-(defn entity-actions [{:keys [entity-id entity-label singular-label]}]
+(defn entity-actions [{:keys [entity-id entity-label singular-label prefix-content]}]
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)
                upload-open?* (r/atom false)]
@@ -197,19 +187,29 @@
           title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
           items (cond-> []
                   (= "saga" (str entity-label))
-                  (conj {:id :open-saga-page
-                         :label "Open saga page"
-                         :icon FaArrowUpRightFromSquare
-                         :color "indigo"
-                         :on-select (fn [_]
-                                      (rf/dispatch [:navigate-saga-page entity-id]))})
+                  (conj {:id :download-saga
+                         :label "Download saga"
+                         :icon FaDownload
+                         :color "teal"
+                         :disabled? true})
                   (= "chapter" (str entity-label))
-                  (conj {:id :open-chapter-page
+                  (conj {:id :add-roster
+                         :label "Add roster"
+                         :icon FaPlus
+                         :color "grape"
+                         :on-select (fn [_]
+                                      (rf/dispatch [:add-linked-chapter-roster entity-id]))}
+                        {:id :open-chapter-page
                          :label "Open chapter page"
                          :icon FaArrowUpRightFromSquare
                          :color "indigo"
                          :on-select (fn [_]
                                       (rf/dispatch [:navigate-chapter-page entity-id]))}
+                        {:id :download-chapter
+                         :label "Download chapter"
+                         :icon FaDownload
+                         :color "teal"
+                         :disabled? true}
                         {:id :upload-images
                          :label "Upload images"
                          :icon FaImages
@@ -255,8 +255,10 @@
       [:<>
        [waterfall-row/waterfall-row
         {:class-name "chapter-header-actions-row"
+         :prefix-content prefix-content
          :actions items
-         :mandatory-count 0
+         :action-size 44
+         :mandatory-count (if (= "chapter" (str entity-label)) 1 0)
          :menu-title (str title-case-label " actions")
          :menu-aria-label (str title-case-label " actions")}]
        [confirm-dialog/confirm-dialog
@@ -273,6 +275,68 @@
            :on-submit-many #(rf/dispatch [:upload-chapter-images entity-id %])
            :multiple? true
            :title "Upload images"}])])))
+
+(defn roster-by-id [rosters roster-id]
+  (some (fn [roster]
+          (when (= (:rosterId roster) roster-id)
+            roster))
+        rosters))
+
+(defn linked-roster-ids [chapter]
+  (vec (distinct (remove str/blank?
+                         (or (:rosterIds chapter)
+                             (when-let [roster-id (:rosterId chapter)]
+                               [roster-id])
+                             [])))))
+
+(defn chapter-roster-controls [chapter]
+  (let [rosters @(rf/subscribe [:rosters])
+        characters @(rf/subscribe [:roster])
+        frames @(rf/subscribe [:gallery-items])
+        saga-id (:sagaId chapter)]
+    [:div.chapter-roster-controls
+     (for [roster-id (linked-roster-ids chapter)
+           :let [roster (roster-by-id rosters roster-id)
+                 roster-characters (filterv (fn [character]
+                                              (= (:rosterId character) roster-id))
+                                            characters)]]
+       ^{:key (str "chapter-roster-" (:chapterId chapter) "-" roster-id)}
+       [roster-button-view
+        roster
+        roster-characters
+        frames
+        {:class-name "is-linked-roster is-compact-chapter-roster"
+         :title (or (:name roster) "Open roster")
+         :aria-label (or (:name roster) "Open roster")
+         :empty-label "Roster"
+         :on-click #(rf/dispatch [:navigate-roster-page roster-id saga-id])}])]))
+
+(defn saga-roster-buttons [saga-id]
+  (let [rosters @(rf/subscribe [:rosters])
+        chapters @(rf/subscribe [:chapters-by-saga-id saga-id])
+        all-characters @(rf/subscribe [:roster])
+        frames @(rf/subscribe [:gallery-items])
+        roster-ids (->> chapters
+                        (mapcat linked-roster-ids)
+                        distinct
+                        vec)
+        linked-rosters (->> roster-ids
+                            (keep #(roster-by-id rosters %))
+                            vec)]
+    (when (seq linked-rosters)
+      [:div.saga-roster-buttons
+       (for [roster linked-rosters
+             :let [roster-id (:rosterId roster)
+                   characters (filterv (fn [character]
+                                         (= (:rosterId character) roster-id))
+                                       all-characters)]]
+         ^{:key (str "saga-roster-" roster-id)}
+         [roster-button-view roster
+          characters
+          frames
+          {:title (or (:name roster) "Open roster")
+           :aria-label (or (:name roster) "Open roster")
+           :on-click #(rf/dispatch [:navigate-roster-page roster-id saga-id])}])])))
 
 (defn collection-section [cfg entity active-frame-id editing-entity-id]
   (let [{:keys [entity-id-key entity-label entity-singular owner-type]} cfg
@@ -297,6 +361,9 @@
         current-description (if editing?
                               (get description-inputs entity-id entity-description)
                               entity-description)
+        show-header-actions? (case (str entity-label)
+                               ("chapter" "saga") editing?
+                               true)
         editor-selector (str "[data-entity-editor-id=\"" entity-id "\"]")
         frames (when chapter-entity?
                  @(rf/subscribe [:frames-for-chapter entity-id]))
@@ -374,10 +441,14 @@
            :on-save (fn [next-description]
                       (rf/dispatch [:save-entity entity-label entity-id current-name next-description]))
            :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
-         [entity-actions
-          {:entity-id entity-id
-           :entity-label entity-label
-           :singular-label entity-singular}]]
+         (when show-header-actions?
+           [:div.chapter-header-controls
+            [entity-actions
+             {:entity-id entity-id
+              :entity-label entity-label
+              :singular-label entity-singular
+              :prefix-content (when chapter-entity?
+                                [chapter-roster-controls entity])}]])]
         (case (str entity-label)
           "saga" [gallery/chapter-preview-gallery entity-id]
           [gallery/frame-gallery entity-id owner-type active-frame-id])])]))
@@ -432,9 +503,6 @@
 (defn page-header-action [cfg]
   (let [route @(rf/subscribe [:route])]
     (case (:view-id cfg)
-      :saga
-      [roster-nav-button]
-
       :roster
       (when-let [back-label (:saga-back-label cfg)]
         [back-button/back-button
@@ -503,7 +571,7 @@
                   (rf/dispatch [:save-entity "saga" saga-id next-name current-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
      [db-text/db-text
-      {:id "saga-meta-desc"
+     {:id "saga-meta-desc"
        :value (or current-description "")
        :editing? (= editing-saga-id saga-id)
        :multiline? true
@@ -521,8 +589,7 @@
        :on-save (fn [next-description]
                   (rf/dispatch [:save-entity "saga" saga-id current-name next-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
-     [:div.saga-header-actions-row
-      [page-header-action {:view-id :saga}]]]))
+     [saga-roster-buttons saga-id]]))
 
 (defn chapter-preview-image-url [frames chapter-id]
   (some->> (or frames [])
@@ -639,6 +706,62 @@
       (when (seq (str/trim (or description "")))
         [:p.index-card-description description])]]))
 
+(defn roster-select-title [target]
+  (case (:mode target)
+    :add-linked-roster "Add roster to chapter"
+    :edit-chapter-roster "Select chapter roster"
+    "Select roster"))
+
+(defn roster-select-items [rosters all-characters frames search target chapters]
+  (let [needle (some-> (or search "") str str/trim str/lower-case)
+        excluded-roster-ids (if (= :add-linked-roster (:mode target))
+                              (some->> chapters
+                                       (some (fn [chapter]
+                                               (when (= (:chapterId chapter) (:chapter-id target))
+                                                 (set (linked-roster-ids chapter)))))
+                                       set)
+                              #{})
+        visible-rosters (if (str/blank? (or needle ""))
+                          (vec rosters)
+                          (->> rosters
+                               (filter (fn [roster]
+                                         (str/includes? (roster-search-text roster) needle)))
+                               vec))
+        visible-rosters (if (seq excluded-roster-ids)
+                          (filterv (fn [roster]
+                                     (not (contains? excluded-roster-ids (:rosterId roster))))
+                                   visible-rosters)
+                          visible-rosters)]
+    (mapv (fn [roster]
+            (let [roster-id (:rosterId roster)
+                  characters (filterv (fn [character]
+                                        (= (:rosterId character) roster-id))
+                                      all-characters)]
+              ^{:key (str "roster-select-" roster-id)}
+              [roster-button-view roster
+               characters
+               frames
+               {:class-name "is-selectable-roster"
+                :title (or (:name roster) "Select roster")
+                :aria-label (or (:name roster) "Select roster")
+                :on-click #(rf/dispatch [:select-roster-link roster-id])}]))
+          visible-rosters)))
+
+(defn roster-link-dialog []
+  (let [{:keys [open? search target]} @(rf/subscribe [:roster-link-state])
+        rosters @(rf/subscribe [:rosters])
+        chapters @(rf/subscribe [:saga])
+        all-characters @(rf/subscribe [:roster])
+        frames @(rf/subscribe [:gallery-items])]
+    [roster-select-dialog/roster-select-dialog
+     {:open open?
+      :title (roster-select-title target)
+      :search search
+      :on-search #(rf/dispatch [:roster-link-search-changed %])
+      :on-close #(rf/dispatch [:close-roster-link-dialog])
+      :items (roster-select-items rosters all-characters frames search target chapters)
+      :empty-label "No rosters match this search."}]))
+
 (defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})
                focused-active-id* (r/atom nil)
@@ -682,11 +805,11 @@
           [:<>
            [:h2 page-title]
            [page-header-action cfg]])]
-       [:> TextInput
-        {:value (or search "")
-         :placeholder search-placeholder
-         :className "new-chapter-input"
-         :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
+     [:> TextInput
+      {:value (or search "")
+       :placeholder search-placeholder
+       :className "new-chapter-input collection-search-input"
+       :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
        (if (seq items)
          (map-indexed (fn [idx entity]
                       ^{:key (or (entity-id-key entity) (str "entity-" idx))}
@@ -698,13 +821,14 @@
           {:value page
            :total page-count
            :onChange #(rf/dispatch [:collection-page-selected view-id %])}])
-       (when (and show-celebration? (= :saga view-id))
+      (when (and show-celebration? (= :saga view-id))
          [chapter-celebration])
        [:section.collection-add-region
         [:div.chapter-separator]
         (if panel-open?
           [new-entity-form cfg (:name form-description) (:description form-description)]
-          [new-entity-teaser cfg active-frame-id])]])
+          [new-entity-teaser cfg active-frame-id])]
+       [roster-link-dialog]])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 
@@ -747,7 +871,7 @@
      [:> TextInput
       {:value (or search "")
        :placeholder "Search sagas, chapters, and subtitles..."
-       :className "new-chapter-input"
+       :className "new-chapter-input collection-search-input"
        :onChange #(rf/dispatch [:collection-search-changed :index (.. % -target -value)])}]
      (if (seq items)
        [:section.index-grid
