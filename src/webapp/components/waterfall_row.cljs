@@ -4,15 +4,15 @@
             ["@mantine/core" :refer [ActionIcon Menu Tooltip]]
             ["react-icons/fa6" :refer [FaEllipsisVertical]]))
 
-(def inline-action-size 38)
+(def default-inline-action-size 38)
 (def inline-action-gap 4)
 
 (defn- action-icon [icon]
   (when icon
     (r/as-element [:> icon])))
 
-(defn- visible-prefix-count [container-width action-count mandatory-count]
-  (let [slot-width (+ inline-action-size inline-action-gap)
+(defn- visible-prefix-count [container-width action-count mandatory-count action-size]
+  (let [slot-width (+ (or action-size default-inline-action-size) inline-action-gap)
         capacity (max mandatory-count
                       (int (js/Math.floor (/ (+ (max 0 (or container-width 0)) inline-action-gap)
                                              slot-width))))]
@@ -27,6 +27,7 @@
            mandatory-count
            menu-title
            menu-aria-label
+           action-size
            on-action-pointer-down]
     :or {mandatory-count 0}}]
   (r/with-let [container-el* (r/atom nil)
@@ -50,10 +51,11 @@
                                         (reset! observer* observer))))]
     (let [actions (vec (or actions []))
           visible-count (if (pos? @container-width*)
-                          (visible-prefix-count @container-width* (count actions) mandatory-count)
+                          (visible-prefix-count @container-width* (count actions) mandatory-count action-size)
                           (count actions))
           visible-actions (subvec actions 0 (min visible-count (count actions)))
-          overflow-actions (subvec actions (min visible-count (count actions)))]
+          overflow-actions (subvec actions (min visible-count (count actions)))
+          action-size (or action-size default-inline-action-size)]
       [:div {:className (if (seq class-name)
                           (str "waterfall-row " class-name)
                           "waterfall-row")
@@ -72,7 +74,7 @@
            [:> ActionIcon
             {:aria-label label
              :title label
-             :size inline-action-size
+             :size action-size
              :variant (or variant "subtle")
              :color color
              :className class-name
@@ -93,7 +95,7 @@
              {:className "waterfall-row-trigger"
               :aria-label (or menu-aria-label menu-title "More actions")
               :title (or menu-title "More actions")
-              :size inline-action-size
+              :size action-size
               :variant "subtle"
               :radius "xl"
               :onMouseDown interaction/prevent!

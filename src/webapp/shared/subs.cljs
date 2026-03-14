@@ -5,6 +5,7 @@
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
 (rf/reg-sub :sagas (fn [db _] (:sagas db)))
+(rf/reg-sub :rosters (fn [db _] (:rosters db)))
 (rf/reg-sub :saga (fn [db _] (:saga db)))
 (rf/reg-sub :roster (fn [db _] (:roster db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
@@ -49,6 +50,40 @@
 (rf/reg-sub :new-character-panel-open? (fn [db _] (get-in db [:view-state :roster :new-panel-open?])))
 (rf/reg-sub :show-chapter-celebration? (fn [db _] (get-in db [:view-state :saga :show-celebration?])))
 (rf/reg-sub :route (fn [db _] (:route db)))
+(rf/reg-sub
+ :selected-roster-id
+ (fn [db _]
+   (or (get-in db [:route :roster-id])
+       (some-> (:rosters db) first :rosterId))))
+(rf/reg-sub
+ :selected-roster
+ (fn [db _]
+   (let [roster-id (or (get-in db [:route :roster-id])
+                       (some-> (:rosters db) first :rosterId))]
+     (some (fn [roster]
+             (when (= (:rosterId roster) roster-id)
+               roster))
+           (:rosters db)))))
+(rf/reg-sub
+ :characters-for-selected-roster
+ (fn [db _]
+   (let [roster-id (or (get-in db [:route :roster-id])
+                       (some-> (:rosters db) first :rosterId))]
+     (->> (or (:roster db) [])
+          (filter (fn [character]
+                    (= (:rosterId character) roster-id)))
+          vec))))
+(rf/reg-sub
+ :characters-for-roster
+ (fn [db [_ roster-id]]
+   (->> (or (:roster db) [])
+        (filter (fn [character]
+                  (= (:rosterId character) roster-id)))
+        vec)))
+(rf/reg-sub
+ :roster-link-state
+ (fn [db _]
+   (get-in db [:view-state :roster-link])))
 (rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
 (rf/reg-sub
  :selected-saga-id

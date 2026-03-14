@@ -28,6 +28,9 @@
                        :per-page 12
                        :new-panel-open? false
                        :show-celebration? false}
+                :roster-link {:open? false
+                              :search ""
+                              :target nil}
                 :roster {:name-inputs {}
                          :description-inputs {}
                          :editing-id nil
@@ -39,6 +42,7 @@
    :last-rendered-revision nil
    :active-frame-id nil
    :sagas []
+   :rosters []
    :saga []
    :roster []
    :gallery-items []

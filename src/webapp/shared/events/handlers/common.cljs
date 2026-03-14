@@ -27,6 +27,7 @@
 
 (defn refresh-derived-status [db]
   (let [latest-state (merge {:sagas (:sagas db)
+                             :rosters (:rosters db)
                              :saga (:saga db)
                              :roster (:roster db)
                              :frames (:gallery-items db)}
@@ -92,7 +93,7 @@
      (if (< incoming-revision current-revision)
        {:db db}
        (let [previous-frames (:gallery-items db)
-              {:keys [sagas saga roster frames]} (model/derived-state state)
+              {:keys [sagas rosters saga roster frames]} (model/derived-state state)
               existing-active-id (:active-frame-id db)
               frame-ids (set (map :frameId frames))
               old-open-map (:open-frame-actions db)
@@ -119,6 +120,7 @@
                      :status (model/status-line state sagas saga roster frames)
                      :last-rendered-revision incoming-revision
                      :sagas sagas
+                     :rosters rosters
                      :saga saga
                      :roster roster
                      :gallery-items frames
@@ -213,6 +215,9 @@
       (assoc :open-frame-actions {})
       (assoc-in [:view-state :index :editing-id] nil)
       (assoc-in [:view-state :saga :editing-id] nil)
+      (assoc-in [:view-state :roster-link :open?] false)
+      (assoc-in [:view-state :roster-link :search] "")
+      (assoc-in [:view-state :roster-link :target] nil)
       (assoc-in [:view-state :roster :editing-id] nil)
       (assoc-in [:view-state :index :new-panel-open?] false)
       (assoc-in [:view-state :saga :new-panel-open?] false)

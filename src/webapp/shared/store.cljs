@@ -185,6 +185,11 @@
       (update :sagas (fn [rows] (conj (vec (or rows [])) saga)))
       (update-in [:latest-state :sagas] (fn [rows] (conj (vec (or rows [])) saga)))))
 
+(defn add-roster-row [db roster]
+  (-> db
+      (update :rosters (fn [rows] (conj (vec (or rows [])) roster)))
+      (update-in [:latest-state :rosters] (fn [rows] (conj (vec (or rows [])) roster)))))
+
 (defn add-entity-row [db entity-label entity]
   (let [{:keys [list-key latest-list-key]} (entity-meta entity-label)]
     (-> db
@@ -209,6 +214,39 @@
         (update list-key (fn [rows] (mapv update-entity* (or rows []))))
         (update-in [:latest-state latest-list-key]
                    (fn [rows] (mapv update-entity* (or rows [])))))))
+
+(defn update-chapter-roster [db chapter-id roster-id]
+  (let [update-roster* (fn [chapter]
+                         (if (= (:chapterId chapter) chapter-id)
+                           (let [existing-roster-ids (vec (remove str/blank? (or (:rosterIds chapter) [])))
+                                 remaining-roster-ids (->> existing-roster-ids
+                                                           (remove #(= % roster-id))
+                                                           vec)
+                                 next-roster-ids (vec (cons roster-id remaining-roster-ids))]
+                             (assoc chapter
+                                    :rosterId roster-id
+                                    :rosterIds next-roster-ids))
+                           chapter))]
+    (-> db
+        (update :saga (fn [rows] (mapv update-roster* (or rows []))))
+        (update-in [:latest-state :saga]
+                   (fn [rows] (mapv update-roster* (or rows [])))))))
+
+(defn add-chapter-roster [db chapter-id roster-id]
+  (let [update-roster* (fn [chapter]
+                         (if (= (:chapterId chapter) chapter-id)
+                           (let [existing-roster-ids (vec (remove str/blank? (or (:rosterIds chapter) [])))
+                                 next-roster-ids (if (some #(= % roster-id) existing-roster-ids)
+                                                   existing-roster-ids
+                                                   (conj existing-roster-ids roster-id))]
+                             (assoc chapter
+                                    :rosterId (or (:rosterId chapter) roster-id)
+                                    :rosterIds next-roster-ids))
+                           chapter))]
+    (-> db
+        (update :saga (fn [rows] (mapv update-roster* (or rows []))))
+        (update-in [:latest-state :saga]
+                   (fn [rows] (mapv update-roster* (or rows [])))))))
 
 (defn remove-saga-row [rows saga-id]
   (->> (or rows [])
@@ -313,6 +351,9 @@
 (defn next-saga-number [db]
   (inc (reduce max 0 (keep :sagaNumber (or (:sagas db) [])))))
 
+(defn next-roster-number [db]
+  (inc (reduce max 0 (keep :rosterNumber (or (:rosters db) [])))))
+
 (defn next-chapter-number [db saga-id]
   (inc (reduce max 0 (keep :chapterNumber (filter (fn [chapter]
                                                     (= (:sagaId chapter) saga-id))
@@ -407,6 +448,32 @@
            (assoc-in [:view-state :index :new-name] "")
            (assoc-in [:view-state :index :new-description] "")
            (assoc-in [:view-state :index :new-panel-open?] false))})
+
+(defn create-roster-success [db command]
+  (let [temp-roster-id (get-in command [:payload :optimistic-roster :rosterId])
+        created-roster (or (:rosterEntity (:response command))
+                           {:rosterId temp-roster-id})
+        created-roster-id (:rosterId created-roster)
+        after-create (:after-create (:payload command))
+        saga-id (:saga-id after-create)
+        dispatches (case (:mode after-create)
+                     :add-chapter [[:enqueue-add-chapter saga-id
+                                    created-roster-id
+                                    (:chapter-name after-create)
+                                    (:chapter-description after-create)]
+                                   [:navigate-roster-page created-roster-id saga-id]]
+                     :edit-chapter-roster [[:update-chapter-roster (:chapter-id after-create)
+                                            created-roster-id]
+                                           [:navigate-roster-page created-roster-id saga-id]]
+                     :add-linked-roster [[:add-chapter-roster (:chapter-id after-create)
+                                          created-roster-id]
+                                         [:navigate-roster-page created-roster-id saga-id]]
+                     [[:navigate-roster-page created-roster-id saga-id]])]
+    {:db (-> db
+             (merge-command-revision command)
+             (update :rosters replace-row-by-id :rosterId temp-roster-id created-roster)
+             (update-in [:latest-state :rosters] replace-row-by-id :rosterId temp-roster-id created-roster))
+     :dispatch-n (vec dispatches)}))
 
 (defn create-chapter-success [db command]
   (assoc (create-entity-success db command "chapter"
@@ -530,6 +597,23 @@
      :success create-saga-success
      :failure remove-temp-saga}
 
+    :add-roster
+    {:transport-fx :post-add-roster
+     :optimistic (fn [db payload]
+                   (add-roster-row db (:optimistic-roster payload)))
+     :success create-roster-success
+     :failure (fn [db command]
+                (let [temp-id (get-in command [:payload :optimistic-roster :rosterId])]
+                  (-> db
+                      (update :rosters (fn [rows]
+                                         (->> (or rows [])
+                                              (remove (fn [row] (= (:rosterId row) temp-id)))
+                                              vec)))
+                      (update-in [:latest-state :rosters] (fn [rows]
+                                                            (->> (or rows [])
+                                                                 (remove (fn [row] (= (:rosterId row) temp-id)))
+                                                                 vec))))))}
+
     :add-chapter
     {:transport-fx :post-add-chapter
      :optimistic (fn [db payload]
@@ -559,6 +643,18 @@
      :optimistic (fn [db payload]
                    (update-entity db "chapter" (:chapter-id payload)
                                   (:name payload) (:description payload)))}
+
+    :update-chapter-roster
+    {:transport-fx :post-update-chapter-roster
+     :optimistic (fn [db payload]
+                   (update-chapter-roster db (:chapter-id payload)
+                                          (:roster-id payload)))}
+
+    :add-chapter-roster
+    {:transport-fx :post-add-chapter-roster
+     :optimistic (fn [db payload]
+                   (add-chapter-roster db (:chapter-id payload)
+                                       (:roster-id payload)))}
 
     :update-character
     {:transport-fx :post-update-character

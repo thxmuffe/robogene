@@ -15,6 +15,7 @@
   (let [openai-options (settings/image-settings)]
     (atom {:chapterId nil
            :sagas []
+           :rosters []
            :saga []
            :roster []
            :frames []
@@ -26,6 +27,7 @@
 (defonce persist-chain* (atom (js/Promise.resolve nil)))
 
 (def default-saga-name "Robot Emperor")
+(def default-roster-name "Roster")
 
 (defn make-saga [saga-number name description]
   {:sagaId (new-uuid)
@@ -34,16 +36,26 @@
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
-(defn make-chapter [saga-id chapter-number name description]
+(defn make-roster [roster-number name description]
+  {:rosterId (new-uuid)
+   :rosterNumber roster-number
+   :name (str/trim (or name ""))
+   :description (str/trim (or description ""))
+   :createdAt (.toISOString (js/Date.))})
+
+(defn make-chapter [saga-id roster-id chapter-number name description]
   {:chapterId (new-uuid)
    :sagaId saga-id
+   :rosterId roster-id
+   :rosterIds [roster-id]
    :chapterNumber chapter-number
    :name (str/trim (or name ""))
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
-(defn make-character [character-number name description]
+(defn make-character [roster-id character-number name description]
   {:characterId (new-uuid)
+   :rosterId roster-id
    :characterNumber character-number
    :name (str/trim (or name ""))
    :description (str/trim (or description ""))
@@ -64,6 +76,9 @@
 (defn next-saga-number [sagas]
   (inc (reduce max 0 (map :sagaNumber sagas))))
 
+(defn next-roster-number [rosters]
+  (inc (reduce max 0 (map :rosterNumber rosters))))
+
 (defn next-chapter-number [chapters saga-id]
   (inc (reduce max 0 (map :chapterNumber (filter (fn [chapter]
                                                    (= (:sagaId chapter) saga-id))
@@ -77,6 +92,9 @@
 
 (defn saga-by-id [sagas saga-id]
   (some (fn [saga] (when (= (:sagaId saga) saga-id) saga)) sagas))
+
+(defn roster-by-id [rosters roster-id]
+  (some (fn [roster] (when (= (:rosterId roster) roster-id) roster)) rosters))
 
 (defn character-by-id [roster character-id]
   (some (fn [character] (when (= (:characterId character) character-id) character)) roster))
@@ -113,10 +131,10 @@
 (defn next-entity-number [entities number-key]
   (inc (reduce max 0 (map number-key entities))))
 
-(defn make-entity [entity-label saga-id number name description]
+(defn make-entity [entity-label saga-id roster-id number name description]
   (if (= "character" (str entity-label))
-    (make-character number name description)
-    (make-chapter saga-id number name description)))
+    (make-character roster-id number name description)
+    (make-chapter saga-id roster-id number name description)))
 
 (defn add-saga! [name description]
   (let [normalized-name (str/trim (or name ""))
@@ -134,7 +152,23 @@
                  (update :revision inc))))
     saga))
 
-(defn add-entity! [entity-label saga-id name description]
+(defn add-roster! [name description]
+  (let [normalized-name (str/trim (or name ""))
+        normalized-description (str/trim (or description ""))
+        roster-number (next-roster-number (:rosters @state))
+        roster (make-roster roster-number
+                            (if (str/blank? normalized-name)
+                              (str default-roster-name " " roster-number)
+                              normalized-name)
+                            normalized-description)]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :rosters conj roster)
+                 (update :revision inc))))
+    roster))
+
+(defn add-entity! [entity-label saga-id roster-id name description]
   (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
         snapshot @state
         entities (collection-key snapshot)
@@ -147,8 +181,15 @@
         _ (when (and (not= "character" (str entity-label))
                      (nil? (saga-by-id (:sagas snapshot) saga-id)))
             (throw (js/Error. "Saga not found.")))
+        _ (when (and (= "character" (str entity-label))
+                     (nil? (roster-by-id (:rosters snapshot) roster-id)))
+            (throw (js/Error. "Roster not found.")))
+        _ (when (and (not= "character" (str entity-label))
+                     (str/blank? (or roster-id "")))
+            (throw (js/Error. "Missing rosterId.")))
         entity (make-entity entity-label
                             saga-id
+                            roster-id
                             entity-number
                             (if (str/blank? normalized-name)
                               (str default-name " " entity-number)
@@ -170,23 +211,23 @@
     {:entity entity
      :frame first-frame}))
 
-(defn add-chapter! [saga-id name]
-  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id name "")]
+(defn add-chapter! [saga-id roster-id name]
+  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id roster-id name "")]
     {:chapter entity
      :frame frame}))
 
-(defn add-character! [name]
-  (let [{:keys [entity frame]} (add-entity! "character" nil name "")]
+(defn add-character! [roster-id name]
+  (let [{:keys [entity frame]} (add-entity! "character" nil roster-id name "")]
     {:character entity
      :frame frame}))
 
-(defn add-chapter-with-details! [saga-id name description]
-  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id name description)]
+(defn add-chapter-with-details! [saga-id roster-id name description]
+  (let [{:keys [entity frame]} (add-entity! "chapter" saga-id roster-id name description)]
     {:chapter entity
      :frame frame}))
 
-(defn add-character-with-details! [name description]
-  (let [{:keys [entity frame]} (add-entity! "character" nil name description)]
+(defn add-character-with-details! [roster-id name description]
+  (let [{:keys [entity frame]} (add-entity! "character" nil roster-id name description)]
     {:character entity
      :frame frame}))
 
@@ -269,6 +310,53 @@
 
 (defn update-chapter-details! [chapter-id name description]
   (update-entity-details! "chapter" chapter-id name description))
+
+(defn update-chapter-roster! [chapter-id roster-id]
+  (let [normalized-roster-id (some-> (or roster-id "") str str/trim)
+        snapshot @state
+        chapter-idx (first (keep-indexed (fn [i chapter]
+                                           (when (= (:chapterId chapter) chapter-id)
+                                             i))
+                                         (:saga snapshot)))]
+    (when-not (number? chapter-idx)
+      (throw (js/Error. "Chapter not found.")))
+    (when-not (roster-by-id (:rosters snapshot) normalized-roster-id)
+      (throw (js/Error. "Roster not found.")))
+    (swap! state
+           (fn [s]
+             (let [existing-roster-ids (vec (remove str/blank? (or (get-in s [:saga chapter-idx :rosterIds]) [])))
+                   remaining-roster-ids (->> existing-roster-ids
+                                             (remove #(= % normalized-roster-id))
+                                             vec)
+                   next-roster-ids (vec (cons normalized-roster-id remaining-roster-ids))]
+               (-> s
+                   (assoc-in [:saga chapter-idx :rosterId] normalized-roster-id)
+                   (assoc-in [:saga chapter-idx :rosterIds] next-roster-ids)
+                   (update :revision inc)))))
+    (get-in @state [:saga chapter-idx])))
+
+(defn add-chapter-roster! [chapter-id roster-id]
+  (let [normalized-roster-id (some-> (or roster-id "") str str/trim)
+        snapshot @state
+        chapter-idx (first (keep-indexed (fn [i chapter]
+                                           (when (= (:chapterId chapter) chapter-id)
+                                             i))
+                                         (:saga snapshot)))]
+    (when-not (number? chapter-idx)
+      (throw (js/Error. "Chapter not found.")))
+    (when-not (roster-by-id (:rosters snapshot) normalized-roster-id)
+      (throw (js/Error. "Roster not found.")))
+    (swap! state
+           (fn [s]
+             (let [existing-roster-ids (vec (remove str/blank? (or (get-in s [:saga chapter-idx :rosterIds]) [])))
+                   next-roster-ids (if (some #(= % normalized-roster-id) existing-roster-ids)
+                                     existing-roster-ids
+                                     (conj existing-roster-ids normalized-roster-id))]
+               (-> s
+                   (assoc-in [:saga chapter-idx :rosterId] (or (first next-roster-ids) normalized-roster-id))
+                   (assoc-in [:saga chapter-idx :rosterIds] next-roster-ids)
+                   (update :revision inc)))))
+    (get-in @state [:saga chapter-idx])))
 
 (defn update-character-details! [character-id name description]
   (update-entity-details! "character" character-id name description))
@@ -435,16 +523,18 @@
     (assoc frame :description normalized-description)))
 
 (defn initialize-state! []
-  (reset! state
-          {:chapterId (new-uuid)
-           :sagas [(make-saga 1 default-saga-name "")]
-           :saga []
-           :roster []
-           :frames []
-           :failedJobs []
-           :processing false
-           :revision 0
-           :openaiOptions (settings/image-settings)}))
+  (let [default-roster (make-roster 1 default-roster-name "")]
+    (reset! state
+            {:chapterId (new-uuid)
+             :sagas [(make-saga 1 default-saga-name "")]
+             :rosters [default-roster]
+             :saga []
+             :roster []
+             :frames []
+             :failedJobs []
+             :processing false
+             :revision 0
+             :openaiOptions (settings/image-settings)})))
 
 (initialize-state!)
 
@@ -452,10 +542,14 @@
   (let [current @state
         persisted (js->clj raw :keywordize-keys true)
         raw-sagas (vec (or (:sagas persisted) []))
+        raw-rosters (vec (or (:rosters persisted) []))
         legacy-meta (:sagaMeta persisted)
         default-saga-id (or (some-> raw-sagas first :sagaId)
                             (:chapterId persisted)
                             (new-uuid))
+        default-roster-id (or (some-> raw-rosters first :rosterId)
+                              (some-> current :rosters first :rosterId)
+                              (new-uuid))
         sagas (if (seq raw-sagas)
                 (->> raw-sagas
                      (map normalize-saga)
@@ -470,6 +564,23 @@
                                             default-saga-name)
                                   :description (or (some-> legacy-meta :description str str/trim)
                                                    "")})])
+        rosters (if (seq raw-rosters)
+                  (->> raw-rosters
+                       (map (fn [roster]
+                              (let [name (some-> (or (:name roster) default-roster-name) str str/trim not-empty)
+                                    description (some-> (or (:description roster) "") str str/trim)]
+                                (assoc roster
+                                       :rosterId (or (:rosterId roster) (new-uuid))
+                                       :rosterNumber (or (:rosterNumber roster) 1)
+                                       :name (or name default-roster-name)
+                                       :description (or description "")))))
+                       (sort-by (fn [roster]
+                                  [(or (:rosterNumber roster) js/Number.MAX_SAFE_INTEGER)
+                                   (or (:createdAt roster) "")
+                                   (or (:rosterId roster) "")]))
+                       vec)
+                  [(assoc (make-roster 1 default-roster-name "")
+                          :rosterId default-roster-id)])
         fallback-saga-id (:sagaId (first sagas))]
     (when (or (nil? (:chapterId persisted))
               (nil? (:revision persisted))
@@ -484,9 +595,19 @@
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
                  (assoc :sagas sagas)
+                 (assoc :rosters rosters)
                  (assoc :saga (->> (or (:saga persisted) [])
-                                   (map #(assoc (normalize-entity "chapter" %)
-                                                :sagaId (or (:sagaId %) fallback-saga-id)))
+                                   (map (fn [chapter]
+                                          (let [normalized (normalize-entity "chapter" chapter)
+                                                chapter-roster-ids (vec (or (:rosterIds chapter)
+                                                                            (when-let [roster-id (:rosterId chapter)]
+                                                                              [roster-id])
+                                                                            [(some-> rosters first :rosterId)]))]
+                                            (assoc normalized
+                                                   :sagaId (or (:sagaId chapter) fallback-saga-id)
+                                                   :rosterIds chapter-roster-ids
+                                                   :rosterId (or (first chapter-roster-ids)
+                                                                 (some-> rosters first :rosterId))))))
                                    (sort-by (fn [chapter]
                                               [(or (:sagaId chapter) "")
                                                (or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
@@ -494,7 +615,9 @@
                                                (or (:chapterId chapter) "")]))
                                    vec))
                  (assoc :roster (->> (or (:roster persisted) [])
-                                     (map #(normalize-entity "character" %))
+                                     (map #(assoc (normalize-entity "character" %)
+                                                  :rosterId (or (:rosterId %)
+                                                                (some-> rosters first :rosterId))))
                                      vec))
                  (assoc :frames (->> (or (:frames persisted) [])
                                      (map normalize-frame)
@@ -505,7 +628,7 @@
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames])))
+                             [:chapterId :revision :failedJobs :sagas :rosters :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -521,7 +644,7 @@
 
 (defn persist-state! []
   (let [snapshot (clj->js (select-keys @state
-                                       [:chapterId :revision :failedJobs :sagas :saga :roster :frames]))
+                                       [:chapterId :revision :failedJobs :sagas :rosters :saga :roster :frames]))
         queued-save (-> @persist-chain*
                         (.catch (fn [_] nil))
                         (.then (fn [] (store/save-state snapshot))))]

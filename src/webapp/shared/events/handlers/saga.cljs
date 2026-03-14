@@ -2,6 +2,20 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]))
 
+(defn inferred-saga-roster-id [db saga-id]
+  (let [roster-ids (->> (or (:saga db) [])
+                        (filter (fn [chapter]
+                                  (= (:sagaId chapter) saga-id)))
+                        (mapcat (fn [chapter]
+                                  (or (:rosterIds chapter)
+                                      (when-let [roster-id (:rosterId chapter)]
+                                        [roster-id])
+                                      [])))
+                        distinct
+                        vec)]
+    (when (= 1 (count roster-ids))
+      (first roster-ids))))
+
 (defn entity-label->keys [entity-label]
   (case (str entity-label)
     "saga"
@@ -144,7 +158,8 @@
  (fn [{:keys [db]} _]
    (let [saga-id (get-in db [:route :saga-id])
          name (some-> (get-in db [:view-state :saga :new-name]) str str/trim)
-         description (get-in db [:view-state :saga :new-description])]
+         description (get-in db [:view-state :saga :new-description])
+         inferred-roster-id (inferred-saga-roster-id db saga-id)]
      (cond
        (str/blank? (or saga-id ""))
        {:db (assoc db :status "Open a saga before adding chapters.")}
@@ -155,20 +170,34 @@
                 (assoc :status "Add a chapter name first."))}
 
        :else
-       {:db db
-        :dispatch [:enqueue-add-chapter saga-id name description]}))))
+       (if (seq (or inferred-roster-id ""))
+         {:db db
+          :dispatch [:enqueue-add-chapter saga-id inferred-roster-id name description]}
+         {:db db
+          :dispatch [:open-roster-link-dialog {:mode :add-chapter
+                                               :saga-id saga-id
+                                               :name name
+                                               :description description}]})))))
 
 (rf/reg-event-fx
  :add-character
  (fn [{:keys [db]} _]
-   (let [name (some-> (get-in db [:view-state :roster :new-name]) str str/trim)
+   (let [roster-id (or (get-in db [:route :roster-id])
+                       (some-> (:rosters db) first :rosterId))
+         name (some-> (get-in db [:view-state :roster :new-name]) str str/trim)
          description (get-in db [:view-state :roster :new-description])]
-     (if (str/blank? (or name ""))
+     (cond
+       (str/blank? (or roster-id ""))
+       {:db (assoc db :status "Open a roster before adding characters.")}
+
+       (str/blank? (or name ""))
        {:db (-> db
                 (assoc-in [:view-state :roster :new-panel-open?] true)
                 (assoc :status "Add a character name first."))}
+
+       :else
        {:db db
-        :dispatch [:enqueue-add-character name description]}))))
+        :dispatch [:enqueue-add-character roster-id name description]}))))
 
 (rf/reg-event-db
  :collection-search-changed
@@ -180,4 +209,93 @@
 (rf/reg-event-db
  :collection-page-selected
  (fn [db [_ view-id page]]
-   (assoc-in db [:view-state view-id :page] (max 1 (or page 1)))))
+  (assoc-in db [:view-state view-id :page] (max 1 (or page 1)))))
+
+(rf/reg-event-db
+ :open-roster-link-dialog
+ (fn [db [_ target]]
+   (-> db
+       (assoc-in [:view-state :roster-link :open?] true)
+       (assoc-in [:view-state :roster-link :search] "")
+       (assoc-in [:view-state :roster-link :target] target))))
+
+(rf/reg-event-db
+ :close-roster-link-dialog
+ (fn [db _]
+   (-> db
+       (assoc-in [:view-state :roster-link :open?] false)
+       (assoc-in [:view-state :roster-link :search] "")
+       (assoc-in [:view-state :roster-link :target] nil))))
+
+(rf/reg-event-db
+ :roster-link-search-changed
+ (fn [db [_ value]]
+   (assoc-in db [:view-state :roster-link :search] (or value ""))))
+
+(rf/reg-event-fx
+ :edit-chapter-roster
+ (fn [{:keys [db]} [_ chapter-id]]
+   {:db db
+    :dispatch [:open-roster-link-dialog {:mode :edit-chapter-roster
+                                         :chapter-id chapter-id}]}))
+
+(rf/reg-event-fx
+ :add-linked-chapter-roster
+ (fn [{:keys [db]} [_ chapter-id]]
+  {:db db
+   :dispatch [:open-roster-link-dialog {:mode :add-linked-roster
+                                         :chapter-id chapter-id}]}))
+
+(rf/reg-event-fx
+ :create-roster-link
+ (fn [{:keys [db]} _]
+   (let [target (get-in db [:view-state :roster-link :target])
+         chapter (some (fn [row]
+                         (when (= (:chapterId row) (:chapter-id target))
+                           row))
+                       (or (:saga db) []))
+         saga-id (or (:saga-id target) (:sagaId chapter))
+         after-create (case (:mode target)
+                        :add-chapter {:mode :add-chapter
+                                      :saga-id saga-id
+                                      :chapter-name (:name target)
+                                      :chapter-description (:description target)}
+                        :edit-chapter-roster {:mode :edit-chapter-roster
+                                              :chapter-id (:chapter-id target)
+                                              :saga-id saga-id}
+                        :add-linked-roster {:mode :add-linked-roster
+                                            :chapter-id (:chapter-id target)
+                                            :saga-id saga-id}
+                        {:mode nil
+                         :saga-id saga-id})]
+     {:db (-> db
+              (assoc-in [:view-state :roster-link :open?] false)
+              (assoc-in [:view-state :roster-link :search] "")
+              (assoc-in [:view-state :roster-link :target] nil))
+      :dispatch [:enqueue-add-roster after-create]})))
+
+(rf/reg-event-fx
+ :select-roster-link
+ (fn [{:keys [db]} [_ roster-id]]
+   (let [target (get-in db [:view-state :roster-link :target])
+         next-db (-> db
+                     (assoc-in [:view-state :roster-link :open?] false)
+                     (assoc-in [:view-state :roster-link :search] "")
+                     (assoc-in [:view-state :roster-link :target] nil))]
+     (case (:mode target)
+       :add-chapter
+       {:db next-db
+        :dispatch [:enqueue-add-chapter (:saga-id target)
+                   roster-id
+                   (:name target)
+                   (:description target)]}
+
+       :edit-chapter-roster
+       {:db next-db
+       :dispatch [:update-chapter-roster (:chapter-id target) roster-id]}
+
+       :add-linked-roster
+       {:db next-db
+        :dispatch [:add-chapter-roster (:chapter-id target) roster-id]}
+
+       {:db next-db}))))

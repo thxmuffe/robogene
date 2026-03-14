@@ -54,6 +54,7 @@
           :frame-id frame
           :fullscreen? fullscreen?
           :from-page from-page
+          :roster-id (parse-query-param query* "rosterId")
           :saga-id (parse-query-param query* "sagaId")}))
      (when-let [[_ chapter query] (re-matches #"^#/chapter/([^/?#]+)(?:\?(.*))?$" raw)]
        {:view :chapter
@@ -62,6 +63,12 @@
      (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
        (let [query* (or query "")]
          {:view :roster
+          :roster-id nil
+          :saga-id (parse-query-param query* "sagaId")}))
+     (when-let [[_ roster-id query] (re-matches #"^#/roster/([^/?#]+)(?:\?(.*))?$" raw)]
+       (let [query* (or query "")]
+         {:view :roster
+          :roster-id (some-> roster-id js/decodeURIComponent str/trim not-empty)
           :saga-id (parse-query-param query* "sagaId")}))
      (when-let [[_ saga-id] (re-matches #"^#/saga/([^/?#]+)(?:\?.*)?$" raw)]
        {:view :saga
@@ -80,11 +87,14 @@
     (str "#/saga/" (js/encodeURIComponent saga-id))))
 
 (defn roster-hash
-  ([] (roster-hash nil))
-  ([saga-id]
-   (if (str/blank? (or saga-id ""))
-     "#/roster"
-     (str "#/roster?sagaId=" (js/encodeURIComponent saga-id)))))
+  ([roster-id]
+   (roster-hash roster-id nil))
+  ([roster-id saga-id]
+   (str (if (str/blank? (or roster-id ""))
+          "#/roster"
+          (str "#/roster/" (js/encodeURIComponent roster-id)))
+        (when-not (str/blank? (or saga-id ""))
+          (str "?sagaId=" (js/encodeURIComponent saga-id))))))
 
 (defn chapter-hash
   ([chapter-id]
@@ -96,16 +106,21 @@
 
 (defn frame-hash
   ([chapter frame-id]
-   (frame-hash chapter frame-id false nil nil))
+   (frame-hash chapter frame-id false nil nil nil))
   ([chapter frame-id fullscreen?]
-   (frame-hash chapter frame-id fullscreen? nil nil))
+   (frame-hash chapter frame-id fullscreen? nil nil nil))
   ([chapter frame-id fullscreen? from-page]
-   (frame-hash chapter frame-id fullscreen? from-page nil))
+   (frame-hash chapter frame-id fullscreen? from-page nil nil))
   ([chapter frame-id fullscreen? from-page saga-id]
+   (frame-hash chapter frame-id fullscreen? from-page saga-id nil))
+  ([chapter frame-id fullscreen? from-page saga-id roster-id]
    (let [query-parts (cond-> []
                        fullscreen? (conj "fullscreen=1")
                        (#{:saga :roster} from-page) (conj (str "from=" (name from-page)))
-                       (not (str/blank? (or saga-id ""))) (conj (str "sagaId=" (js/encodeURIComponent saga-id))))
+                       (not (str/blank? (or saga-id ""))) (conj (str "sagaId=" (js/encodeURIComponent saga-id)))
+                       (and (= :roster from-page)
+                            (not (str/blank? (or roster-id ""))))
+                       (conj (str "rosterId=" (js/encodeURIComponent roster-id))))
          query (when (seq query-parts)
                  (str "?" (str/join "&" query-parts)))]
      (str "#/chapter/" chapter "/frame/" frame-id (or query "")))))
@@ -164,6 +179,15 @@
                    (or (:sagaId saga) "")]))
        vec))
 
+(defn derived-rosters [state]
+  (->> (or (:rosters state) [])
+       (dedupe-by-id :rosterId)
+       (sort-by (fn [roster]
+                  [(or (:rosterNumber roster) js/Number.MAX_SAFE_INTEGER)
+                   (or (:createdAt roster) "")
+                   (or (:rosterId roster) "")]))
+       vec))
+
 (defn derived-saga [state]
   (->> (or (:saga state) [])
        (dedupe-by-id :chapterId)
@@ -207,6 +231,7 @@
 
 (defn derived-state [state]
   (let [sagas (derived-sagas state)
+        rosters (derived-rosters state)
         saga (derived-saga state)
         roster (derived-roster state)
         enriched-frames (->> (or (:frames state) [])
@@ -218,6 +243,7 @@
                                              :frameDescription (frame-description enriched)))))
                              vec)]
     {:sagas sagas
+     :rosters rosters
      :saga saga
      :roster roster
      :frames enriched-frames}))

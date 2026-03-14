@@ -758,6 +758,7 @@
       :title (roster-select-title target)
       :search search
       :on-search #(rf/dispatch [:roster-link-search-changed %])
+      :on-create #(rf/dispatch [:create-roster-link])
       :on-close #(rf/dispatch [:close-roster-link-dialog])
       :items (roster-select-items rosters all-characters frames search target chapters)
       :empty-label "No rosters match this search."}]))

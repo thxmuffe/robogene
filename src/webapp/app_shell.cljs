@@ -46,10 +46,14 @@
                          "Chapter")]
     (str "Chapter Page · " chapter-name " · " (display-saga-name saga))))
 
-(defn main-page-title [route selected-saga]
+(defn display-roster-name [roster]
+  (or (some-> (:name roster) str/trim not-empty)
+      "Roster"))
+
+(defn main-page-title [route selected-saga selected-roster]
   (let [page-title (case (:view route)
                      :index "Index"
-                     :roster (:page-title roster-page/roster-config)
+                     :roster (display-roster-name selected-roster)
                      (display-saga-name selected-saga))]
     (str app-name " · " page-title)))
 
@@ -58,7 +62,8 @@
         chapters @(rf/subscribe [:saga])
         selected-saga @(rf/subscribe [:selected-saga])
         selected-saga-chapters @(rf/subscribe [:chapters-for-selected-saga])
-        roster @(rf/subscribe [:roster])
+        selected-roster @(rf/subscribe [:selected-roster])
+        roster-characters @(rf/subscribe [:characters-for-selected-roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         active-frame-id @(rf/subscribe [:active-frame-id])
@@ -83,7 +88,7 @@
           (case (:view route)
             :frame (frame-page-title route sagas chapters)
             :chapter (chapter-page-title route sagas chapters)
-            (main-page-title route selected-saga)))
+            (main-page-title route selected-saga selected-roster)))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
                     :px (when frame-view? 0)
@@ -111,8 +116,9 @@
           [chapter-page/chapter-page route]
 
           :roster
-          [roster-page/roster-page saga-name*
-           roster
+          [roster-page/roster-page selected-roster
+           saga-name*
+           roster-characters
            active-frame-id
            new-character-name
            new-character-description

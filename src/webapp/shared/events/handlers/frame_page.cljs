@@ -2,9 +2,9 @@
   (:require [re-frame.core :as rf]
             [webapp.shared.model :as model]))
 
-(defn- from-page->hash [from-page saga-id]
+(defn- from-page->hash [from-page saga-id roster-id]
   (case from-page
-    :roster (model/roster-hash saga-id)
+    :roster (model/roster-hash roster-id saga-id)
     :saga (model/saga-hash saga-id)
     nil))
 
@@ -14,13 +14,18 @@
    (let [route (:route db)
          chapter (or chapter-id (:chapter route) (get-in db [:latest-state :chapterId]) "local")
          from-page* (or from-page (:from-page route))
+         roster-id (or (get-in route [:roster-id])
+                       (some (fn [row]
+                               (when (= (:characterId row) chapter)
+                                 (:rosterId row)))
+                             (:roster db)))
          saga-id (or (get-in route [:saga-id])
                      (some (fn [row]
                              (when (= (:chapterId row) chapter)
                                (:sagaId row)))
                            (:saga db)))]
      {:db db
-      :set-hash (model/frame-hash chapter frame-id (true? (:fullscreen? route)) from-page* saga-id)})))
+      :set-hash (model/frame-hash chapter frame-id (true? (:fullscreen? route)) from-page* saga-id roster-id)})))
 
 (rf/reg-event-fx
  :navigate-index
@@ -32,7 +37,8 @@
  :navigate-from-page
  (fn [{:keys [db]} _]
    (if-let [target (from-page->hash (get-in db [:route :from-page])
-                                    (get-in db [:route :saga-id]))]
+                                    (get-in db [:route :saga-id])
+                                    (get-in db [:route :roster-id]))]
      {:db db
       :set-hash target}
      {:db db})))
@@ -55,9 +61,12 @@
 
 (rf/reg-event-fx
  :navigate-roster-page
- (fn [{:keys [db]} [_ saga-id]]
+ (fn [{:keys [db]} [_ roster-id saga-id]]
    {:db db
-    :set-hash (model/roster-hash (or saga-id (get-in db [:route :saga-id])))}))
+    :set-hash (model/roster-hash (or roster-id
+                                     (get-in db [:route :roster-id])
+                                     (some-> (:rosters db) first :rosterId))
+                                 (or saga-id (get-in db [:route :saga-id])))}))
 
 (rf/reg-event-fx
  :navigate-relative-frame
@@ -84,7 +93,8 @@
                                     (:frame-id route)
                                     (true? fullscreen?)
                                     (:from-page route)
-                                    (:saga-id route))}
+                                    (:saga-id route)
+                                    (:roster-id route))}
        {:db db}))))
 
 (rf/reg-event-fx
@@ -111,7 +121,8 @@
                                     (:frameId active-frame)
                                     (not fullscreen?)
                                     (get-in db [:route :from-page])
-                                    (get-in db [:route :saga-id]))}
+                                    (get-in db [:route :saga-id])
+                                    (get-in db [:route :roster-id]))}
        {:db db}))))
 
 (rf/reg-event-fx

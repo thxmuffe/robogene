@@ -185,13 +185,36 @@
                          command))))
 
 (rf/reg-event-fx
+ :enqueue-add-roster
+ (fn [{:keys [db]} [_ after-create]]
+   (let [command-id (sync/next-command-id)
+         optimistic-roster-id (str "temp-roster-" command-id)
+         optimistic-roster {:rosterId optimistic-roster-id
+                            :rosterNumber (store/next-roster-number db)
+                            :name (str "Roster " (store/next-roster-number db))
+                            :description ""
+                            :createdAt (.toISOString (js/Date.))}
+         command {:id command-id
+                  :kind :add-roster
+                  :payload {:name (:name after-create)
+                            :description (:description after-create)
+                            :after-create after-create
+                            :optimistic-roster optimistic-roster}
+                  :success-status "Roster created."}]
+     (sync/queue-command (store/apply-command-optimistically db command)
+                         "Creating roster..."
+                         command))))
+
+(rf/reg-event-fx
  :enqueue-add-chapter
- (fn [{:keys [db]} [_ saga-id name description]]
+ (fn [{:keys [db]} [_ saga-id roster-id name description]]
    (let [command-id (sync/next-command-id)
          optimistic-chapter-id (str "temp-chapter-" command-id)
          optimistic-frame-id (str "temp-frame-" command-id)
          optimistic-chapter {:chapterId optimistic-chapter-id
                              :sagaId saga-id
+                             :rosterId roster-id
+                             :rosterIds [roster-id]
                              :chapterNumber (store/next-chapter-number db saga-id)
                              :name name
                              :description (or description "")
@@ -201,6 +224,7 @@
          command {:id command-id
                   :kind :add-chapter
                   :payload {:saga-id saga-id
+                            :roster-id roster-id
                             :name name
                             :description description
                             :optimistic-chapter optimistic-chapter
@@ -212,11 +236,12 @@
 
 (rf/reg-event-fx
  :enqueue-add-character
- (fn [{:keys [db]} [_ name description]]
+ (fn [{:keys [db]} [_ roster-id name description]]
    (let [command-id (sync/next-command-id)
          optimistic-character-id (str "temp-character-" command-id)
          optimistic-frame-id (str "temp-frame-" command-id)
          optimistic-character {:characterId optimistic-character-id
+                               :rosterId roster-id
                                :characterNumber (store/next-character-number db)
                                :name name
                                :description (or description "")
@@ -225,7 +250,8 @@
                                  :frameNumber (store/next-frame-number db optimistic-character-id "character"))
          command {:id command-id
                   :kind :add-character
-                  :payload {:name name
+                  :payload {:roster-id roster-id
+                            :name name
                             :description description
                             :optimistic-character optimistic-character
                             :optimistic-frame optimistic-frame}
@@ -245,6 +271,30 @@
                   :success-status "Chapter name updated."}]
      (sync/queue-command (store/apply-command-optimistically db command)
                          "Updating chapter..."
+                         command))))
+
+(rf/reg-event-fx
+ :update-chapter-roster
+ (fn [{:keys [db]} [_ chapter-id roster-id]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :update-chapter-roster
+                  :payload {:chapter-id chapter-id
+                            :roster-id roster-id}
+                  :success-status "Chapter roster updated."}]
+     (sync/queue-command (store/apply-command-optimistically db command)
+                         "Updating chapter roster..."
+                         command))))
+
+(rf/reg-event-fx
+ :add-chapter-roster
+ (fn [{:keys [db]} [_ chapter-id roster-id]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :add-chapter-roster
+                  :payload {:chapter-id chapter-id
+                            :roster-id roster-id}
+                  :success-status "Chapter roster added."}]
+     (sync/queue-command (store/apply-command-optimistically db command)
+                         "Adding chapter roster..."
                          command))))
 
 (rf/reg-event-fx

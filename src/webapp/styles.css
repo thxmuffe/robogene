@@ -1465,6 +1465,18 @@ button.chapter-separator.is-collapsed {
   margin: 0 0 14px;
 }
 
+.roster-select-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 0 14px;
+}
+
+.roster-select-create {
+  background: rgba(31, 77, 123, 0.14);
+  border: 1px solid rgba(29, 76, 119, 0.22);
+  color: #173655;
+}
+
 .roster-select-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

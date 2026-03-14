@@ -242,10 +242,21 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-add-roster
+ (fn [{:keys [name description on-success on-failure]}]
+   (post-json "/api/add-roster"
+              {:name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+(rf/reg-fx
  :post-add-chapter
- (fn [{:keys [saga-id name description on-success on-failure]}]
+ (fn [{:keys [saga-id roster-id name description on-success on-failure]}]
    (post-json "/api/add-chapter"
               {:sagaId saga-id
+               :rosterId roster-id
                :name name
                :description description}
               on-success
@@ -254,13 +265,36 @@
 
 (rf/reg-fx
  :post-add-character
- (fn [{:keys [name description on-success on-failure]}]
+ (fn [{:keys [roster-id name description on-success on-failure]}]
    (post-json "/api/add-character"
-              {:name name
+              {:rosterId roster-id
+               :name name
                :description description}
               on-success
               on-failure
               (fn [ok _] ok))))
+
+(rf/reg-fx
+ :post-update-chapter-roster
+ (fn [{:keys [chapter-id roster-id on-success on-failure]}]
+   (post-json "/api/update-chapter-roster"
+              {:chapterId chapter-id
+               :rosterId roster-id}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
+
+(rf/reg-fx
+ :post-add-chapter-roster
+ (fn [{:keys [chapter-id roster-id on-success on-failure]}]
+   (post-json "/api/add-chapter-roster"
+              {:chapterId chapter-id
+               :rosterId roster-id}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
 
 (rf/reg-fx
  :post-add-frame
