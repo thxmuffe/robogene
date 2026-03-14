@@ -37,23 +37,26 @@
 
 (defn frame-placeholder [{:keys [imageStatus]}]
   (let [label (case imageStatus
+                "uploading" "Uploading..."
                 "processing" "Generating..."
                 "queued" "Queued..."
                 "failed" "Generation failed"
                 "Edit subtitle and generate")]
     [:> Box {:className "placeholder-img"}
-     (when (or (= imageStatus "queued") (= imageStatus "processing"))
-      [:div.spinner])
+     (when (or (= imageStatus "queued") (= imageStatus "processing") (= imageStatus "uploading"))
+       [:div {:className (str "spinner" (when (= imageStatus "uploading") " spinner-reverse"))}])
      [:div.placeholder-text label]]))
 
 (defn frame-status-note [{:keys [imageStatus image-loading? image-error?]}]
   (let [note-kind (cond
+                    (= imageStatus "uploading") :uploading
                     (= imageStatus "processing") :processing
                     (= imageStatus "queued") :queued
                     image-loading? :loading-image
                     (or image-error? (= imageStatus "failed")) :failed
                     :else nil)
         label (case note-kind
+                :uploading "Uploading..."
                 :processing "Generating..."
                 :queued "Queued..."
                 :loading-image "Loading image..."
@@ -62,9 +65,10 @@
     (when label
       [:div {:className (str "frame-status-note"
                              (when (= note-kind :loading-image) " is-image-loading")
+                             (when (= note-kind :uploading) " is-uploading")
                              (when (= note-kind :failed) " is-failed"))}
-       (when (#{:processing :queued :loading-image} note-kind)
-         [:div.spinner])
+       (when (#{:uploading :processing :queued :loading-image} note-kind)
+         [:div {:className (str "spinner" (when (= note-kind :uploading) " spinner-reverse"))}])
        [:div.placeholder-text label]])))
 
 (def max-subtitle-chars 500)

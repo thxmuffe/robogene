@@ -28,7 +28,8 @@
         (update-in [:latest-state :frames]
                    (fn [frames] (conj (vec (or frames [])) frame)))
         (update :hidden-frame-images dissoc frame-id)
-        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
+        (assoc-in [:image-ui-by-frame-id frame-id]
+                  (image-ui/image-ui-state-for-url (:imageUrl frame))))))
 
 (defn add-frame [db owner-id owner-type frame-id]
   (add-frame-row db {:frameId frame-id
@@ -80,7 +81,7 @@
                         (if (= (:frameId frame) frame-id)
                           (-> frame
                               (assoc :imageUrl image-data-url)
-                              (assoc :imageStatus "ready")
+                              (assoc :imageStatus "uploading")
                               (assoc :error nil))
                           frame))]
     (-> db
@@ -286,6 +287,18 @@
    :createdAt (.toISOString (js/Date.))
    :frameDescription ""})
 
+(defn optimistic-upload-frame [_db frame-id chapter-id image-data-url]
+  {:frameId frame-id
+   :chapterId chapter-id
+   :ownerType "saga"
+   :frameNumber 0
+   :description ""
+   :imageUrl image-data-url
+   :imageStatus "uploading"
+   :error nil
+   :createdAt (.toISOString (js/Date.))
+   :frameDescription ""})
+
 (defn next-saga-number [db]
   (inc (reduce max 0 (keep :sagaNumber (or (:sagas db) [])))))
 
@@ -308,12 +321,22 @@
     (-> db
         (update :frame-drafts dissoc temp-frame-id)
         (update :open-frame-actions dissoc temp-frame-id)
+        (update :hidden-frame-images dissoc temp-frame-id)
         (update :image-ui-by-frame-id image-ui/remove-frame temp-frame-id)
         (update :gallery-items replace-row-by-id :frameId temp-frame-id
                 (or created-frame {:frameId temp-frame-id}))
         (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
-                   (or created-frame {:frameId temp-frame-id})))
+                   (or created-frame {:frameId temp-frame-id}))
+        (cond-> (seq (or (:frameId created-frame) ""))
+          (assoc-in [:image-ui-by-frame-id (:frameId created-frame)]
+                    (image-ui/image-ui-state-for-url (:imageUrl created-frame)))))
     db))
+
+(defn replace-temp-frames [db temp-frame-ids created-frames]
+  (reduce (fn [acc [temp-id created-frame]]
+            (replace-temp-frame acc temp-id created-frame))
+          db
+          (map vector (or temp-frame-ids []) (or created-frames []))))
 
 (defn create-entity-success [db command entity-label temp-entity-id view-state-key]
   (let [response (:response command)
@@ -417,7 +440,8 @@
      :success (fn [db command]
                 {:db (-> db
                          (merge-command-revision command)
-                         (merge-frame-response (get-in command [:response :frame])))} )}
+                         (merge-frame-response (get-in command [:response :frame])))})
+     :fetch-after-success? false}
 
     :replace-frame-image
     {:transport-fx :post-replace-frame-image
@@ -427,7 +451,25 @@
      :success (fn [db command]
                 {:db (-> db
                          (merge-command-revision command)
-                         (merge-frame-response (get-in command [:response :frame])))} )}
+                         (merge-frame-response (get-in command [:response :frame])))})
+     :fetch-after-success? false}
+
+    :add-uploaded-frames
+    {:transport-fx :post-add-uploaded-frames
+     :optimistic (fn [db payload]
+                   (reduce add-frame-row db (or (:optimistic-frames payload) [])))
+     :success (fn [db command]
+                (let [response-frames (or (get-in command [:response :frames]) [])
+                      temp-frame-ids (mapv :frameId (or (get-in command [:payload :optimistic-frames]) []))
+                      first-frame-id (some-> response-frames first :frameId)]
+                  {:db (cond-> (-> db
+                                   (merge-command-revision command)
+                                   (replace-temp-frames temp-frame-ids response-frames))
+                         first-frame-id
+                         (assoc :active-frame-id first-frame-id))}))
+     :failure (fn [db command]
+                (remove-frames db (mapv :frameId (or (get-in command [:payload :optimistic-frames]) []))))
+     :fetch-after-success? false}
 
     :update-frame-description
     {:transport-fx :post-update-frame-description
@@ -532,6 +574,9 @@
       {transport-fx (merge (:payload command)
                            (sync/callback-events (:id command)))})))
 
+(defn fetch-after-success? [kind]
+  (not= false (get (mutation-spec kind) :fetch-after-success? true)))
+
 (defn apply-sync-success [db command]
   (let [base-db (-> db
                     sync/dequeue-command
@@ -584,12 +629,14 @@
    (let [inflight (:sync-inflight db)]
      (if (= command-id (:id inflight))
        (let [generate-frame? (= :generate-frame (:kind inflight))
+             fetch-after-success? (fetch-after-success? (:kind inflight))
              fx (cond-> (merge (apply-sync-success db (assoc inflight :response data))
-                               (if generate-frame?
-                                 {:dispatch [:sync-outbox/process]}
+                               (if fetch-after-success?
                                  {:dispatch-n [[:sync-outbox/process]
-                                               [:fetch-state]]}))
+                                               [:fetch-state]]}
+                                 {:dispatch [:sync-outbox/process]}))
                   (and generate-frame?
+                       (not fetch-after-success?)
                        (transport/realtime-disabled?))
                   (assoc :dispatch-after-burst {:delays [250 1000 2500]
                                                 :event [:fetch-state]}))]

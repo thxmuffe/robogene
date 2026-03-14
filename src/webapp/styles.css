@@ -922,6 +922,10 @@ button.chapter-separator.is-collapsed {
   box-shadow: 0 0 10px rgba(30, 18, 6, 0.35);
 }
 
+.spinner.spinner-reverse {
+  animation-direction: reverse;
+}
+
 .traffic-indicator {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 12px);

@@ -68,31 +68,30 @@
 (rf/reg-event-fx
  :upload-chapter-images
  (fn [{:keys [db]} [_ chapter-id image-data-urls]]
-   (let [image-count (count (or image-data-urls []))]
+   (let [images (vec (or image-data-urls []))
+         image-count (count images)]
      (if (or (str/blank? (or chapter-id ""))
              (zero? image-count))
        {:db db}
-       {:db (assoc db :status (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "..."))
-        :post-add-uploaded-frames {:chapter-id chapter-id
-                                   :image-data-urls image-data-urls
-                                   :on-success [:upload-chapter-images/succeeded chapter-id]
-                                   :on-failure [:upload-chapter-images/failed chapter-id]}}))))
-
-(rf/reg-event-fx
- :upload-chapter-images/succeeded
- (fn [{:keys [db]} [_ _chapter-id response]]
-   (let [first-frame-id (some-> response :frames first :frameId)]
-     (if first-frame-id
-       {:db (assoc db :status "Images uploaded.")
-        :dispatch-n [[:set-active-frame first-frame-id]
-                     [:fetch-state]]}
-       {:db (assoc db :status "Images uploaded.")
-        :dispatch [:fetch-state]}))))
-
-(rf/reg-event-db
- :upload-chapter-images/failed
- (fn [db [_ _chapter-id error-message]]
-   (assoc db :status (or error-message "Upload images failed."))))
+       (let [command-id (sync/next-command-id)
+             start-frame-number (store/next-frame-number db chapter-id "saga")
+             optimistic-frames (mapv (fn [idx image-data-url]
+                                       (assoc (store/optimistic-upload-frame db
+                                                                             (str "temp-upload-frame-" command-id "-" idx)
+                                                                             chapter-id
+                                                                             image-data-url)
+                                              :frameNumber (+ start-frame-number idx)))
+                                     (range image-count)
+                                     images)
+             command {:id command-id
+                      :kind :add-uploaded-frames
+                      :payload {:chapter-id chapter-id
+                                :image-data-urls images
+                                :optimistic-frames optimistic-frames}
+                      :success-status (str "Uploaded " image-count " image" (when (not= 1 image-count) "s") ".")}]
+         (sync/queue-command (store/apply-command-optimistically db command)
+                             (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "...")
+                             command))))))
 
 (rf/reg-event-fx
  :delete-frame
