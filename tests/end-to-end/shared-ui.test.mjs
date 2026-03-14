@@ -228,7 +228,8 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     };
 
     const ctx = { openPage, actionTimeoutMs, logStep };
-    await t.test('ui e2e: smoke app boots and shows first frame', { skip: true }, async () => {
+    let smokeError = null;
+    await t.test('ui e2e: smoke app boots and shows first frame', async () => {
       try {
         await runSmokeScenario(ctx);
       } catch (err) {
@@ -251,6 +252,9 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await t.test('ui e2e: roster add character and generate image', async () => {
       await runRosterGenerateScenario(ctx);
     });
+    if (smokeError) {
+      throw smokeError;
+    }
   } catch (err) {
     suiteFailed = true;
     throw new Error(`${String(err.message || err)}\n\nRecent app logs:\n${appLogs.get()}`);
