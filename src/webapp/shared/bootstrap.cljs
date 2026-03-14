@@ -14,16 +14,10 @@
 (defonce frame-motion-pointer-bound?* (atom false))
 (defonce frame-motion-animating?* (atom false))
 (defonce frame-motion-state* (atom {:x 0 :y 0 :rot 0 :last-scroll-y 0}))
-(defonce frame-pointer-state* (atom {:x nil :y nil}))
-(def ^:const gallery-motion-translation-amplitude 0.2)
-(def ^:const gallery-motion-rotation-amplitude 0.65)
-(def ^:const gallery-motion-max-x 22)
-(def ^:const gallery-motion-max-y 30)
-(def ^:const gallery-motion-max-rot 0.42)
-(def ^:const gallery-motion-pointer-min-weight 0.28)
 
-(defn- clamp [min-value max-value value]
-  (max min-value (min max-value value)))
+(def ^:const gallery-motion-translation-amplitude 0)
+(def ^:const gallery-motion-rotation-amplitude 0)
+
 
 (defn- update-background-parallax! []
   (let [scroll-y (or (.-scrollY js/window) 0)
