@@ -79,6 +79,11 @@ Full hosting + CLI deploy guide:
 - CLI summary: `./scripts/azure/monitor_summary.sh`
 - Optional: `./scripts/azure/monitor_summary.sh robogene-func-prod robogene-rg 6h`
 
+## API Documentation
+
+Complete API reference with all endpoints, request/response formats, and examples:
+- [API.md](API.md)
+
 ## Contributing
 
 Project priorities for all contributors:
