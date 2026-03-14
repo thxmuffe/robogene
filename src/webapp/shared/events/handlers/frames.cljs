@@ -53,13 +53,17 @@
 (rf/reg-event-fx
  :add-frame
  (fn [{:keys [db]} [_ owner-id owner-type]]
-   (let [temp-frame-id (str "temp-frame-" (sync/next-command-id))
+   (let [command-id (sync/next-command-id)
          owner-type (or owner-type "saga")
-         command {:id (sync/next-command-id)
+         optimistic-frame-id (str "frame-" command-id)
+         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id owner-id owner-type)
+                                 :frameNumber (store/next-frame-number db owner-id owner-type))
+         command {:id command-id
                   :kind :add-frame
                   :payload {:owner-id owner-id
                             :owner-type owner-type
-                            :optimistic-frame-id temp-frame-id}
+                            :frame-id optimistic-frame-id
+                            :optimistic-frame optimistic-frame}
                   :success-status "Frame added."}]
      (sync/queue-command (store/apply-command-optimistically db command)
                          "Adding frame..."

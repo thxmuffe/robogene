@@ -144,10 +144,12 @@
   (.on conn "stateChanged"
        (fn [payload]
          (when (epoch-current? epoch)
+           (let [payload* (js->clj payload :keywordize-keys true)]
            (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
-           (rf/dispatch [:realtime-state-changed (js->clj payload :keywordize-keys true)])
-           (rf/dispatch [:fetch-state])))))
+           (rf/dispatch [:realtime-state-changed payload*])
+           (when-not (= false (:requiresFetch payload*))
+             (rf/dispatch [:fetch-state])))))))
 
 (defn start-connection! [conn epoch]
   (-> (.start conn)
@@ -262,9 +264,10 @@
 
 (rf/reg-fx
  :post-add-frame
- (fn [{:keys [owner-id owner-type on-success on-failure]}]
+ (fn [{:keys [owner-id owner-type frame-id on-success on-failure]}]
    (post-json "/api/add-frame"
               {:ownerType (or owner-type "saga")
+               :frameId frame-id
                :chapterId (when (not= "character" (str owner-type)) owner-id)
                :characterId (when (= "character" (str owner-type)) owner-id)}
               on-success

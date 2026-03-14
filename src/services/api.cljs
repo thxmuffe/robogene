@@ -300,13 +300,16 @@
          (json-response (:status outcome) {:error (:error outcome)} request)
          (do
            (queue-frame! (:idx outcome) direction without-roster)
-           (-> (chapter/persist-state!)
-               (.then (fn [_]
-                        (chapter/emit-state-changed! "queued"
-                                                     {:frame (get-in @chapter/state [:frames (:idx outcome)])
-                                                      :requiresFetch false})
-                        (chapter/process-queue!)
-                        (queue-success-response request (:idx outcome)))))))))))
+           (let [queued-frame (get-in @chapter/state [:frames (:idx outcome)])]
+             (chapter/emit-state-changed! "queued"
+                                          {:frame queued-frame
+                                           :requiresFetch false})
+             (chapter/process-queue!)
+             (-> (chapter/persist-state!)
+                 (.catch (fn [err]
+                           (js/console.error "[robogene] persist failed after queueing frame" err)
+                           nil)))
+             (queue-success-response request (:idx outcome)))))))))
 
 (defn with-revision [body snapshot]
   (assoc body :revision (:revision snapshot)))
@@ -460,6 +463,7 @@
      (let [owner-type (some-> (gobj/get body "ownerType") str str/lower-case)
            chapter-id (some-> (gobj/get body "chapterId") str str/trim)
            character-id (some-> (gobj/get body "characterId") str str/trim)
+           frame-id (some-> (gobj/get body "frameId") str str/trim)
            target-owner-type (if (= owner-type "character") "character" "saga")
            owner-id (if (= target-owner-type "character") character-id chapter-id)]
        (if (str/blank? owner-id)
@@ -470,8 +474,8 @@
          (run-command
           request
           {:run! #(if (= target-owner-type "character")
-                    (character/add-frame! owner-id)
-                    (chapter/add-frame! owner-id target-owner-type))
+                    (character/add-frame-with-id! owner-id frame-id)
+                    (chapter/add-frame! owner-id target-owner-type frame-id))
            :reason "frame-added"
            :default-error (if (= target-owner-type "character") "Character not found." "Chapter not found.")
            :status-by-message {"Chapter not found." 404

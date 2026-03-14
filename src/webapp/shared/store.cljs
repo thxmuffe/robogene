@@ -11,6 +11,8 @@
             frame))
         (or (:gallery-items db) [])))
 
+(declare merge-frame-row)
+
 (defn set-frame-image-status [db frame-id image-status]
   (let [set-status (fn [frame]
                      (if (= (:frameId frame) frame-id)
@@ -24,9 +26,18 @@
 (defn add-frame-row [db frame]
   (let [frame-id (:frameId frame)]
     (-> db
-        (update :gallery-items (fn [frames] (conj (vec (or frames [])) frame)))
+        (update :gallery-items
+                (fn [frames]
+                  (let [rows (vec (or frames []))]
+                    (if (some (fn [row] (= (:frameId row) frame-id)) rows)
+                      (merge-frame-row rows frame)
+                      (conj rows frame)))))
         (update-in [:latest-state :frames]
-                   (fn [frames] (conj (vec (or frames [])) frame)))
+                   (fn [frames]
+                     (let [rows (vec (or frames []))]
+                       (if (some (fn [row] (= (:frameId row) frame-id)) rows)
+                         (merge-frame-row rows frame)
+                         (conj rows frame)))))
         (update :hidden-frame-images dissoc frame-id)
         (assoc-in [:image-ui-by-frame-id frame-id]
                   (image-ui/image-ui-state-for-url (:imageUrl frame))))))
@@ -402,11 +413,9 @@
     :add-frame
     {:transport-fx :post-add-frame
      :optimistic (fn [db payload]
-                   (add-frame db (:owner-id payload)
-                              (:owner-type payload)
-                              (:optimistic-frame-id payload)))
+                   (add-frame-row db (:optimistic-frame payload)))
      :success (fn [db command]
-                (let [temp-id (get-in command [:payload :optimistic-frame-id])
+                (let [temp-id (get-in command [:payload :optimistic-frame :frameId])
                       created-frame (:frame (:response command))
                       replace-frame (fn [frame]
                                       (if (= (:frameId frame) temp-id)
@@ -421,7 +430,8 @@
                            (update-in [:latest-state :frames]
                                       (fn [frames] (mapv replace-frame (or frames [])))))}))
      :failure (fn [db command]
-                (remove-frames db [(get-in command [:payload :optimistic-frame-id])]))}
+                (remove-frames db [(get-in command [:payload :optimistic-frame :frameId])]))
+     :fetch-after-success? false}
 
     :delete-frame
     {:transport-fx :post-delete-frame

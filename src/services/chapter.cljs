@@ -272,15 +272,19 @@
 
 (defn add-frame!
   ([chapter-id]
-   (add-frame! chapter-id "saga"))
+   (add-frame! chapter-id "saga" nil))
   ([owner-id owner-type]
+   (add-frame! owner-id owner-type nil))
+  ([owner-id owner-type frame-id]
    (let [owner-type (or owner-type "saga")
          {:keys [collection-key id-key not-found-msg]} (entity-type->meta (if (= owner-type "character") "character" "chapter"))
          owner (entity-by-id (collection-key @state) id-key owner-id)]
     (when-not owner
       (throw (js/Error. not-found-msg)))
     (let [frame-number (next-frame-number (:frames @state) owner-id owner-type)
-          frame (make-draft-frame owner-id frame-number owner-type)]
+          frame (cond-> (make-draft-frame owner-id frame-number owner-type)
+                  (seq (or frame-id ""))
+                  (assoc :frameId frame-id))]
       (swap! state
              (fn [s]
                (-> s
@@ -600,11 +604,19 @@
                 (js/console.error "[robogene] storage sync failed" err)
                 (throw err)))))
 
+(defn apply-persisted-save-result! [raw]
+  (let [persisted (js->clj raw :keywordize-keys true)
+        persisted-revision (or (:revision persisted) -1)
+        current-revision (or (:revision @state) -1)]
+    (if (< persisted-revision current-revision)
+      @state
+      (apply-persisted-state! raw))))
+
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
                              [:chapterId :revision :failedJobs :sagas :saga :roster :frames])))
-      (.then apply-persisted-state!)
+      (.then apply-persisted-save-result!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
                 (throw err)))))
@@ -937,14 +949,7 @@
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)
-    (-> (persist-state!)
-        (.then (fn [_]
-                 (process-step!)
-                 nil))
-        (.catch (fn [err]
-                  (js/console.error "[robogene] persist failed when queue started" err)
-                  (process-step!)
-                  nil)))))
+    (process-step!)))
 
 (defn active-queue-count [frames]
   (count (filter (fn [f]

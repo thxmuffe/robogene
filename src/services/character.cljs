@@ -10,6 +10,9 @@
 (defn add-frame! [character-id]
   (chapter/add-frame! character-id "character"))
 
+(defn add-frame-with-id! [character-id frame-id]
+  (chapter/add-frame! character-id "character" frame-id))
+
 (defn update-details! [character-id name description]
   (chapter/update-character-details! character-id name description))
 
