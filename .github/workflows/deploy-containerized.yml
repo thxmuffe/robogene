@@ -1,0 +1,342 @@
+# Example: Deploy with container image
+# This file shows the recommended approach to use the containerized environment
+# Usage: Uncomment and use this when ready to switch from current deploy.yml
+
+name: Deploy App (Containerized)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/ci-environment
+
+jobs:
+  # Optional: Build and cache the container image
+  # Only rebuild if Dockerfile changes
+  build-image:
+    name: Build CI container image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      image-latest: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-webapi:
+    name: Build webapi
+    runs-on: ubuntu-latest
+    needs: build-image
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Build ClojureScript webapi
+        run: |
+          npm ci
+          npm run build:webapi
+
+      - name: Prepare Azure package
+        run: npm run package:webapi
+
+      - name: Smoke check packaged webapi
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/robogene-webapi-smoke
+          mkdir -p /tmp/robogene-webapi-smoke
+          unzip -q dist/release/webapi/webapi_dist.zip -d /tmp/robogene-webapi-smoke
+          test -f /tmp/robogene-webapi-smoke/host.json
+          test -f /tmp/robogene-webapi-smoke/dist/main.js
+          test -f /tmp/robogene-webapi-smoke/dist/webapi_compiled.js
+          (
+            cd /tmp/robogene-webapi-smoke
+            AzureWebJobsStorage='UseDevelopmentStorage=true' \
+            ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE='1' \
+            ROBOGENE_IMAGE_GENERATOR='mock' \
+            ROBOGENE_ALLOWED_ORIGIN='http://localhost:8080' \
+            FUNCTIONS_WORKER_RUNTIME='node' \
+            node -e "require('./dist/main.js'); console.log('webapi-smoke-ok')"
+          )
+
+      - name: Upload Web API deploy artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: robogen-webapi
+          path: dist/release/webapi/webapi_dist.zip
+          retention-days: 7
+
+  build-webapp:
+    name: Build webapp
+    runs-on: ubuntu-latest
+    needs: build-image
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Build webapp
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: robogen-webapp
+          path: dist/release/webapp
+
+      - name: Upload webapp test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: robogen-webapp-dist
+          path: dist/release/webapp
+          retention-days: 7
+
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs:
+      - build-image
+      - build-webapi
+      - build-webapp
+    container:
+      image: ${{ needs.build-image.outputs.image }}
+      options: --user root
+    env:
+      ROBOGENE_E2E_HEADLESS: "1"
+      ROBOGENE_E2E_USE_PREBUILT: "1"
+      ROBOGENE_E2E_WEBAPP_DIR: ${{ github.workspace }}/.artifacts/webapp
+      ROBOGENE_E2E_WEBAPI_SCRIPT_ROOT: ${{ github.workspace }}/.artifacts/webapi/app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Note: Playwright is already installed in the container
+      # Just verify it works
+      - name: Verify Playwright installation
+        run: npx playwright --version
+
+      - name: Download webapi build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapi
+          path: .artifacts/webapi
+
+      - name: Download webapp build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapp-dist
+          path: .artifacts/webapp
+
+      - name: Unpack webapi artifact
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/webapi/app
+          unzip -q .artifacts/webapi/webapi_dist.zip -d .artifacts/webapi/app
+
+      - name: Run unit and service tests
+        run: npm test
+
+      - name: Run UI e2e tests from built artifacts
+        run: npm run test:e2e
+
+  deploy-webapi:
+    name: Deploy webapi to Azure
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      FUNCTION_APP_NAME: robogene-func-prod
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_FUNCTIONAPP_PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+      ROBOGENE_IMAGE_GENERATOR: ${{ vars.ROBOGENE_IMAGE_GENERATOR }}
+      ROBOGENE_IMAGE_GENERATOR_KEY: ${{ secrets.ROBOGENE_IMAGE_GENERATOR_KEY }}
+    steps:
+      - name: Download Web API deploy artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapi
+          path: dist/release/webapi
+
+      - name: Resolve deploy auth mode
+        id: auth
+        env:
+          AZURE_DEPLOY_AUTH_MODE: ${{ vars.AZURE_DEPLOY_AUTH_MODE }}
+        run: |
+          set -euo pipefail
+          requested_mode="$(echo "${AZURE_DEPLOY_AUTH_MODE:-}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$requested_mode" == "oidc" ]]; then
+            if [[ -z "${AZURE_CLIENT_ID:-}" || -z "${AZURE_TENANT_ID:-}" || -z "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+              echo "::error::AZURE_DEPLOY_AUTH_MODE=oidc requires AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID."
+              exit 1
+            fi
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            echo "Using OIDC authentication (explicit override)."
+          elif [[ "$requested_mode" == "publish-profile" ]]; then
+            if [[ -z "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
+              echo "::error::AZURE_DEPLOY_AUTH_MODE=publish-profile requires AZURE_FUNCTIONAPP_PUBLISH_PROFILE."
+              exit 1
+            fi
+            echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
+            echo "Using publish profile authentication (explicit override)."
+          elif [[ -n "${AZURE_FUNCTIONAPP_PUBLISH_PROFILE:-}" ]]; then
+            echo "mode=publish-profile" >> "$GITHUB_OUTPUT"
+            echo "Using publish profile authentication."
+          elif [[ -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+            echo "Using OIDC authentication."
+          else
+            echo "::error::Missing Azure deployment credentials."
+            echo "::error::Set either AZURE_FUNCTIONAPP_PUBLISH_PROFILE, or all of AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID."
+            exit 1
+          fi
+
+      - name: Azure login (OIDC)
+        if: steps.auth.outputs.mode == 'oidc'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure context
+        if: steps.auth.outputs.mode == 'oidc'
+        run: az account show --output table
+
+      - name: Ensure Azure Function runtime settings
+        if: steps.auth.outputs.mode == 'oidc'
+        run: |
+          set -euo pipefail
+          az functionapp config appsettings set \
+            --resource-group robogene-rg \
+            --name "${FUNCTION_APP_NAME}" \
+            --settings \
+              FUNCTIONS_WORKER_RUNTIME=node \
+              WEBSITE_NODE_DEFAULT_VERSION=~22 \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              ROBOGENE_IMAGE_GENERATOR="${ROBOGENE_IMAGE_GENERATOR:-openai}" \
+              ROBOGENE_IMAGE_GENERATOR_KEY="${ROBOGENE_IMAGE_GENERATOR_KEY}"
+
+      - name: Deploy Azure Function (OIDC)
+        if: steps.auth.outputs.mode == 'oidc'
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          package: ./dist/release/webapi/webapi_dist.zip
+
+      - name: Deploy Azure Function (publish profile)
+        if: steps.auth.outputs.mode == 'publish-profile'
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          package: ./dist/release/webapi/webapi_dist.zip
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+
+      - name: Health check deployed webapi
+        run: |
+          set -euo pipefail
+          api_url="https://${FUNCTION_APP_NAME}.azurewebsites.net/api/state?t=$(date +%s)"
+          echo "Checking $api_url"
+          for i in {1..6}; do
+            if curl -fsS --max-time 5 "$api_url" >/dev/null; then
+              echo "Web API is healthy."
+              exit 0
+            fi
+            echo "Health check attempt $i/6 failed; retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Web API health check failed after 30 seconds."
+          exit 1
+
+  deploy-pages:
+    name: Deploy webapp to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: validate
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download webapp artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robogen-webapp
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: robogen-webapp
