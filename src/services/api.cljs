@@ -302,9 +302,7 @@
          (do
            (queue-frame! (:idx outcome) direction without-roster)
            (let [queued-frame (get-in @chapter/state [:frames (:idx outcome)])]
-             (chapter/emit-state-changed! "queued"
-                                          {:frame queued-frame
-                                           :requiresFetch false})
+             (chapter/emit-state-changed! "queued")
              (chapter/process-queue!)
              (-> (chapter/persist-state!)
                  (.catch (fn [err]
@@ -452,7 +450,7 @@
          (json-response 400 {:error "Missing rosterId."} request)
          (run-command
           request
-          {:run! #(character/add-character-with-details! roster-id name description)
+          {:run! #(chapter/add-character-with-roster! roster-id name description)
            :reason "character-added"
            :default-error "Create character failed."
            :status-by-message {"Roster not found." 404

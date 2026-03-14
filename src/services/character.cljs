@@ -1,11 +1,11 @@
 (ns services.character
   (:require [services.chapter :as chapter]))
 
-(defn add-character! [roster-id name]
-  (chapter/add-character! roster-id name))
+(defn add-character! [name]
+  (chapter/add-character! name))
 
-(defn add-character-with-details! [roster-id name description]
-  (chapter/add-character-with-details! roster-id name description))
+(defn add-character-with-details! [name description]
+  (chapter/add-character-with-details! name description))
 
 (defn add-frame! [character-id]
   (chapter/add-frame! character-id "character"))

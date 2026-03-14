@@ -210,10 +210,18 @@
     {:character entity
      :frame frame}))
 
+(defn add-character-with-roster! [roster-id name description]
+  (let [roster (entity-by-id (:roster @state) :characterId roster-id)]
+    (when-not roster
+      (throw (js/Error. "Roster not found.")))
+    (add-character-with-details! name description)))
+
 (defn add-frame!
   ([chapter-id]
    (add-frame! chapter-id "saga"))
   ([owner-id owner-type]
+   (add-frame! owner-id owner-type nil))
+  ([owner-id owner-type frame-id]
    (let [owner-type (or owner-type "saga")
          {:keys [collection-key id-key not-found-msg]} (entity-type->meta (if (= owner-type "character") "character" "chapter"))
          owner (entity-by-id (collection-key @state) id-key owner-id)]
@@ -224,9 +232,23 @@
       (swap! state
              (fn [s]
                (-> s
-                   (update :frames conj frame)
+                   (update :frames conj (if (some? frame-id)
+                                          (assoc frame :frameId frame-id)
+                                          frame))
                    (update :revision inc))))
-      frame))))
+      (if (some? frame-id)
+        (assoc frame :frameId frame-id)
+        frame)))))
+
+(defn add-uploaded-frames! [chapter-id image-data-urls]
+  (let [chapter (chapter-by-id (:saga @state) chapter-id)]
+    (when-not chapter
+      (throw (js/Error. "Chapter not found.")))
+    (let [frames (mapv (fn [image-url]
+                         (let [frame (add-frame! chapter-id "saga")]
+                           (assoc frame :imageUrl image-url)))
+                       image-data-urls)]
+      frames)))
 
 (defn update-entity-details! [entity-label entity-id name description]
   (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
