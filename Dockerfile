@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     git \
     ca-certificates \
-    # Java dependencies
-    openjdk-21-jre-headless \
+    # Java dependencies (use openjdk-17 from Bookworm, Clojure will work with it)
+    openjdk-17-jre-headless \
     # Clojure deps
     rlwrap \
     # Playwright/Chromium deps
@@ -23,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxss1 \
     libxrandr2 \
     libpango-1.0-0 \
-    libpango-fontconfig1 \
     libdbus-1-3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -33,7 +32,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxkbcommon0 \
     libxkbcommon-x11-0 \
-    libxrandr2 \
     libxi6 \
     libxinerama1 \
     libxext6 \
@@ -47,7 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Java home
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     PATH=$JAVA_HOME/bin:$PATH
 
 # Install Clojure CLI
