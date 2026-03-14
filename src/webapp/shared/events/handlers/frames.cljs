@@ -1,554 +1,15 @@
 (ns webapp.shared.events.handlers.frames
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [webapp.shared.events.sync :as sync]
-            [webapp.shared.events.transport :as transport]
-            [webapp.shared.events.image-ui :as image-ui]))
+            [webapp.shared.events.image-ui :as image-ui]
+            [webapp.shared.store :as store]
+            [webapp.shared.events.sync :as sync]))
 
 (defn deleted-frame-label [frame]
   (let [description (str/trim (or (:description frame) ""))]
     (cond
       (seq description) (str "\"" description "\"")
       :else (or (:frameId frame) "frame"))))
-
-(defn frame-by-id [db frame-id]
-  (some (fn [frame]
-          (when (= (:frameId frame) frame-id)
-            frame))
-        (or (:gallery-items db) [])))
-
-(defn set-frame-status [db frame-id status]
-  (let [set-status (fn [frame]
-                     (if (= (:frameId frame) frame-id)
-                       (assoc frame :status status)
-                       frame))]
-    (-> db
-        (update :gallery-items (fn [frames] (mapv set-status (or frames []))))
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv set-status (or frames [])))))))
-
-(defn add-frame-row [db frame]
-  (let [frame-id (:frameId frame)]
-    (-> db
-        (update :gallery-items (fn [frames] (conj (vec (or frames [])) frame)))
-        (update-in [:latest-state :frames]
-                   (fn [frames] (conj (vec (or frames [])) frame)))
-        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
-
-(defn add-frame [db owner-id owner-type frame-id]
-  (add-frame-row db {:frameId frame-id
-                     :chapterId owner-id
-                     :ownerType (or owner-type "saga")
-                     :description ""
-                     :imageUrl nil
-                     :status "draft"
-                     :error nil
-                     :createdAt (.toISOString (js/Date.))
-                     :frameDescription ""}))
-
-(defn remove-frames [db frame-ids]
-  (let [frame-id-set (set frame-ids)
-        remaining-frames (->> (or (:gallery-items db) [])
-                              (remove (fn [frame] (contains? frame-id-set (:frameId frame))))
-                              vec)
-        current-active-id (:active-frame-id db)
-        next-active-id (if (contains? frame-id-set current-active-id)
-                         (some-> remaining-frames first :frameId)
-                         current-active-id)
-        dissoc-ids (fn [m]
-                     (apply dissoc (or m {}) frame-ids))]
-    (-> db
-        (assoc :gallery-items remaining-frames
-               :active-frame-id next-active-id)
-        (update :frame-drafts dissoc-ids)
-        (update :open-frame-actions dissoc-ids)
-        (update :image-ui-by-frame-id
-                (fn [ui-map]
-                  (reduce image-ui/remove-frame (or ui-map {}) frame-ids)))
-        (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
-
-(defn clear-frame-image [db frame-id]
-  (let [clear-image (fn [frame]
-                      (if (= (:frameId frame) frame-id)
-                        (assoc frame :imageUrl nil)
-                        frame))]
-    (-> db
-        (update :gallery-items (fn [frames] (mapv clear-image (or frames []))))
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv clear-image (or frames []))))
-        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id))))
-
-(defn replace-frame-image [db frame-id image-data-url]
-  (let [replace-image (fn [frame]
-                        (if (= (:frameId frame) frame-id)
-                          (-> frame
-                              (assoc :imageUrl image-data-url)
-                              (assoc :status "ready")
-                              (assoc :error nil))
-                          frame))]
-    (-> db
-        (update :gallery-items (fn [frames] (mapv replace-image (or frames []))))
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv replace-image (or frames []))))
-        (assoc-in [:image-ui-by-frame-id frame-id] :loading))))
-
-(defn update-frame-description [db frame-id description]
-  (let [normalized (or (some-> (or description "") str str/trim) "")
-        set-description (fn [frame]
-                          (if (= (:frameId frame) frame-id)
-                            (assoc frame :description normalized)
-                            frame))]
-    (-> db
-        (update :frame-drafts dissoc frame-id)
-        (update :gallery-items (fn [frames] (mapv set-description (or frames []))))
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv set-description (or frames [])))))))
-
-(defn merge-frame-row [rows frame]
-  (let [target-id (:frameId frame)]
-    (mapv (fn [row]
-            (if (= (:frameId row) target-id)
-              (merge row frame)
-              row))
-          (or rows []))))
-
-(defn merge-frame-response [db frame]
-  (if (seq (or (:frameId frame) ""))
-    (-> db
-        (update :gallery-items merge-frame-row frame)
-        (update-in [:latest-state :frames] merge-frame-row frame)
-        (assoc-in [:image-ui-by-frame-id (:frameId frame)]
-                  (if (str/blank? (or (:imageUrl frame) ""))
-                    :idle
-                    :loading)))
-    db))
-
-(defn merge-command-revision [db command]
-  (if-let [revision (some-> command :response :revision)]
-    (assoc db :last-rendered-revision revision)
-    db))
-
-(defn update-saga-row [rows saga-id f]
-  (mapv (fn [row]
-          (if (= (:sagaId row) saga-id)
-            (f row)
-            row))
-        (or rows [])))
-
-(declare entity-meta update-entity remove-entity)
-
-(defn add-saga-row [db saga]
-  (-> db
-      (update :sagas (fn [rows] (conj (vec (or rows [])) saga)))
-      (update-in [:latest-state :sagas] (fn [rows] (conj (vec (or rows [])) saga)))))
-
-(defn add-entity-row [db entity-label entity]
-  (let [{:keys [list-key latest-list-key]} (entity-meta entity-label)]
-    (-> db
-        (update list-key (fn [rows] (conj (vec (or rows [])) entity)))
-        (update-in [:latest-state latest-list-key] (fn [rows] (conj (vec (or rows [])) entity))))))
-
-(defn replace-row-by-id [rows id-key temp-id next-row]
-  (mapv (fn [row]
-          (if (= (id-key row) temp-id)
-            (or next-row row)
-            row))
-        (or rows [])))
-
-(defn replace-entity-row [db entity-label temp-id entity]
-  (let [{:keys [list-key id-key latest-list-key]} (entity-meta entity-label)]
-    (-> db
-        (update list-key replace-row-by-id id-key temp-id entity)
-        (update-in [:latest-state latest-list-key] replace-row-by-id id-key temp-id entity))))
-
-(defn remove-saga-row [rows saga-id]
-  (->> (or rows [])
-       (remove (fn [row] (= (:sagaId row) saga-id)))
-       vec))
-
-(defn remove-saga [db saga-id]
-  (let [chapter-ids (->> (or (:saga db) [])
-                         (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-                         (map :chapterId)
-                         set)
-        frame-ids (->> (or (:gallery-items db) [])
-                       (filter (fn [frame] (contains? chapter-ids (:chapterId frame))))
-                       (map :frameId)
-                       vec)]
-    (-> db
-        (update :sagas remove-saga-row saga-id)
-        (update :saga (fn [rows]
-                        (->> (or rows [])
-                             (remove (fn [row] (= (:sagaId row) saga-id)))
-                             vec)))
-        (update :gallery-items (fn [rows]
-                                 (->> (or rows [])
-                                      (remove (fn [frame]
-                                                (contains? chapter-ids (:chapterId frame))))
-                                      vec)))
-        (update-in [:latest-state :sagas] remove-saga-row saga-id)
-        (update-in [:latest-state :saga] (fn [rows]
-                                           (->> (or rows [])
-                                                (remove (fn [row] (= (:sagaId row) saga-id)))
-                                                vec)))
-        (update-in [:latest-state :frames] (fn [rows]
-                                             (->> (or rows [])
-                                                  (remove (fn [frame]
-                                                            (contains? chapter-ids (:chapterId frame))))
-                                                  vec)))
-        (update :frame-drafts (fn [m] (apply dissoc (or m {}) frame-ids)))
-        (update :open-frame-actions (fn [m] (apply dissoc (or m {}) frame-ids)))
-        (update :image-ui-by-frame-id (fn [m] (reduce image-ui/remove-frame (or m {}) frame-ids))))))
-
-(defn optimistic-frame [frame-id owner-id owner-type]
-  {:frameId frame-id
-   :chapterId owner-id
-   :ownerType (or owner-type "saga")
-   :description ""
-   :imageUrl nil
-   :status "draft"
-   :error nil
-   :createdAt (.toISOString (js/Date.))
-   :frameDescription ""})
-
-(defn next-saga-number [db]
-  (inc (reduce max 0 (keep :sagaNumber (or (:sagas db) [])))))
-
-(defn next-chapter-number [db saga-id]
-  (inc (reduce max 0 (keep :chapterNumber (filter (fn [chapter]
-                                                    (= (:sagaId chapter) saga-id))
-                                                  (or (:saga db) []))))))
-
-(defn next-character-number [db]
-  (inc (reduce max 0 (keep :characterNumber (or (:roster db) [])))))
-
-(defn next-frame-number [db owner-id owner-type]
-  (inc (reduce max 0 (keep :frameNumber (filter (fn [frame]
-                                                  (and (= (:chapterId frame) owner-id)
-                                                       (= (or (:ownerType frame) "saga") (or owner-type "saga"))))
-                                                (or (:gallery-items db) []))))))
-
-(defn apply-command-optimistically [db command]
-  (let [payload (:payload command)]
-    (case (:kind command)
-      :generate-frame
-      (set-frame-status db (get payload :frame-id) "queued")
-
-      :add-frame
-      (add-frame db
-                 (get payload :owner-id)
-                 (get payload :owner-type)
-                 (get payload :optimistic-frame-id))
-
-      :delete-frame
-      (remove-frames db [(get payload :frame-id)])
-
-      :delete-empty-frames
-      (remove-frames db (or (get payload :frame-ids) []))
-
-      :clear-frame-image
-      (clear-frame-image db (get payload :frame-id))
-
-      :replace-frame-image
-      (replace-frame-image db
-                           (get payload :frame-id)
-                           (get payload :image-data-url))
-
-      :update-frame-description
-      (update-frame-description db
-                                (get payload :frame-id)
-                                (get payload :description))
-
-      :add-saga
-      (add-saga-row db (get payload :optimistic-saga))
-
-      :add-chapter
-      (cond-> (add-entity-row db "chapter" (get payload :optimistic-chapter))
-        (:optimistic-frame payload)
-        (add-frame-row (:optimistic-frame payload)))
-
-      :add-character
-      (cond-> (add-entity-row db "character" (get payload :optimistic-character))
-        (:optimistic-frame payload)
-        (add-frame-row (:optimistic-frame payload)))
-
-      :update-chapter
-      (update-entity db "chapter"
-                     (get payload :chapter-id)
-                     (get payload :name)
-                     (get payload :description))
-
-      :update-character
-      (update-entity db "character"
-                     (get payload :character-id)
-                     (get payload :name)
-                     (get payload :description))
-
-      :update-saga
-      (-> db
-          (update :sagas update-saga-row (get payload :saga-id)
-                  (fn [saga]
-                    (assoc saga
-                           :name (get payload :name)
-                           :description (or (get payload :description) ""))))
-          (update-in [:latest-state :sagas] update-saga-row (get payload :saga-id)
-                     (fn [saga]
-                       (assoc saga
-                              :name (get payload :name)
-                              :description (or (get payload :description) "")))))
-
-      :delete-saga
-      (remove-saga db (get payload :saga-id))
-
-      :delete-chapter
-      (remove-entity db "chapter" (get payload :chapter-id))
-
-      :delete-character
-      (remove-entity db "character" (get payload :character-id))
-
-      db)))
-
-(defn reapply-pending-commands [db]
-  (reduce apply-command-optimistically
-          db
-          (concat (when-let [command (:sync-inflight db)]
-                    [command])
-                  (or (:sync-outbox db) []))))
-
-(defn entity-meta [entity-label]
-  (case (str entity-label)
-    "saga"
-    {:list-key :sagas
-     :id-key :sagaId
-     :latest-list-key :sagas
-     :name-inputs-key [:view-state :index :name-inputs]
-     :description-inputs-key [:view-state :index :description-inputs]
-     :editing-key [:view-state :index :editing-id]}
-
-    "character"
-    {:list-key :roster
-     :id-key :characterId
-     :latest-list-key :roster
-     :name-inputs-key [:view-state :roster :name-inputs]
-     :description-inputs-key [:view-state :roster :description-inputs]
-     :editing-key [:view-state :roster :editing-id]}
-
-    {:list-key :saga
-     :id-key :chapterId
-     :latest-list-key :saga
-     :name-inputs-key [:view-state :saga :name-inputs]
-     :description-inputs-key [:view-state :saga :description-inputs]
-     :editing-key [:view-state :saga :editing-id]}))
-
-(defn update-entity [db entity-label entity-id name description]
-  (let [{:keys [list-key id-key latest-list-key]} (entity-meta entity-label)
-        update-entity* (fn [entity]
-                         (if (= (id-key entity) entity-id)
-                           (-> entity
-                               (assoc :name name)
-                               (assoc :description description))
-                           entity))]
-    (-> db
-        (update list-key (fn [rows] (mapv update-entity* (or rows []))))
-        (update-in [:latest-state latest-list-key]
-                   (fn [rows] (mapv update-entity* (or rows [])))))))
-
-(defn remove-entity [db entity-label entity-id]
-  (let [{:keys [list-key id-key latest-list-key name-inputs-key description-inputs-key editing-key]} (entity-meta entity-label)
-        owner-type (if (= "character" (str entity-label)) "character" "saga")
-        remaining-entities (->> (or (list-key db) [])
-                                (remove (fn [entity] (= (id-key entity) entity-id)))
-                                vec)
-        removed-frame-ids (->> (or (:gallery-items db) [])
-                               (filter (fn [frame]
-                                         (and (= (:chapterId frame) entity-id)
-                                              (= (or (:ownerType frame) "saga") owner-type))))
-                               (map :frameId)
-                               set)
-        remaining-frames (->> (or (:gallery-items db) [])
-                              (remove (fn [frame]
-                                        (and (= (:chapterId frame) entity-id)
-                                             (= (or (:ownerType frame) "saga") owner-type))))
-                              vec)
-        current-active-id (:active-frame-id db)
-        next-active-id (if (contains? removed-frame-ids current-active-id)
-                         (some-> remaining-frames first :frameId)
-                         current-active-id)
-        dissoc-ids (fn [m]
-                     (apply dissoc (or m {}) removed-frame-ids))]
-    (-> db
-        (assoc list-key remaining-entities
-               :gallery-items remaining-frames
-               :active-frame-id next-active-id)
-        (update-in name-inputs-key dissoc entity-id)
-        (update-in description-inputs-key dissoc entity-id)
-        (cond-> (= (get-in db editing-key) entity-id)
-          (assoc-in editing-key nil))
-        (update :frame-drafts dissoc-ids)
-        (update :open-frame-actions dissoc-ids)
-        (update :image-ui-by-frame-id dissoc-ids)
-        (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
-        (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
-
-(defn command->fx [command]
-  (let [kind (:kind command)
-        payload (:payload command)
-        callbacks (sync/callback-events (:id command))]
-    (case kind
-      :generate-frame
-      {:post-generate-frame (merge payload callbacks)}
-
-      :add-frame
-      {:post-add-frame (merge payload callbacks)}
-
-      :delete-frame
-      {:post-delete-frame (merge payload callbacks)}
-
-      :delete-empty-frames
-      {:post-delete-empty-frames (merge payload callbacks)}
-
-      :clear-frame-image
-      {:post-clear-frame-image (merge payload callbacks)}
-
-      :replace-frame-image
-      {:post-replace-frame-image (merge payload callbacks)}
-
-      :update-frame-description
-      {:post-update-frame-description (merge payload callbacks)}
-
-      :add-saga
-      {:post-add-saga (merge payload callbacks)}
-
-      :add-chapter
-      {:post-add-chapter (merge payload callbacks)}
-
-      :add-character
-      {:post-add-character (merge payload callbacks)}
-
-      :update-chapter
-      {:post-update-chapter (merge payload callbacks)}
-
-      :update-character
-      {:post-update-character (merge payload callbacks)}
-
-      :update-saga
-      {:post-update-saga (merge payload callbacks)}
-
-      :delete-saga
-      {:post-delete-saga (merge payload callbacks)}
-
-      :delete-chapter
-      {:post-delete-chapter (merge payload callbacks)}
-
-      :delete-character
-      {:post-delete-character (merge payload callbacks)}
-
-      nil)))
-
-(defn apply-sync-success [db command]
-  (let [kind (:kind command)
-        base-db (-> db
-                    sync/dequeue-command
-                    (assoc :sync-inflight nil))
-        db-with-status (assoc base-db :status (or (:success-status command) "Done."))]
-    (case kind
-      :add-frame
-      (let [temp-id (get-in command [:payload :optimistic-frame-id])
-            created-frame (:frame (:response command))
-            replace-frame (fn [frame]
-                            (if (= (:frameId frame) temp-id)
-                              (or created-frame frame)
-                              frame))
-            cleanup-maps (-> db-with-status
-                             (update :frame-drafts dissoc temp-id)
-                             (update :open-frame-actions dissoc temp-id)
-                             (update :image-ui-by-frame-id image-ui/remove-frame temp-id))]
-        {:db (-> cleanup-maps
-                 (merge-command-revision command)
-                 (update :gallery-items (fn [frames] (mapv replace-frame (or frames []))))
-                 (update-in [:latest-state :frames]
-                            (fn [frames] (mapv replace-frame (or frames [])))))} )
-
-      :replace-frame-image
-      {:db (-> db-with-status
-               (merge-command-revision command)
-               (merge-frame-response (get-in command [:response :frame])))}
-
-      :update-frame-description
-      {:db (-> db-with-status
-               (merge-command-revision command)
-               (merge-frame-response (get-in command [:response :frame])))}
-
-      :clear-frame-image
-      {:db (-> db-with-status
-               (merge-command-revision command)
-               (merge-frame-response (get-in command [:response :frame])))}
-
-      :add-saga
-      (let [temp-id (get-in command [:payload :optimistic-saga :sagaId])
-            created-saga (:saga (:response command))]
-        {:db (-> db-with-status
-                 (merge-command-revision command)
-                 (replace-entity-row "saga" temp-id
-                                     (or created-saga
-                                         {:sagaId temp-id}))
-                 (assoc-in [:view-state :index :new-name] "")
-                 (assoc-in [:view-state :index :new-description] "")
-                 (assoc-in [:view-state :index :new-panel-open?] false))})
-
-      :add-chapter
-      (let [temp-chapter-id (get-in command [:payload :optimistic-chapter :chapterId])
-            temp-frame-id (get-in command [:payload :optimistic-frame :frameId])
-            created-chapter (:chapter (:response command))
-            created-frame (:frame (:response command))
-            db-after-frame (cond-> (-> db-with-status
-                                       (merge-command-revision command)
-                                       (replace-entity-row "chapter" temp-chapter-id
-                                                           (or created-chapter
-                                                               {:chapterId temp-chapter-id})))
-                             temp-frame-id
-                             (-> (update :frame-drafts dissoc temp-frame-id)
-                                 (update :open-frame-actions dissoc temp-frame-id)
-                                 (update :image-ui-by-frame-id image-ui/remove-frame temp-frame-id)
-                                 (update :gallery-items replace-row-by-id :frameId temp-frame-id
-                                         (or created-frame
-                                             {:frameId temp-frame-id}))
-                                 (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
-                                            (or created-frame
-                                                {:frameId temp-frame-id}))))]
-        {:db (-> db-after-frame
-                 (assoc-in [:view-state :saga :new-name] "")
-                 (assoc-in [:view-state :saga :new-description] "")
-                 (assoc-in [:view-state :saga :new-panel-open?] false)
-                 (assoc-in [:view-state :saga :show-celebration?] true))
-         :start-chapter-celebration true})
-
-      :add-character
-      (let [temp-character-id (get-in command [:payload :optimistic-character :characterId])
-            temp-frame-id (get-in command [:payload :optimistic-frame :frameId])
-            created-character (:character (:response command))
-            created-frame (:frame (:response command))
-            db-after-frame (cond-> (-> db-with-status
-                                       (merge-command-revision command)
-                                       (replace-entity-row "character" temp-character-id
-                                                           (or created-character
-                                                               {:characterId temp-character-id})))
-                             temp-frame-id
-                             (-> (update :frame-drafts dissoc temp-frame-id)
-                                 (update :open-frame-actions dissoc temp-frame-id)
-                                 (update :image-ui-by-frame-id image-ui/remove-frame temp-frame-id)
-                                 (update :gallery-items replace-row-by-id :frameId temp-frame-id
-                                         (or created-frame
-                                             {:frameId temp-frame-id}))
-                                 (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
-                                            (or created-frame
-                                                {:frameId temp-frame-id}))))]
-        {:db (-> db-after-frame
-                 (assoc-in [:view-state :roster :new-name] "")
-                 (assoc-in [:view-state :roster :new-description] "")
-                 (assoc-in [:view-state :roster :new-panel-open?] false))})
-
-      {:db (merge-command-revision db-with-status command)})))
 
 (rf/reg-event-db
  :frame-direction-changed
@@ -557,10 +18,10 @@
 
 (rf/reg-event-fx
  :generate-frame
-  (fn [{:keys [db]} [_ frame-id provided-direction]]
+ (fn [{:keys [db]} [_ frame-id provided-direction]]
    (let [direction (or provided-direction
                        (get-in db [:frame-drafts frame-id])
-                       (:description (frame-by-id db frame-id))
+                       (:description (store/frame-by-id db frame-id))
                        "")
          command {:id (sync/next-command-id)
                   :kind :generate-frame
@@ -568,7 +29,7 @@
                             :direction direction
                             :without-roster false}
                   :success-status "Frame request queued."}]
-     (sync/queue-command (set-frame-status db frame-id "queued")
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Queueing frame..."
                          command))))
 
@@ -577,7 +38,7 @@
  (fn [{:keys [db]} [_ frame-id provided-direction]]
    (let [direction (or provided-direction
                        (get-in db [:frame-drafts frame-id])
-                       (:description (frame-by-id db frame-id))
+                       (:description (store/frame-by-id db frame-id))
                        "")
          command {:id (sync/next-command-id)
                   :kind :generate-frame
@@ -585,13 +46,13 @@
                             :direction direction
                             :without-roster true}
                   :success-status "Frame request queued."}]
-     (sync/queue-command (set-frame-status db frame-id "queued")
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Queueing frame..."
                          command))))
 
 (rf/reg-event-fx
  :add-frame
-  (fn [{:keys [db]} [_ owner-id owner-type]]
+ (fn [{:keys [db]} [_ owner-id owner-type]]
    (let [temp-frame-id (str "temp-frame-" (sync/next-command-id))
          owner-type (or owner-type "saga")
          command {:id (sync/next-command-id)
@@ -600,7 +61,7 @@
                             :owner-type owner-type
                             :optimistic-frame-id temp-frame-id}
                   :success-status "Frame added."}]
-     (sync/queue-command (add-frame db owner-id owner-type temp-frame-id)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Adding frame..."
                          command))))
 
@@ -635,13 +96,13 @@
 
 (rf/reg-event-fx
  :delete-frame
-  (fn [{:keys [db]} [_ frame-id]]
-     (let [frame (frame-by-id db frame-id)
+ (fn [{:keys [db]} [_ frame-id]]
+   (let [frame (store/frame-by-id db frame-id)
          command {:id (sync/next-command-id)
                   :kind :delete-frame
                   :payload {:frame-id frame-id}
                   :success-status (str "Deleted " (deleted-frame-label frame) ".")}]
-     (sync/queue-command (remove-frames db [frame-id])
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Deleting frame..."
                          command))))
 
@@ -658,20 +119,21 @@
          command {:id (sync/next-command-id)
                   :kind :delete-empty-frames
                   :payload {:owner-id owner-id
-                            :owner-type owner-type}
+                            :owner-type owner-type
+                            :frame-ids empty-frame-ids}
                   :success-status (str "Deleted " frame-count " empty frame" (when (not= 1 frame-count) "s") ".")}]
-     (sync/queue-command (remove-frames db empty-frame-ids)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Deleting empty frames..."
-                         (assoc-in command [:payload :frame-ids] empty-frame-ids)))))
+                         command))))
 
 (rf/reg-event-fx
  :clear-frame-image
-  (fn [{:keys [db]} [_ frame-id]]
+ (fn [{:keys [db]} [_ frame-id]]
    (let [command {:id (sync/next-command-id)
                   :kind :clear-frame-image
                   :payload {:frame-id frame-id}
                   :success-status "Frame image removed."}]
-     (sync/queue-command (clear-frame-image db frame-id)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Removing frame image..."
                          command))))
 
@@ -683,7 +145,7 @@
                   :payload {:frame-id frame-id
                             :image-data-url image-data-url}
                   :success-status "Frame image replaced."}]
-     (sync/queue-command (replace-frame-image db frame-id image-data-url)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Replacing frame image..."
                          command))))
 
@@ -695,7 +157,7 @@
                   :payload {:frame-id frame-id
                             :description description}
                   :success-status "Description saved."}]
-     (sync/queue-command (update-frame-description db frame-id description)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Saving description..."
                          command))))
 
@@ -705,7 +167,7 @@
    (let [command-id (sync/next-command-id)
          optimistic-saga-id (str "temp-saga-" command-id)
          optimistic-saga {:sagaId optimistic-saga-id
-                          :sagaNumber (next-saga-number db)
+                          :sagaNumber (store/next-saga-number db)
                           :name name
                           :description (or description "")
                           :createdAt (.toISOString (js/Date.))}
@@ -715,22 +177,24 @@
                             :description description
                             :optimistic-saga optimistic-saga}
                   :success-status "Saga created."}]
-     (sync/queue-command (add-saga-row db optimistic-saga) "Creating saga..." command))))
+     (sync/queue-command (store/apply-command-optimistically db command)
+                         "Creating saga..."
+                         command))))
 
 (rf/reg-event-fx
-:enqueue-add-chapter
-  (fn [{:keys [db]} [_ saga-id name description]]
+ :enqueue-add-chapter
+ (fn [{:keys [db]} [_ saga-id name description]]
    (let [command-id (sync/next-command-id)
          optimistic-chapter-id (str "temp-chapter-" command-id)
          optimistic-frame-id (str "temp-frame-" command-id)
          optimistic-chapter {:chapterId optimistic-chapter-id
                              :sagaId saga-id
-                             :chapterNumber (next-chapter-number db saga-id)
+                             :chapterNumber (store/next-chapter-number db saga-id)
                              :name name
                              :description (or description "")
                              :createdAt (.toISOString (js/Date.))}
-         optimistic-frame (assoc (optimistic-frame optimistic-frame-id optimistic-chapter-id "saga")
-                                 :frameNumber (next-frame-number db optimistic-chapter-id "saga"))
+         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-chapter-id "saga")
+                                 :frameNumber (store/next-frame-number db optimistic-chapter-id "saga"))
          command {:id command-id
                   :kind :add-chapter
                   :payload {:saga-id saga-id
@@ -739,25 +203,23 @@
                             :optimistic-chapter optimistic-chapter
                             :optimistic-frame optimistic-frame}
                   :success-status "Chapter created."}]
-     (sync/queue-command (-> db
-                             (add-entity-row "chapter" optimistic-chapter)
-                             (add-frame-row optimistic-frame))
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Creating chapter..."
                          command))))
 
 (rf/reg-event-fx
  :enqueue-add-character
-  (fn [{:keys [db]} [_ name description]]
+ (fn [{:keys [db]} [_ name description]]
    (let [command-id (sync/next-command-id)
          optimistic-character-id (str "temp-character-" command-id)
          optimistic-frame-id (str "temp-frame-" command-id)
          optimistic-character {:characterId optimistic-character-id
-                               :characterNumber (next-character-number db)
+                               :characterNumber (store/next-character-number db)
                                :name name
                                :description (or description "")
                                :createdAt (.toISOString (js/Date.))}
-         optimistic-frame (assoc (optimistic-frame optimistic-frame-id optimistic-character-id "character")
-                                 :frameNumber (next-frame-number db optimistic-character-id "character"))
+         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-character-id "character")
+                                 :frameNumber (store/next-frame-number db optimistic-character-id "character"))
          command {:id command-id
                   :kind :add-character
                   :payload {:name name
@@ -765,9 +227,7 @@
                             :optimistic-character optimistic-character
                             :optimistic-frame optimistic-frame}
                   :success-status "Character created."}]
-     (sync/queue-command (-> db
-                             (add-entity-row "character" optimistic-character)
-                             (add-frame-row optimistic-frame))
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Creating character..."
                          command))))
 
@@ -780,7 +240,7 @@
                             :name name
                             :description description}
                   :success-status "Chapter name updated."}]
-     (sync/queue-command (update-entity db "chapter" chapter-id name description)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Updating chapter..."
                          command))))
 
@@ -793,7 +253,7 @@
                             :name name
                             :description description}
                   :success-status "Character updated."}]
-     (sync/queue-command (update-entity db "character" character-id name description)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Updating character..."
                          command))))
 
@@ -811,17 +271,7 @@
      (if (or (str/blank? (or saga-id ""))
              (str/blank? (or normalized-name "")))
        {:db db}
-       (sync/queue-command (-> db
-                               (update :sagas update-saga-row saga-id
-                                       (fn [saga]
-                                         (assoc saga
-                                                :name normalized-name
-                                                :description (or normalized-description ""))))
-                               (update-in [:latest-state :sagas] update-saga-row saga-id
-                                          (fn [saga]
-                                            (assoc saga
-                                                   :name normalized-name
-                                                   :description (or normalized-description "")))))
+       (sync/queue-command (store/apply-command-optimistically db command)
                            "Updating saga..."
                            command)))))
 
@@ -832,7 +282,7 @@
                   :kind :delete-saga
                   :payload {:saga-id saga-id}
                   :success-status "Saga deleted."}]
-     (sync/queue-command (remove-saga db saga-id)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Deleting saga..."
                          command))))
 
@@ -843,7 +293,7 @@
                   :kind :delete-chapter
                   :payload {:chapter-id chapter-id}
                   :success-status "Chapter deleted."}]
-     (sync/queue-command (remove-entity db "chapter" chapter-id)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Deleting chapter..."
                          command))))
 
@@ -854,46 +304,9 @@
                   :kind :delete-character
                   :payload {:character-id character-id}
                   :success-status "Character deleted."}]
-     (sync/queue-command (remove-entity db "character" character-id)
+     (sync/queue-command (store/apply-command-optimistically db command)
                          "Deleting character..."
                          command))))
-
-(rf/reg-event-fx
- :sync-outbox/process
- (fn [{:keys [db]} _]
-   (let [inflight (:sync-inflight db)
-         next-command (first (or (:sync-outbox db) []))
-         mutation-fx (when next-command (command->fx next-command))]
-     (cond
-       (some? inflight)
-       {:db db}
-
-       (nil? next-command)
-       {:db db}
-
-       (nil? mutation-fx)
-       {:db (-> db
-                sync/dequeue-command
-                (assoc :status "Skipped unknown sync command."))
-        :dispatch [:sync-outbox/process]}
-
-       :else
-       (merge {:db (assoc db :sync-inflight next-command)}
-              mutation-fx)))))
-
-(rf/reg-event-fx
- :sync-outbox/succeeded
- (fn [{:keys [db]} [_ command-id data]]
-   (let [inflight (:sync-inflight db)]
-     (if (= command-id (:id inflight))
-       (cond-> (merge (apply-sync-success db (assoc inflight :response data))
-                      {:dispatch-n [[:sync-outbox/process]
-                                    [:fetch-state]]})
-         (and (= :generate-frame (:kind inflight))
-              (transport/realtime-disabled?))
-         (assoc :dispatch-after-burst {:delays [250 1000 2500]
-                                       :event [:fetch-state]}))
-       {:db db}))))
 
 (defn current-image-url [db frame-id]
   (or (some (fn [frame]
@@ -915,18 +328,3 @@
    (if (= image-url (current-image-url db frame-id))
      (update db :image-ui-by-frame-id image-ui/mark-image-error frame-id)
      db)))
-
-(rf/reg-event-fx
- :sync-outbox/failed
- (fn [{:keys [db]} [_ command-id msg]]
-   (let [inflight (:sync-inflight db)]
-     (if (= command-id (:id inflight))
-       {:db (cond-> (-> db
-                        sync/dequeue-command
-                        (assoc :sync-inflight nil
-                               :status (str "Request failed: " msg)))
-              (= :add-frame (:kind inflight))
-              (remove-frames [(get-in inflight [:payload :optimistic-frame-id])]))
-        :dispatch-n [[:sync-outbox/process]
-                     [:fetch-state]]}
-       {:db db}))))
