@@ -14,9 +14,20 @@
 (defonce frame-motion-pointer-bound?* (atom false))
 (defonce frame-motion-animating?* (atom false))
 (defonce frame-motion-state* (atom {:x 0 :y 0 :rot 0 :last-scroll-y 0}))
+(defonce frame-pointer-state* (atom {:x nil :y nil}))
 
 (def ^:const gallery-motion-translation-amplitude 0)
 (def ^:const gallery-motion-rotation-amplitude 0)
+(def ^:const gallery-motion-pointer-min-weight 0.2)
+(def ^:const gallery-motion-max-x 32)
+(def ^:const gallery-motion-max-y 32)
+(def ^:const gallery-motion-max-rot 8)
+
+(defn- clamp [min-val max-val value]
+  (cond
+    (< value min-val) min-val
+    (> value max-val) max-val
+    :else value))
 
 
 (defn- update-background-parallax! []
