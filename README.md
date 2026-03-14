@@ -9,9 +9,6 @@ RoboGene is a ClojureScript web app + Azure Functions backend for comic frame ge
 - Secrets are handled via `.env` files locally and Azure App Settings in production.
 - Deploy to Azure is automatic from GitHub Actions on `main`.
 
-Example image in repo:
-- [Reference frame PNG](ai/robot%20emperor/references/robot_emperor_ep22_p01.png)
-
 ## Local Secrets + Run (Single Flow)
 
 Use one env mechanism for everything (app + tests): shell env files.

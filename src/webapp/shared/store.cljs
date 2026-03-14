@@ -329,18 +329,48 @@
 
 (defn replace-temp-frame [db temp-frame-id created-frame]
   (if temp-frame-id
-    (-> db
-        (update :frame-drafts dissoc temp-frame-id)
-        (update :open-frame-actions dissoc temp-frame-id)
-        (update :hidden-frame-images dissoc temp-frame-id)
-        (update :image-ui-by-frame-id image-ui/remove-frame temp-frame-id)
-        (update :gallery-items replace-row-by-id :frameId temp-frame-id
-                (or created-frame {:frameId temp-frame-id}))
-        (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
-                   (or created-frame {:frameId temp-frame-id}))
-        (cond-> (seq (or (:frameId created-frame) ""))
-          (assoc-in [:image-ui-by-frame-id (:frameId created-frame)]
-                    (image-ui/image-ui-state-for-url (:imageUrl created-frame)))))
+    (let [created-frame-id (or (:frameId created-frame) temp-frame-id)
+          temp-frame (frame-by-id db temp-frame-id)
+          temp-draft (get-in db [:frame-drafts temp-frame-id])
+          temp-open? (true? (get-in db [:open-frame-actions temp-frame-id]))
+          temp-hidden? (true? (get-in db [:hidden-frame-images temp-frame-id]))
+          merged-frame (cond-> (merge temp-frame created-frame)
+                         (and (seq (or (:description temp-frame) ""))
+                              (str/blank? (or (:description created-frame) "")))
+                         (assoc :description (:description temp-frame)))
+          migrated-db (if (not= created-frame-id temp-frame-id)
+                        (-> db
+                            (update :frame-drafts (fn [m]
+                                                    (cond-> (dissoc (or m {}) temp-frame-id)
+                                                      (some? temp-draft)
+                                                      (assoc created-frame-id temp-draft))))
+                            (update :open-frame-actions (fn [m]
+                                                          (cond-> (dissoc (or m {}) temp-frame-id)
+                                                            temp-open?
+                                                            (assoc created-frame-id true))))
+                            (update :hidden-frame-images (fn [m]
+                                                           (cond-> (dissoc (or m {}) temp-frame-id)
+                                                             temp-hidden?
+                                                             (assoc created-frame-id true))))
+                            (update :image-ui-by-frame-id (fn [m]
+                                                            (let [ui-map (or m {})
+                                                                  existing (get ui-map temp-frame-id)]
+                                                              (cond-> (image-ui/remove-frame ui-map temp-frame-id)
+                                                                (some? existing)
+                                                                (assoc created-frame-id existing)))))
+                            (cond-> (= (:active-frame-id db) temp-frame-id)
+                              (assoc :active-frame-id created-frame-id)))
+                        (cond-> db
+                          temp-hidden?
+                          (assoc-in [:hidden-frame-images created-frame-id] true)))]
+      (cond-> (-> migrated-db
+                  (update :gallery-items replace-row-by-id :frameId temp-frame-id
+                          (or merged-frame {:frameId temp-frame-id}))
+                  (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
+                             (or merged-frame {:frameId temp-frame-id})))
+        (seq (or created-frame-id ""))
+        (assoc-in [:image-ui-by-frame-id created-frame-id]
+                  (image-ui/image-ui-state-for-url (:imageUrl merged-frame)))))
     db))
 
 (defn replace-temp-frames [db temp-frame-ids created-frames]
@@ -436,12 +466,14 @@
     :delete-frame
     {:transport-fx :post-delete-frame
      :optimistic (fn [db payload]
-                   (remove-frames db [(:frame-id payload)]))}
+                   (remove-frames db [(:frame-id payload)]))
+     :fetch-after-success? false}
 
     :delete-empty-frames
     {:transport-fx :post-delete-empty-frames
      :optimistic (fn [db payload]
-                   (remove-frames db (or (:frame-ids payload) [])))}
+                   (remove-frames db (or (:frame-ids payload) [])))
+     :fetch-after-success? false}
 
     :clear-frame-image
     {:transport-fx :post-clear-frame-image
@@ -552,17 +584,20 @@
     :delete-saga
     {:transport-fx :post-delete-saga
      :optimistic (fn [db payload]
-                   (remove-saga db (:saga-id payload)))}
+                   (remove-saga db (:saga-id payload)))
+     :fetch-after-success? false}
 
     :delete-chapter
     {:transport-fx :post-delete-chapter
      :optimistic (fn [db payload]
-                   (remove-entity db "chapter" (:chapter-id payload)))}
+                   (remove-entity db "chapter" (:chapter-id payload)))
+     :fetch-after-success? false}
 
     :delete-character
     {:transport-fx :post-delete-character
      :optimistic (fn [db payload]
-                   (remove-entity db "character" (:character-id payload)))}
+                   (remove-entity db "character" (:character-id payload)))
+     :fetch-after-success? false}
 
     nil))
 
@@ -585,7 +620,7 @@
                            (sync/callback-events (:id command)))})))
 
 (defn fetch-after-success? [kind]
-  (not= false (get (mutation-spec kind) :fetch-after-success? true)))
+  (true? (get (mutation-spec kind) :fetch-after-success? false)))
 
 (defn apply-sync-success [db command]
   (let [base-db (-> db

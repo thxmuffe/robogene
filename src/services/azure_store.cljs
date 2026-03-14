@@ -486,9 +486,7 @@
                         (gobj/set "sagaMeta" saga-meta)
                         (gobj/set "saga" (gobj/get rows "saga"))
                         (gobj/set "roster" (or (gobj/get rows "roster") #js []))
-                        (gobj/set "frames" (gobj/get rows "frames"))
-                        (gobj/set "descriptions" (gobj/get initial-state "descriptions"))
-                        (gobj/set "visual" (gobj/get initial-state "visual")))))))))))))
+                        (gobj/set "frames" (gobj/get rows "frames")))))))))))))
 
 (defn save-state [state]
   (if smoke-dev-storage?

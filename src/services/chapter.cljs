@@ -4,76 +4,9 @@
             [services.realtime :as realtime]
             [host.settings :as settings]
             [services.azure-store :as store]
-            ["crypto" :as crypto]
-            ["fs" :as fs]
-            ["path" :as path]))
-
-(defn existing-path? [p]
-  (.existsSync fs p))
-
-(defn story-script-path [root]
-  (.join path root "ai" "robot emperor" "story" "28_Municipal_Firmware_script.md"))
-
-(defn candidate-root? [root]
-  (existing-path? (story-script-path root)))
-
-(defn resolve-repo-root []
-  (let [env-root (some-> js/process .-env .-ROBOGENE_REPO_ROOT)
-        candidates (remove nil?
-                           [env-root
-                            (.cwd js/process)
-                            (.resolve path js/__dirname "..")
-                            (.resolve path js/__dirname ".." ".." "..")])]
-    (or (some (fn [root]
-                (when (candidate-root? root)
-                  root))
-              candidates)
-        (.cwd js/process))))
-
-(def repo-root (resolve-repo-root))
-(def definitions-root (.join path repo-root "ai" "robot emperor"))
-(def references-dir (.join path definitions-root "references"))
-
-(def resolved-chapter-root (.join path definitions-root "story"))
-
-(def default-chapter-script (.join path resolved-chapter-root "28_Municipal_Firmware_script.md"))
-(def default-prompts (.join path resolved-chapter-root "28_Municipal_Firmware_image_prompts.md"))
-(def default-reference-image (.join path references-dir "robot_emperor_ep22_p01.png"))
-(def page1-reference-image (.join path resolved-chapter-root "28_page_01_openai_refined.png"))
-
-(defn read-text [file-path]
-  (.readFileSync fs file-path "utf8"))
-
-(defn read-bytes [file-path]
-  (.readFileSync fs file-path))
+            ["crypto" :as crypto]))
 
 (image-generator/require-startup-env!)
-
-(defn parse-descriptions [markdown]
-  (let [section (or (second (re-find #"(?is)##\s*Page-by-page descriptions([\s\S]*?)(?:\n##\s|$)" markdown))
-                    markdown)]
-    (->> (str/split-lines section)
-         (keep (fn [line]
-                 (when-let [[_ idx txt] (re-find #"^\s*(\d+)\.\s+(.+)$" line)]
-                   {:index (js/Number idx) :text (str/trim txt)})))
-         (sort-by :index)
-         vec)))
-
-(defn parse-visual-prompts [markdown]
-  (let [global-style (or (some-> (re-find #"(?is)##\s*Global style prompt.*?\n([^\n]+)" markdown)
-                                 second
-                                 str/trim)
-                         "")
-        section (or (second (re-find #"(?is)##\s*Page prompts([\s\S]*)" markdown)) markdown)
-        page-prompts (->> (str/split-lines section)
-                          (keep (fn [line]
-                                  (when-let [[_ idx txt] (re-find #"^\s*(\d+)\.\s+(.+)$" line)]
-                                    [(js/Number idx) (str/trim txt)])))
-                          (into {}))]
-    {:globalStyle global-style :pagePrompts page-prompts}))
-
-(defn png-data-url [buffer]
-  (str "data:image/png;base64," (.toString buffer "base64")))
 
 (defn new-uuid []
   (.randomUUID crypto))
@@ -81,8 +14,6 @@
 (defonce state
   (let [openai-options (settings/image-settings)]
     (atom {:chapterId nil
-           :descriptions []
-           :visual {:globalStyle "" :pagePrompts {}}
            :sagas []
            :saga []
            :roster []
@@ -90,8 +21,9 @@
            :failedJobs []
            :processing false
            :revision 0
-           :openaiOptions openai-options
-           :referenceImageBytes nil})))
+           :openaiOptions openai-options})))
+
+(defonce persist-chain* (atom (js/Promise.resolve nil)))
 
 (def default-saga-name "Robot Emperor")
 
@@ -117,18 +49,6 @@
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
-(defn best-frame-description [descriptions visual frame-number]
-  (let [description-text (some (fn [b] (when (= (:index b) frame-number) (:text b))) descriptions)
-        page-prompt (get-in visual [:pagePrompts frame-number] "")]
-    (or (some-> page-prompt str/trim not-empty)
-        (some-> description-text str/trim not-empty)
-        (str "Frame " frame-number))))
-
-(defn default-frame-description [frame-number]
-  (best-frame-description (:descriptions @state)
-                          (:visual @state)
-                          frame-number))
-
 (defn make-draft-frame
   ([chapter-id frame-number]
    (make-draft-frame chapter-id frame-number "saga"))
@@ -137,7 +57,7 @@
    :chapterId chapter-id
    :ownerType (or owner-type "saga")
    :frameNumber frame-number
-   :description (default-frame-description frame-number)
+   :description ""
    :imageStatus "draft"
    :createdAt (.toISOString (js/Date.))}))
 
@@ -515,25 +435,16 @@
     (assoc frame :description normalized-description)))
 
 (defn initialize-state! []
-  (let [openai-options (settings/image-settings)
-        chapter-script-text (read-text default-chapter-script)
-        prompts-text (read-text default-prompts)
-        descriptions (parse-descriptions chapter-script-text)
-        visual (parse-visual-prompts prompts-text)
-        ref-bytes (read-bytes default-reference-image)]
-    (reset! state
-            {:chapterId (new-uuid)
-             :descriptions descriptions
-             :visual visual
-             :sagas [(make-saga 1 default-saga-name "")]
-             :saga []
-             :roster []
-             :frames []
-             :failedJobs []
-             :processing false
-             :revision 0
-             :openaiOptions openai-options
-             :referenceImageBytes ref-bytes})))
+  (reset! state
+          {:chapterId (new-uuid)
+           :sagas [(make-saga 1 default-saga-name "")]
+           :saga []
+           :roster []
+           :frames []
+           :failedJobs []
+           :processing false
+           :revision 0
+           :openaiOptions (settings/image-settings)}))
 
 (initialize-state!)
 
@@ -588,17 +499,13 @@
                  (assoc :frames (->> (or (:frames persisted) [])
                                      (map normalize-frame)
                                      vec))
-                 (assoc :descriptions (:descriptions current))
-                 (assoc :visual (:visual current))
-                 (assoc :referenceImageBytes (:referenceImageBytes current))
                  (assoc :openaiOptions (:openaiOptions current)))))
     @state))
 
 (defn sync-state-from-storage! []
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames
-                              :descriptions :visual])))
+                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -613,13 +520,17 @@
       (apply-persisted-state! raw))))
 
 (defn persist-state! []
-  (-> (store/save-state
-       (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :sagas :saga :roster :frames])))
-      (.then apply-persisted-save-result!)
-      (.catch (fn [err]
-                (js/console.error "[robogene] storage persist failed" err)
-                (throw err)))))
+  (let [snapshot (clj->js (select-keys @state
+                                       [:chapterId :revision :failedJobs :sagas :saga :roster :frames]))
+        queued-save (-> @persist-chain*
+                        (.catch (fn [_] nil))
+                        (.then (fn [] (store/save-state snapshot))))]
+    (reset! persist-chain* queued-save)
+    (-> queued-save
+        (.then apply-persisted-save-result!)
+        (.catch (fn [err]
+                  (js/console.error "[robogene] storage persist failed" err)
+                  (throw err))))))
 
 (declare emit-state-changed!)
 
@@ -688,18 +599,11 @@
                      (when (seq (or (:description character) ""))
                        (str ". " (:description character)))))
               chapter-label
-              (get-in @state [:visual :globalStyle] "")
               (str "Frame description for this chapter: " (:description frame))
               (str "User direction for this frame:\n" (or (:description frame) ""))
               (str "Chapter continuity memory:\n" (continuity-window 6 (:chapterId frame) owner-type))
               "Keep this image as the next chronological frame in the same chapter world."
               "Avoid title/header text overlays."]))))
-
-(defn reference-images []
-  (let [character-ref (:referenceImageBytes @state)]
-    (if character-ref
-      [{:bytes character-ref :name "character_ref.png"}]
-      [])))
 
 (defn set-image-generator! [f]
   (image-generator/set-image-generator! f))
@@ -716,7 +620,7 @@
             without-roster?)
       (generate-image-from-prompt-only! frame)
       (image-generator/generate-image! {:prompt (build-prompt-for-frame frame)
-                                        :refs (reference-images)
+                                        :refs []
                                         :options (:openaiOptions @state)}))))
 
 (defn next-queued-frame-index [frames]
