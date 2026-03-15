@@ -531,6 +531,40 @@
 (defn remove-temp-entity [db entity-label temp-id]
   (remove-entity db entity-label temp-id))
 
+(defn remove-roster [db roster-id]
+  (let [character-ids (->> (or (:roster db) [])
+                           (filter (fn [character] (= (:rosterId character) roster-id)))
+                           (map :characterId)
+                           set)
+        frame-ids (->> (or (:gallery-items db) [])
+                       (filter (fn [frame] (contains? character-ids (:chapterId frame))))
+                       (map :frameId)
+                       vec)]
+    (-> db
+        (update :rosters remove-saga-row roster-id)
+        (update :roster (fn [rows]
+                          (->> (or rows [])
+                               (remove (fn [row] (= (:rosterId row) roster-id)))
+                               vec)))
+        (update :gallery-items (fn [rows]
+                                 (->> (or rows [])
+                                      (remove (fn [frame]
+                                                (contains? character-ids (:chapterId frame))))
+                                      vec)))
+        (update-in [:latest-state :rosters] remove-saga-row roster-id)
+        (update-in [:latest-state :roster] (fn [rows]
+                                            (->> (or rows [])
+                                                 (remove (fn [row] (= (:rosterId row) roster-id)))
+                                                 vec)))
+        (update-in [:latest-state :frames] (fn [rows]
+                                             (->> (or rows [])
+                                                  (remove (fn [frame]
+                                                            (contains? character-ids (:chapterId frame))))
+                                                  vec)))
+        (update :frame-drafts (fn [m] (apply dissoc (or m {}) frame-ids)))
+        (update :open-frame-actions (fn [m] (apply dissoc (or m {}) frame-ids)))
+        (update :image-ui-by-frame-id (fn [m] (reduce image-ui/remove-frame (or m {}) frame-ids))))))
+
 (defn mutation-spec [kind]
   (case kind
     :generate-frame
@@ -696,42 +730,6 @@
      :optimistic (fn [db payload]
                    (add-chapter-roster db (:chapter-id payload)
                                        (:roster-id payload)))}
-
-(defn remove-roster [db roster-id]
-  (let [character-ids (->> (or (:roster db) [])
-                           (filter (fn [character] (= (:rosterId character) roster-id)))
-                           (map :characterId)
-                           set)
-        frame-ids (->> (or (:gallery-items db) [])
-                       (filter (fn [frame] (contains? character-ids (:chapterId frame))))
-                       (map :frameId)
-                       vec)]
-    (-> db
-        (update :rosters remove-saga-row roster-id)
-        (update :roster (fn [rows]
-                          (->> (or rows [])
-                               (remove (fn [row] (= (:rosterId row) roster-id)))
-                               vec)))
-        (update :gallery-items (fn [rows]
-                                 (->> (or rows [])
-                                      (remove (fn [frame]
-                                                (contains? character-ids (:chapterId frame))))
-                                      vec)))
-        (update-in [:latest-state :rosters] remove-saga-row roster-id)
-        (update-in [:latest-state :roster] (fn [rows]
-                                            (->> (or rows [])
-                                                 (remove (fn [row] (= (:rosterId row) roster-id)))
-                                                 vec)))
-        (update-in [:latest-state :frames] (fn [rows]
-                                             (->> (or rows [])
-                                                  (remove (fn [frame]
-                                                            (contains? character-ids (:chapterId frame))))
-                                                  vec)))
-        (update :frame-drafts (fn [m] (apply dissoc (or m {}) frame-ids)))
-        (update :open-frame-actions (fn [m] (apply dissoc (or m {}) frame-ids)))
-        (update :image-ui-by-frame-id (fn [m] (reduce image-ui/remove-frame (or m {}) frame-ids))))))
-
-;; ... in mutation-spec ...
 
     :delete-saga
     {:transport-fx :post-delete-saga

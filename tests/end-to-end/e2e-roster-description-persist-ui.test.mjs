@@ -15,26 +15,24 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     const updatedDesc = `Updated character description ${stamp}`;
 
     logStep('roster-persist', 'waiting for roster page');
-    await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.collection-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add new' }).first().click();
-    const createPanel = page.locator('.new-chapter-panel').first();
-    await createPanel.getByRole('button', { name: 'Add new' }).click();
     logStep('roster-persist', 'character created');
 
-    const characterBlock = page.locator('.chapter-block').first();
+    const characterBlock = page.locator('.sequence-block').first();
     await characterBlock.waitFor({ timeout: actionTimeoutMs });
     
     // Inline edit the name and description
-    const nameField = characterBlock.locator('.chapter-name-input').first();
-    await characterBlock.locator('.chapter-name').first().click();
+    const nameField = characterBlock.locator('.sequence-title-input').first();
+    await characterBlock.locator('.sequence-title').first().click();
     await nameField.fill(characterName);
-    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+    await page.locator('.collection-page').click({ position: { x: 10, y: 10 } });
 
-    const descField = characterBlock.locator('.chapter-description-input').first();
-    await characterBlock.locator('.chapter-description').first().click();
+    const descField = characterBlock.locator('.sequence-description-input').first();
+    await characterBlock.locator('.sequence-description').first().click();
     await descField.fill(initialDesc);
-    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+    await page.locator('.collection-page').click({ position: { x: 10, y: 10 } });
 
     const updateResponse = page.waitForResponse(
       (response) => (response.url().includes('/api/update-character') || response.url().includes('/api/update-entity')) && response.request().method() === 'POST',
@@ -42,20 +40,20 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     );
     await descField.click();
     await descField.fill(updatedDesc);
-    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+    await page.locator('.collection-page').click({ position: { x: 10, y: 10 } });
     await updateResponse;
 
-    const updatedBlock = page.locator('.chapter-block', { hasText: updatedDesc }).first();
+    const updatedBlock = page.locator('.sequence-block', { hasText: updatedDesc }).first();
     await updatedBlock.waitFor({ timeout: actionTimeoutMs });
-    await updatedBlock.locator('.chapter-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
+    await updatedBlock.locator('.sequence-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
 
     logStep('roster-persist', 'reloading page to verify persistence');
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.collection-page').waitFor({ timeout: actionTimeoutMs });
 
-    const reloadedBlock = page.locator('.chapter-block', { hasText: characterName }).first();
+    const reloadedBlock = page.locator('.sequence-block', { hasText: characterName }).first();
     await reloadedBlock.waitFor({ timeout: actionTimeoutMs });
-    await reloadedBlock.locator('.chapter-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
+    await reloadedBlock.locator('.sequence-description', { hasText: updatedDesc }).waitFor({ timeout: actionTimeoutMs });
 
     logStep('roster-persist', 'persistence verified');
     consoleGuard.assertClean();

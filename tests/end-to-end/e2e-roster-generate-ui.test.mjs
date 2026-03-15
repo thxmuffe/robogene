@@ -17,30 +17,27 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     const characterName = `Bill ${stamp}`;
 
     logStep('roster-generate', 'waiting for roster page');
-    await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.collection-page').waitFor({ timeout: actionTimeoutMs });
 
     await page.locator('.add-frame-tile', { hasText: 'Add new' }).first().click();
-    const createPanel = page.locator('.new-chapter-panel').first();
-    await createPanel.getByRole('button', { name: 'Add new' }).click();
     logStep('roster-generate', 'character created');
 
-    const chapter = page.locator('.chapter-block').first();
+    const chapter = page.locator('.sequence-block').first();
     await chapter.waitFor({ timeout: actionTimeoutMs });
 
     // Inline edit the name
-    const nameField = chapter.locator('.chapter-name-input').first();
-    await chapter.locator('.chapter-name').first().click();
+    const nameField = chapter.locator('.sequence-title-input').first();
+    await chapter.locator('.sequence-title').first().click();
     await nameField.fill(characterName);
-    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
-
+    await page.locator('.collection-page').click({ position: { x: 10, y: 10 } });
 
     const frames = chapter.locator('.gallery .frame-panel[data-frame-id]');
     const beforeCount = await frames.count();
-    await chapter.locator('.add-frame-tile[aria-label="Add image"]').click();
+    await chapter.locator('.add-frame-tile[aria-label="Add new"]').click();
     logStep('roster-generate', 'waiting for new frame');
     await page.waitForFunction(
       ({ chapterText, expected }) => {
-        const chapterEl = Array.from(document.querySelectorAll('.chapter-block'))
+        const chapterEl = Array.from(document.querySelectorAll('.sequence-block'))
           .find((el) => String(el.textContent || '').includes(chapterText));
         if (!chapterEl) return false;
         return chapterEl.querySelectorAll('.gallery .frame-panel[data-frame-id]').length >= expected;

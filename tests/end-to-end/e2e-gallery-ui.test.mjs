@@ -55,7 +55,7 @@ async function clickFrameAction({ page, frame, actionLabel, menuLabel = 'Frame a
 }
 
 async function expandFirstGalleryChapter(page) {
-  const toggle = page.locator('.chapter-separator-toggle').first();
+  const toggle = page.locator('.sequence-separator-toggle').first();
   await toggle.waitFor();
   await toggle.click();
 }
@@ -72,7 +72,7 @@ export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep, s
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();
 
-    await page.getByRole('button', { name: 'Add New Frame' }).first().click();
+    await page.getByRole('button', { name: 'Add new' }).first().click();
     logStep('gallery', 'waiting for new frame');
     await page.waitForFunction(
       (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
@@ -126,7 +126,7 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();
-    await page.getByRole('button', { name: 'Add New Frame' }).first().click();
+    await page.getByRole('button', { name: 'Add new' }).first().click();
     await page.waitForFunction(
       (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
       beforeCount + 1,

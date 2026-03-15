@@ -164,15 +164,14 @@
                upload-open?* (r/atom false)]
     (let [label (or singular-label "board")
           cancel-ui-token @(rf/subscribe [:cancel-ui-token])
-          entity-label (or entity-label "chapter")
-          board? (contains? #{"saga" "roster"} (str entity-label))
-          owner-type (if (= "character" (str entity-label)) "character" "saga")
+          type-str (str entity-label)
+          board? (contains? #{"saga" "roster"} type-str)
+          owner-type (if (= "character" type-str) "character" "saga")
           frames @(rf/subscribe [:frames-for-owner owner-type entity-id])
           empty-frames (filterv (fn [frame]
                                   (str/blank? (or (:imageUrl frame) "")))
                                 (or frames []))
           empty-frame-count (count empty-frames)
-          title-case-label (str (str/upper-case (subs label 0 1)) (subs label 1))
           items (cond-> []
                   board?
                   (conj {:id :download-board
@@ -180,7 +179,7 @@
                          :icon FaDownload
                          :color "teal"
                          :disabled? true})
-                  (= "chapter" (str entity-label))
+                  (= "chapter" type-str)
                   (conj {:id :add-roster
                          :label "Add roster"
                          :icon FaPlus
@@ -225,11 +224,11 @@
                          :on-select (fn [_]
                                       (reset! confirm* {:title (str "Delete this " label "?")
                                                         :text (if board?
-                                                                "This deletes all sequences and frames in this board."
+                                                                (str "This deletes all sequences and frames in this board.")
                                                                 (str "This deletes all frames in this " label "."))
                                                         :confirm-label (str "Delete " label)
                                                         :confirm-color "error"
-                                                        :dispatch-event [(case (str entity-label)
+                                                        :dispatch-event [(case type-str
                                                                            "saga" :delete-saga
                                                                            "roster" :delete-roster
                                                                            "character" :delete-character
@@ -246,9 +245,9 @@
          :prefix-content prefix-content
          :actions items
          :action-size 44
-         :mandatory-count (if (= "chapter" (str entity-label)) 1 0)
-         :menu-title (str title-case-label " actions")
-         :menu-aria-label (str title-case-label " actions")}]
+         :mandatory-count (if (= "chapter" type-str) 1 0)
+         :menu-title (str (str/capitalize type-str) " actions")
+         :menu-aria-label (str (str/capitalize type-str) " actions")}]
        [confirm-dialog/confirm-dialog
         {:item selected-item
          :on-cancel #(reset! confirm* nil)
@@ -256,7 +255,7 @@
                        (when-let [event (:dispatch-event selected-item)]
                          (rf/dispatch event))
                        (reset! confirm* nil))}]
-       (when (= "chapter" (str entity-label))
+       (when (= "chapter" type-str)
          [upload-dialog/upload-dialog
           {:open @upload-open?*
            :on-close #(reset! upload-open?* false)
@@ -301,7 +300,7 @@
 
 (defn saga-roster-buttons [saga-id]
   (let [rosters @(rf/subscribe [:rosters])
-        chapters @(rf/subscribe [:chapters-by-saga-id saga-id])
+        chapters @(rf/subscribe [:saga])
         all-characters @(rf/subscribe [:roster])
         frames @(rf/subscribe [:gallery-items])
         roster-ids (->> chapters
@@ -337,10 +336,12 @@
         editing? (= editing-entity-id entity-id)
         name-inputs @(rf/subscribe [(case (str entity-label)
                                       "saga" :saga-name-inputs
+                                      "roster" :roster-name-inputs
                                       "character" :character-name-inputs
                                       :chapter-name-inputs)])
         description-inputs @(rf/subscribe [(case (str entity-label)
                                              "saga" :saga-description-inputs
+                                             "roster" :roster-description-inputs
                                              "character" :character-description-inputs
                                              :chapter-description-inputs)])
         current-name (if editing?
@@ -349,7 +350,6 @@
         current-description (if editing?
                               (get description-inputs entity-id entity-description)
                               entity-description)
-        show-header-actions? editing?
         editor-selector (str "[data-entity-editor-id=\"" entity-id "\"]")
         frames (when-not saga-view?
                  @(rf/subscribe [:frames-for-owner owner-type entity-id]))
@@ -427,14 +427,13 @@
            :on-save (fn [next-description]
                       (rf/dispatch [:save-entity entity-label entity-id current-name next-description]))
            :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
-         (when show-header-actions?
-           [:div.sequence-header-controls
-            [entity-actions
-             {:entity-id entity-id
-              :entity-label entity-label
-              :singular-label "sequence"
-              :prefix-content (when (= "chapter" (str entity-label))
-                                [sequence-roster-controls entity])}]])]
+         [:div.sequence-header-controls
+          [entity-actions
+           {:entity-id entity-id
+            :entity-label entity-label
+            :singular-label "sequence"
+            :prefix-content (when (= "chapter" (str entity-label))
+                              [sequence-roster-controls entity])}]]]
         (case (str entity-label)
           "saga" [gallery/sequence-preview-gallery entity-id]
           [gallery/frame-gallery entity-id owner-type active-frame-id])])]))

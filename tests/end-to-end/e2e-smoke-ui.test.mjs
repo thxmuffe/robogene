@@ -13,7 +13,7 @@ export async function runSmokeScenario({ openPage, actionTimeoutMs, logStep, see
     await page.getByText('RoboGene').waitFor({ timeout: actionTimeoutMs });
 
     logStep('smoke', 'expanding first chapter');
-    await page.locator('.chapter-separator-toggle').first().click();
+    await page.locator('.sequence-separator-toggle').first().click();
 
     logStep('smoke', 'waiting for first frame');
     await page.waitForFunction(
