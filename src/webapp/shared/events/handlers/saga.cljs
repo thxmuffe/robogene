@@ -26,6 +26,14 @@
      :description-key [:view-state :index :new-description]
      :panel-open-key [:view-state :index :new-panel-open?]}
 
+    "roster"
+    {:editing-key [:view-state :roster-meta :editing-id]
+     :name-inputs-key [:view-state :roster-meta :name-inputs]
+     :description-inputs-key [:view-state :roster-meta :description-inputs]
+     :name-key [:view-state :roster-meta :new-name]
+     :description-key [:view-state :roster-meta :new-description]
+     :panel-open-key [:view-state :roster-meta :new-panel-open?]}
+
     "character"
     {:editing-key [:view-state :roster :editing-id]
      :name-inputs-key [:view-state :roster :name-inputs]

@@ -36,12 +36,8 @@
               (interaction/modal-open?))
           (rf/dispatch [:cancel-open-edit-db-items])
 
-          (and (= :saga view-id)
-               current-gallery-chapter-id)
+          current-gallery-chapter-id
           (rf/dispatch [:collapse-current-gallery-chapter])
-
-          (= :roster view-id)
-          (rf/dispatch [:navigate-saga-page])
 
           :else
           (rf/dispatch [:cancel-open-edit-db-items])))
@@ -70,27 +66,19 @@
       (interaction/prevent! e)
       (rf/dispatch [:save-entity entity-label entity-id]))))
 
-(defn on-new-item-name-keydown [add-event set-open-event]
-  (fn [e]
-    (when (= "Enter" (.-key e))
-      (interaction/prevent! e)
-      (rf/dispatch [set-open-event false])
-      (rf/dispatch [add-event]))))
-
-(defn on-new-item-teaser-click [set-open-event]
+(defn on-new-item-teaser-click [add-event]
   (fn [_]
-    (controls/activate-frame! controls/new-chapter-frame-id)
-    (rf/dispatch [set-open-event true])))
+    (rf/dispatch [add-event])))
 
-(defn on-new-item-teaser-keydown [set-open-event]
+(defn on-new-item-teaser-keydown [add-event]
   (fn [e]
     (when (or (= "Enter" (.-key e))
               (= " " (.-key e)))
       (interaction/prevent! e)
-      ((on-new-item-teaser-click set-open-event) e))))
+      ((on-new-item-teaser-click add-event) e))))
 
-(defn chapter-celebration []
-  [:div.chapter-celebration
+(defn sequence-celebration []
+  [:div.sequence-celebration
    [:div.rainbow-band.band-1]
    [:div.rainbow-band.band-2]
    [:div.rainbow-band.band-3]
@@ -113,7 +101,7 @@
                    (or (:createdAt frame) "")
                    (or (:frameId frame) "")]))))
 
-(defn- owner-button-image-urls [owner-ids frames owner-type]
+(defn owner-button-image-urls [owner-ids frames owner-type]
   (let [owner-ids (->> (or owner-ids [])
                        (take 4))
         urls-by-owner (mapv (fn [owner-id]
@@ -174,21 +162,21 @@
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)
                upload-open?* (r/atom false)]
-    (let [label (or singular-label "chapter")
+    (let [label (or singular-label "board")
           cancel-ui-token @(rf/subscribe [:cancel-ui-token])
           entity-label (or entity-label "chapter")
+          board? (contains? #{"saga" "roster"} (str entity-label))
           owner-type (if (= "character" (str entity-label)) "character" "saga")
-          frames (when (not= "saga" (str entity-label))
-                   @(rf/subscribe [:frames-for-owner owner-type entity-id]))
+          frames @(rf/subscribe [:frames-for-owner owner-type entity-id])
           empty-frames (filterv (fn [frame]
                                   (str/blank? (or (:imageUrl frame) "")))
                                 (or frames []))
           empty-frame-count (count empty-frames)
-          title-case-label (str (str/upper-case (subs entity-label 0 1)) (subs entity-label 1))
+          title-case-label (str (str/upper-case (subs label 0 1)) (subs label 1))
           items (cond-> []
-                  (= "saga" (str entity-label))
-                  (conj {:id :download-saga
-                         :label "Download saga"
+                  board?
+                  (conj {:id :download-board
+                         :label "Download board"
                          :icon FaDownload
                          :color "teal"
                          :disabled? true})
@@ -200,13 +188,13 @@
                          :on-select (fn [_]
                                       (rf/dispatch [:add-linked-chapter-roster entity-id]))}
                         {:id :open-chapter-page
-                         :label "Open chapter page"
+                         :label "Open page"
                          :icon FaArrowUpRightFromSquare
                          :color "indigo"
                          :on-select (fn [_]
                                       (rf/dispatch [:navigate-chapter-page entity-id]))}
                         {:id :download-chapter
-                         :label "Download chapter"
+                         :label "Download"
                          :icon FaDownload
                          :color "teal"
                          :disabled? true}
@@ -216,8 +204,7 @@
                          :color "blue"
                          :on-select (fn [_]
                                       (reset! upload-open?* true))})
-                  (and (not= "saga" (str entity-label))
-                       (pos? empty-frame-count))
+                  (pos? empty-frame-count)
                   (conj {:id :delete-empty-frames
                          :label "Delete empty frames"
                          :icon FaBroom
@@ -237,13 +224,14 @@
                          :color "red"
                          :on-select (fn [_]
                                       (reset! confirm* {:title (str "Delete this " label "?")
-                                                        :text (if (= "saga" (str entity-label))
-                                                                "This deletes all chapters and frames in this saga."
+                                                        :text (if board?
+                                                                "This deletes all sequences and frames in this board."
                                                                 (str "This deletes all frames in this " label "."))
                                                         :confirm-label (str "Delete " label)
                                                         :confirm-color "error"
                                                         :dispatch-event [(case (str entity-label)
                                                                            "saga" :delete-saga
+                                                                           "roster" :delete-roster
                                                                            "character" :delete-character
                                                                            :delete-chapter)
                                                                          entity-id]}))}))
@@ -254,7 +242,7 @@
         (reset! upload-open?* false))
       [:<>
        [waterfall-row/waterfall-row
-        {:class-name "chapter-header-actions-row"
+        {:class-name "sequence-header-actions-row"
          :prefix-content prefix-content
          :actions items
          :action-size 44
@@ -289,18 +277,18 @@
                                [roster-id])
                              [])))))
 
-(defn chapter-roster-controls [chapter]
+(defn sequence-roster-controls [entity]
   (let [rosters @(rf/subscribe [:rosters])
         characters @(rf/subscribe [:roster])
         frames @(rf/subscribe [:gallery-items])
-        saga-id (:sagaId chapter)]
-    [:div.chapter-roster-controls
-     (for [roster-id (linked-roster-ids chapter)
+        saga-id (:sagaId entity)]
+    [:div.sequence-roster-controls
+     (for [roster-id (linked-roster-ids entity)
            :let [roster (roster-by-id rosters roster-id)
                  roster-characters (filterv (fn [character]
                                               (= (:rosterId character) roster-id))
                                             characters)]]
-       ^{:key (str "chapter-roster-" (:chapterId chapter) "-" roster-id)}
+       ^{:key (str "sequence-roster-" (:chapterId entity) "-" roster-id)}
        [roster-button-view
         roster
         roster-characters
@@ -338,11 +326,11 @@
            :aria-label (or (:name roster) "Open roster")
            :on-click #(rf/dispatch [:navigate-roster-page roster-id saga-id])}])])))
 
-(defn collection-section [cfg entity active-frame-id editing-entity-id]
-  (let [{:keys [entity-id-key entity-label entity-singular owner-type]} cfg
+(defn sequence-block [cfg entity active-frame-id editing-entity-id]
+  (let [{:keys [entity-id-key entity-label owner-type]} cfg
         entity-id (entity-id-key entity)
-        chapter-entity? (= "chapter" (str entity-label))
-        chapter-collapsed? (when chapter-entity?
+        saga-view? (= "saga" (str entity-label))
+        sequence-collapsed? (when-not saga-view?
                              @(rf/subscribe [:gallery-chapter-collapsed? entity-id]))
         entity-name (or (:name entity) (:description entity) "")
         entity-description (or (:description entity) "")
@@ -361,60 +349,58 @@
         current-description (if editing?
                               (get description-inputs entity-id entity-description)
                               entity-description)
-        show-header-actions? (case (str entity-label)
-                               ("chapter" "saga") editing?
-                               true)
+        show-header-actions? editing?
         editor-selector (str "[data-entity-editor-id=\"" entity-id "\"]")
-        frames (when chapter-entity?
-                 @(rf/subscribe [:frames-for-chapter entity-id]))
+        frames (when-not saga-view?
+                 @(rf/subscribe [:frames-for-owner owner-type entity-id]))
         collapsed-preview-frame (first frames)
         collapsed-preview-image-url (:imageUrl collapsed-preview-frame)]
     [:> Box {:component "section"
-             :className (str "chapter-block" (when chapter-collapsed? " is-collapsed"))}
-     [:div {:className (str "chapter-separator-row" (when chapter-collapsed? " is-collapsed"))}
-      (when chapter-entity?
+             :className (str "sequence-block" (when sequence-collapsed? " is-collapsed"))}
+     [:div {:className (str "sequence-separator-row" (when sequence-collapsed? " is-collapsed"))}
+      (when-not saga-view?
         [:button
          {:type "button"
-          :className "chapter-separator-toggle"
-          :title (if chapter-collapsed? "Expand chapter" "Collapse chapter")
-          :aria-label (if chapter-collapsed? "Expand chapter" "Collapse chapter")
-          :aria-expanded (str (not chapter-collapsed?))
+          :className "sequence-separator-toggle"
+          :title (if sequence-collapsed? "Expand" "Collapse")
+          :aria-label (if sequence-collapsed? "Expand" "Collapse")
+          :aria-expanded (str (not sequence-collapsed?))
           :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed entity-id])}
-         [:span {:className (str "chapter-separator-toggle-triangle"
-                                 (when chapter-collapsed? " is-collapsed"))}]])
-      (if chapter-entity?
+         [:span {:className (str "sequence-separator-toggle-triangle"
+                                 (when sequence-collapsed? " is-collapsed"))}]])
+      (if-not saga-view?
         [:button
          {:type "button"
-          :className (str "chapter-separator" (when chapter-collapsed? " is-collapsed"))
-          :title (if chapter-collapsed? "Expand chapter" "Collapse chapter")
-         :aria-label (if chapter-collapsed? "Expand chapter" "Collapse chapter")
-          :aria-expanded (str (not chapter-collapsed?))
+          :className (str "sequence-separator" (when sequence-collapsed? " is-collapsed"))
+          :title (if sequence-collapsed? "Expand" "Collapse")
+         :aria-label (if sequence-collapsed? "Expand" "Collapse")
+          :aria-expanded (str (not sequence-collapsed?))
           :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed entity-id])}
-         (when chapter-collapsed?
+         (when sequence-collapsed?
            [:<>
-            [:span.chapter-separator-preview
+            [:span.sequence-separator-preview
              (if (seq (str/trim (or collapsed-preview-image-url "")))
-               [:img {:className "chapter-separator-preview-image"
+               [:img {:className "sequence-separator-preview-image"
                       :src collapsed-preview-image-url
-                      :alt (str entity-name " first frame preview")}]
-               [:span.chapter-separator-preview-placeholder])]
-            [:span.chapter-separator-title entity-name]])]
-        [:div.chapter-separator])]
-     (if (and chapter-entity? chapter-collapsed?)
+                      :alt (str entity-name " preview")}]
+               [:span.sequence-separator-preview-placeholder])]
+            [:span.sequence-separator-title entity-name]])]
+        [:div.sequence-separator])]
+     (if (and (not saga-view?) sequence-collapsed?)
        nil
-       [:div.chapter-content
-        [:div.chapter-header
+       [:div.sequence-content
+        [:div.sequence-header
          {:data-entity-editor-id entity-id}
          [db-text/db-text
           {:id (str entity-label "-" entity-id "-title")
            :value entity-name
            :editing? editing?
            :multiline? true
-           :class-name "chapter-header-body"
-           :display-class-name "chapter-name"
-           :editing-class-name "chapter-db-item"
-           :input-class-name "chapter-name-input"
-           :placeholder (str "Name this " entity-singular "...")
+           :class-name "sequence-header-body"
+           :display-class-name "sequence-title"
+           :editing-class-name "sequence-db-item"
+           :input-class-name "sequence-title-input"
+           :placeholder "Name this sequence..."
            :min-rows 1
            :max-rows 3
            :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
@@ -428,10 +414,10 @@
            :value entity-description
            :editing? editing?
            :multiline? true
-           :class-name "chapter-header-body"
-           :display-class-name "chapter-description"
-           :editing-class-name "chapter-db-item"
-           :input-class-name "chapter-description-input"
+           :class-name "sequence-header-body"
+           :display-class-name "sequence-description"
+           :editing-class-name "sequence-db-item"
+           :input-class-name "sequence-description-input"
            :placeholder ""
            :min-rows 2
            :max-rows 6
@@ -442,38 +428,20 @@
                       (rf/dispatch [:save-entity entity-label entity-id current-name next-description]))
            :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
          (when show-header-actions?
-           [:div.chapter-header-controls
+           [:div.sequence-header-controls
             [entity-actions
              {:entity-id entity-id
               :entity-label entity-label
-              :singular-label entity-singular
-              :prefix-content (when chapter-entity?
-                                [chapter-roster-controls entity])}]])]
+              :singular-label "sequence"
+              :prefix-content (when (= "chapter" (str entity-label))
+                                [sequence-roster-controls entity])}]])]
         (case (str entity-label)
-          "saga" [gallery/chapter-preview-gallery entity-id]
+          "saga" [gallery/sequence-preview-gallery entity-id]
           [gallery/frame-gallery entity-id owner-type active-frame-id])])]))
 
-(defn new-entity-form [cfg _name _description]
-  (let [{:keys [add-event set-open-event add-title]} cfg]
-    [:> Box {:component "section"
-             :className "new-chapter-panel"}
-     [:h3 add-title]
-     [:div.chapter-edit-actions
-      [:> Button
-       {:className "new-chapter-submit"
-        :onClick #(do
-                    (rf/dispatch [set-open-event false])
-                    (rf/dispatch [add-event]))}
-       "Add new"]
-      [:> Button
-       {:variant "default"
-        :className "new-chapter-submit"
-        :onClick #(rf/dispatch [set-open-event false])}
-       "Cancel"]]]))
-
 (defn new-entity-teaser [cfg active-frame-id]
-  (let [{:keys [set-open-event teaser-title]} cfg]
-    [:article.new-chapter-teaser
+  (let [{:keys [add-event]} cfg]
+    [:article.new-sequence-teaser
      {:class (str "frame frame-clickable add-frame-tile"
                   (when (= active-frame-id controls/new-chapter-frame-id)
                     " frame-active"))
@@ -481,10 +449,9 @@
       :role "button"
       :tab-index 0
       :on-focus #(controls/activate-frame! controls/new-chapter-frame-id)
-      :on-click (on-new-item-teaser-click set-open-event)
-      :on-key-down (on-new-item-teaser-keydown set-open-event)}
-     [:div.add-frame-tile-title "Add new"]
-     [:div.add-frame-tile-sub teaser-title]]))
+      :on-click (on-new-item-teaser-click add-event)
+      :on-key-down (on-new-item-teaser-keydown add-event)}
+     [:div.add-frame-tile-title "Add new"]]))
 
 (defn page-header-action [cfg]
   (let [route @(rf/subscribe [:route])]
@@ -526,58 +493,65 @@
      :page current-page
      :page-count page-count}))
 
-(defn saga-header-content [saga]
-  (let [saga-id (:sagaId saga)
-        editing-saga-id @(rf/subscribe [:editing-saga-id])
-        name-inputs @(rf/subscribe [:saga-name-inputs])
-        description-inputs @(rf/subscribe [:saga-description-inputs])
-        current-name (if (= editing-saga-id saga-id)
-                       (get name-inputs saga-id (:name saga))
-                       (:name saga))
-        current-description (if (= editing-saga-id saga-id)
-                              (get description-inputs saga-id (:description saga))
-                              (:description saga))
-        editor-selector "[data-saga-meta-editor='true']"]
-    [:div.saga-meta-header
-     {:data-saga-meta-editor "true"}
+(defn collection-header-content [entity-label entity-id entity-name entity-description]
+  (let [editing-id @(rf/subscribe [(if (= "saga" (str entity-label)) :editing-saga-id :editing-roster-id)])
+        name-inputs @(rf/subscribe [(if (= "saga" (str entity-label)) :saga-name-inputs :roster-name-inputs)])
+        description-inputs @(rf/subscribe [(if (= "saga" (str entity-label)) :saga-description-inputs :roster-description-inputs)])
+        current-name (if (= editing-id entity-id)
+                       (get name-inputs entity-id entity-name)
+                       entity-name)
+        current-description (if (= editing-id entity-id)
+                              (get description-inputs entity-id entity-description)
+                              entity-description)
+        editor-selector (str "[data-" entity-label "-meta-editor='true']")]
+    [:div.collection-meta-header
+     {:data-meta-editor "true"
+      (keyword (str "data-" entity-label "-meta-editor")) "true"
+      :className (str entity-label "-meta-header")}
      [db-text/db-text
-      {:id "saga-meta-title"
+      {:id (str entity-label "-meta-title")
        :value (or current-name "")
-       :editing? (= editing-saga-id saga-id)
-       :class-name "saga-meta-db-item"
-       :display-class-name "chapter-name saga-title saga-meta-text"
-       :editing-class-name "chapter-db-item saga-meta-db-item"
-       :input-class-name "chapter-name-input saga-title-input saga-meta-input"
+       :editing? (= editing-id entity-id)
+       :class-name (str entity-label "-meta-db-item")
+       :display-class-name "sequence-title collection-title collection-meta-text"
+       :editing-class-name "sequence-db-item collection-meta-db-item"
+       :input-class-name "sequence-title-input collection-title-input collection-meta-input"
        :display-as :h2
-       :placeholder "Name this saga..."
-       :on-open-edit #(rf/dispatch [:start-entity-edit "saga" saga-id (:name saga) (:description saga)])
-       :on-close-edit #(rf/dispatch [:cancel-entity-name-edit "saga"])
-       :on-change #(rf/dispatch [:entity-name-input-changed "saga" saga-id %])
+       :placeholder (str "Name this " entity-label "...")
+       :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
+       :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
+       :on-change #(rf/dispatch [:entity-name-input-changed entity-label entity-id %])
        :on-save (fn [next-name]
-                  (rf/dispatch [:save-entity "saga" saga-id next-name current-description]))
+                  (rf/dispatch [:save-entity entity-label entity-id next-name current-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
      [db-text/db-text
-     {:id "saga-meta-desc"
+      {:id (str entity-label "-meta-desc")
        :value (or current-description "")
-       :editing? (= editing-saga-id saga-id)
+       :editing? (= editing-id entity-id)
        :multiline? true
-       :class-name "saga-meta-db-item"
-       :display-class-name "chapter-description saga-meta-text"
-       :editing-class-name "chapter-db-item saga-meta-db-item"
-       :input-class-name "chapter-description-input saga-meta-input"
+       :class-name (str entity-label "-meta-db-item")
+       :display-class-name "sequence-description collection-meta-text"
+       :editing-class-name "sequence-db-item collection-meta-db-item"
+       :input-class-name "sequence-description-input collection-meta-input"
        :display-as :p
        :placeholder ""
        :min-rows 2
        :max-rows 6
-       :on-open-edit #(rf/dispatch [:start-entity-edit "saga" saga-id (:name saga) (:description saga)])
-       :on-close-edit #(rf/dispatch [:cancel-entity-name-edit "saga"])
-       :on-change #(rf/dispatch [:entity-description-input-changed "saga" saga-id %])
+       :on-open-edit #(rf/dispatch [:start-entity-edit entity-label entity-id entity-name entity-description])
+       :on-close-edit #(rf/dispatch [:cancel-entity-name-edit entity-label])
+       :on-change #(rf/dispatch [:entity-description-input-changed entity-label entity-id %])
        :on-save (fn [next-description]
-                  (rf/dispatch [:save-entity "saga" saga-id current-name next-description]))
+                  (rf/dispatch [:save-entity entity-label entity-id current-name next-description]))
        :keep-editing-on-blur? #(keep-editor-open? editor-selector)}]
-     [saga-roster-buttons saga-id]]))
+     [:div.collection-header-actions
+      [entity-actions
+       {:entity-id entity-id
+        :entity-label entity-label
+        :singular-label "board"
+        :prefix-content (when (= "saga" (str entity-label))
+                          [saga-roster-buttons entity-id])}]]]))
 
-(defn chapter-preview-image-url [frames chapter-id]
+(defn- chapter-preview-image-url [frames chapter-id]
   (some->> (or frames [])
            (filter (fn [frame]
                      (and (= "saga" (str (or (:ownerType frame) "saga")))
@@ -590,7 +564,7 @@
                    (some-> (:imageUrl frame) str/trim not-empty)))
            first))
 
-(defn chapter-search-text [chapter saga frames]
+(defn- chapter-search-text [chapter saga frames]
   (str/lower-case
    (str (or (:name chapter) "")
         "\n"
@@ -654,8 +628,7 @@
   (let [{:keys [kind id name description image-url]} entry
         chapter? (= :chapter kind)
         frames @(rf/subscribe [:gallery-items])
-        chapter-ids (when-not chapter?
-                      (map :chapterId @(rf/subscribe [:chapters-by-saga-id id])))
+        chapter-ids (map :chapterId @(rf/subscribe [:chapters-by-saga-id id]))
         saga-image-urls (when-not chapter?
                           (owner-button-image-urls chapter-ids frames "saga"))
         click-handler (fn []
@@ -687,7 +660,7 @@
         :else
         [:div.index-card-placeholder])]
      [:div.index-card-body
-      [:h3 {:className (str "index-card-title " (if chapter? "chapter-name" "saga-title"))}
+      [:h3 {:className (str "index-card-title " (if chapter? "sequence-title" "saga-title"))}
        name]
       (when (seq (str/trim (or description "")))
         [:p.index-card-description description])]]))
@@ -721,7 +694,7 @@
     (mapv (fn [roster]
             (let [roster-id (:rosterId roster)
                   characters (filterv (fn [character]
-                                        (= (:rosterId character) roster-id))
+                                        (= (:characterId character) roster-id))
                                       all-characters)]
               ^{:key (str "roster-select-" roster-id)}
               [roster-button-view roster
@@ -749,7 +722,7 @@
       :items (roster-select-items rosters all-characters frames search target chapters)
       :empty-label "No rosters match this search."}]))
 
-(defn collection-page [cfg entities active-frame-id form-description panel-open? show-celebration?]
+(defn sequence-gallery [cfg entities active-frame-id show-celebration?]
   (r/with-let [context* (r/atom {:active-frame-id nil :view-id nil :any-edit-open? false})
                focused-active-id* (r/atom nil)
                key-handler (fn [e]
@@ -761,7 +734,7 @@
         (.requestAnimationFrame js/window
                                 (fn []
                                   (frame-nav/focus-subtitle! active-frame-id)))))
-      (let [{:keys [view-id page-title page-class editing-id-sub entity-id-key search-placeholder empty-label header-saga]} cfg
+    (let [{:keys [view-id page-class editing-id-sub entity-id-key search-placeholder empty-label header-entity]} cfg
           editing-entity-id @(rf/subscribe editing-id-sub)
           search @(rf/subscribe [:collection-search view-id])
           current-page @(rf/subscribe [:collection-page view-id])
@@ -774,59 +747,58 @@
                                            gallery-items)
           filtered-entities (filter-entities entities search)
           {:keys [items page page-count]} (paged-entities filtered-entities current-page per-page)
-          any-edit-open? (or panel-open?
-                             (some? editing-entity-id)
+          any-edit-open? (or (some? editing-entity-id)
                              any-frame-actions-open?)]
       (reset! context* {:active-frame-id active-frame-id
                         :view-id view-id
                         :any-edit-open? any-edit-open?
                         :current-gallery-chapter-id current-gallery-chapter-id})
       [:> Stack {:component "section"
-                 :className page-class
+                 :className "collection-page"
                  :gap "md"}
-      [:> Group {:className "collection-header"
+       [:> Group {:className "collection-header"
                   :justify "center"
                   :align "center"}
-        (if (and (= :saga view-id) header-saga)
-          [saga-header-content header-saga]
+        (if header-entity
+          (let [entity-label (if (= :saga view-id) "saga" "roster")
+                entity-id (if (= :saga view-id) (:sagaId header-entity) (:rosterId header-entity))]
+            [collection-header-content entity-label entity-id (:name header-entity) (:description header-entity)])
           [:<>
-           [:h2 page-title]
+           [:h2 (:page-title cfg)]
            [page-header-action cfg]])]
-     [:> TextInput
-      {:value (or search "")
-       :placeholder search-placeholder
-       :className "new-chapter-input collection-search-input"
-       :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
+       [:> TextInput
+        {:value (or search "")
+         :placeholder search-placeholder
+         :className "new-sequence-input collection-search-input"
+         :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
        (if (seq items)
          (map-indexed (fn [idx entity]
-                      ^{:key (or (entity-id-key entity) (str "entity-" idx))}
-                      [collection-section cfg entity active-frame-id editing-entity-id])
-                    items)
-         [:p.chapter-description empty-label])
+                        ^{:key (or (entity-id-key entity) (str "entity-" idx))}
+                        [sequence-block cfg entity active-frame-id editing-entity-id])
+                      items)
+         [:p.sequence-description empty-label])
        (when (> page-count 1)
          [:> Pagination
           {:value page
            :total page-count
            :onChange #(rf/dispatch [:collection-page-selected view-id %])}])
-      (when (and show-celebration? (= :saga view-id))
-         [chapter-celebration])
+       (when (and show-celebration? (= :saga view-id))
+         [sequence-celebration])
        [:section.collection-add-region
-        [:div.chapter-separator]
-        (if panel-open?
-          [new-entity-form cfg (:name form-description) (:description form-description)]
-          [new-entity-teaser cfg active-frame-id])]
+        [:div.sequence-separator]
+        [new-entity-teaser cfg active-frame-id]]
        [roster-link-dialog]])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 
 (def saga-config
   {:view-id :saga
-   :page-class "saga-page"
+   :page-class "collection-page"
    :entity-label "chapter"
-   :entity-singular "chapter"
+   :entity-singular "sequence"
    :entity-id-key :chapterId
    :owner-type "saga"
-   :page-title "Robot Emperor"
+   :page-title "Saga"
    :editing-id-sub [:editing-chapter-id]
    :name-inputs-sub [:chapter-name-inputs]
    :description-inputs-sub [:chapter-description-inputs]
@@ -834,13 +806,13 @@
    :description-changed-event :new-chapter-description-changed
    :set-open-event :set-new-chapter-panel-open
    :add-event :add-chapter
-   :name-input-placeholder "Name this chapter..."
-   :description-input-placeholder "Describe aliases, context, or chapter style..."
-   :add-title "Add New Chapter"
-   :teaser-title "Add New Chapter"
-   :teaser-sub "Click to start a new adventure"
-   :search-placeholder "Search chapters..."
-   :empty-label "No chapters match this search."})
+   :name-input-placeholder "Name this sequence..."
+   :description-input-placeholder "Describe aliases, context, or style..."
+   :add-title "Add new"
+   :teaser-title "Add new"
+   :teaser-sub ""
+   :search-placeholder "Search sequences..."
+   :empty-label "No sequences match this search."})
 
 (defn index-page [sagas chapters frames new-saga-name new-saga-description new-saga-panel-open?]
   (let [search @(rf/subscribe [:collection-search :index])
@@ -849,7 +821,7 @@
         entries (index-entries sagas chapters frames search)
         {:keys [items page page-count]} (paged-entities entries current-page per-page)]
     [:> Stack {:component "section"
-               :className "saga-page index-page"
+               :className "collection-page index-page"
                :gap "md"}
      [:> Group {:className "collection-header"
                 :justify "center"
@@ -857,8 +829,8 @@
       [:h2 "Index"]]
      [:> TextInput
       {:value (or search "")
-       :placeholder "Search sagas, chapters, and subtitles..."
-       :className "new-chapter-input collection-search-input"
+       :placeholder "Search boards, sequences, and subtitles..."
+       :className "new-sequence-input collection-search-input"
        :onChange #(rf/dispatch [:collection-search-changed :index (.. % -target -value)])}]
      (if (seq items)
        [:section.index-grid
@@ -866,35 +838,22 @@
                        ^{:key (or (:id entry) (str "index-entry-" idx))}
                        [index-card entry])
                      items)]
-       [:p.chapter-description "No sagas or chapters match this search."])
+       [:p.sequence-description "No boards or sequences match this search."])
      (when (> page-count 1)
        [:> Pagination
         {:value page
          :total page-count
          :onChange #(rf/dispatch [:collection-page-selected :index %])}])
      [:section.collection-add-region
-      (if new-saga-panel-open?
-        [new-entity-form {:add-event :add-saga
-                          :set-open-event :set-new-saga-panel-open
-                          :add-title "Create New Saga"
-                          :name-input-placeholder "Name this saga..."
-                          :description-input-placeholder "Describe the story, tone, or setup..."
-                          :name-changed-event :new-saga-name-changed
-                          :description-changed-event :new-saga-description-changed}
-         new-saga-name
-         new-saga-description]
-        [new-entity-teaser {:set-open-event :set-new-saga-panel-open
-                            :teaser-title "Create New Saga"
-                            :teaser-sub "Start a new saga"}
-         nil])]]))
+      [:div.sequence-separator]
+      [new-entity-teaser {:add-event :add-saga
+                          :teaser-title "Add new"}
+       nil]]]))
 
-(defn saga-page [selected-saga chapters active-frame-id new-chapter-name new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
-  [collection-page (assoc saga-config
+(defn saga-page [selected-saga chapters active-frame-id show-chapter-celebration?]
+  [sequence-gallery (assoc saga-config
                           :page-title (or (:name selected-saga) "Saga")
-                          :header-saga selected-saga)
+                          :header-entity selected-saga)
    chapters
    active-frame-id
-   {:name new-chapter-name
-    :description new-chapter-description}
-   new-chapter-panel-open?
    show-chapter-celebration?])

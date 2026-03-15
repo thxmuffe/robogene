@@ -849,6 +849,20 @@
                                     :saga saga}
                                    snapshot))}))
 
+(def handle-delete-roster
+  (make-required-mutation-handler
+   {:field-key "rosterId"
+    :missing-msg "Missing rosterId."
+    :mutate! chapter/delete-roster!
+    :default-error "Delete roster failed."
+    :status-by-message (messages->status-map #{"Roster not found."} 404)
+    :emit-reason "roster-deleted"
+    :success-status 200
+    :success-body (fn [roster snapshot]
+                    (with-revision {:deleted true
+                                    :roster roster}
+                                   snapshot))}))
+
 (defn handle-signalr-negotiate [request]
   (json-response 200
                  (or (realtime/create-client-connection-info)
@@ -884,6 +898,7 @@
    {:method :post :name "post-add-uploaded-frames" :route "add-uploaded-frames" :handler handle-add-uploaded-frames}
    {:method :post :name "post-add-character" :route "add-character" :handler handle-add-character}
    {:method :post :name "post-delete-saga" :route "delete-saga" :handler handle-delete-saga}
+   {:method :post :name "post-delete-roster" :route "delete-roster" :handler handle-delete-roster}
    {:method :post :name "post-delete-chapter" :route "delete-chapter" :handler handle-delete-chapter}
    {:method :post :name "post-delete-character" :route "delete-character" :handler handle-delete-character}
    {:method :post :name "post-delete-frame" :route "delete-frame" :handler handle-delete-frame}

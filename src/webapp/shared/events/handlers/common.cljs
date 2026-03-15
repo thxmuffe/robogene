@@ -113,7 +113,8 @@
                                     (:image-ui-by-frame-id db)
                                     previous-frames
                                     frames)
-              chapter-ids (set (map :chapterId saga))]
+              all-sequence-ids (set (concat (map :chapterId saga)
+                                            (map :characterId roster)))]
          {:db
           (-> db
               (assoc :latest-state state
@@ -140,8 +141,8 @@
               (update-in [:view-state :gallery :collapsed-chapter-ids]
                          (fn [ids]
                            (if (nil? ids)
-                             chapter-ids
-                             (set (filter chapter-ids ids)))))
+                             all-sequence-ids
+                             (set (filter all-sequence-ids ids)))))
               (store/reapply-pending-commands))})))))
 
 (rf/reg-event-db

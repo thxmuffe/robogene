@@ -163,6 +163,7 @@
                      nil)]
       (if (and type-key (seq (or (get entity id-key) "")))
         (-> db
+            (update type-key (fn [rows] (merge-entity-row rows id-key entity)))
             (update-in [:latest-state type-key] (fn [rows] (merge-entity-row rows id-key entity)))
             (as-> db* (if (and (= "saga" (str type))
                                (= (get-in db* [:latest-state :sagaMeta :sagaId]) (get entity id-key)))
@@ -696,11 +697,54 @@
                    (add-chapter-roster db (:chapter-id payload)
                                        (:roster-id payload)))}
 
+(defn remove-roster [db roster-id]
+  (let [character-ids (->> (or (:roster db) [])
+                           (filter (fn [character] (= (:rosterId character) roster-id)))
+                           (map :characterId)
+                           set)
+        frame-ids (->> (or (:gallery-items db) [])
+                       (filter (fn [frame] (contains? character-ids (:chapterId frame))))
+                       (map :frameId)
+                       vec)]
+    (-> db
+        (update :rosters remove-saga-row roster-id)
+        (update :roster (fn [rows]
+                          (->> (or rows [])
+                               (remove (fn [row] (= (:rosterId row) roster-id)))
+                               vec)))
+        (update :gallery-items (fn [rows]
+                                 (->> (or rows [])
+                                      (remove (fn [frame]
+                                                (contains? character-ids (:chapterId frame))))
+                                      vec)))
+        (update-in [:latest-state :rosters] remove-saga-row roster-id)
+        (update-in [:latest-state :roster] (fn [rows]
+                                            (->> (or rows [])
+                                                 (remove (fn [row] (= (:rosterId row) roster-id)))
+                                                 vec)))
+        (update-in [:latest-state :frames] (fn [rows]
+                                             (->> (or rows [])
+                                                  (remove (fn [frame]
+                                                            (contains? character-ids (:chapterId frame))))
+                                                  vec)))
+        (update :frame-drafts (fn [m] (apply dissoc (or m {}) frame-ids)))
+        (update :open-frame-actions (fn [m] (apply dissoc (or m {}) frame-ids)))
+        (update :image-ui-by-frame-id (fn [m] (reduce image-ui/remove-frame (or m {}) frame-ids))))))
+
+;; ... in mutation-spec ...
+
     :delete-saga
     {:transport-fx :post-delete-saga
      :optimistic (fn [db payload]
                    (remove-saga db (:saga-id payload)))
      :fetch-after-success? false}
+
+    :delete-roster
+    {:transport-fx :post-delete-roster
+     :optimistic (fn [db payload]
+                   (remove-roster db (:roster-id payload)))
+     :fetch-after-success? false}
+
 
     :delete-chapter
     {:transport-fx :post-delete-chapter

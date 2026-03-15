@@ -311,6 +311,18 @@
                          command))))
 
 (rf/reg-event-fx
+ :delete-roster
+ (fn [{:keys [db]} [_ roster-id]]
+   (let [command {:id (sync/next-command-id)
+                  :kind :delete-roster
+                  :payload {:roster-id roster-id}
+                  :success-status "Roster deleted."}]
+     (sync/queue-command (store/apply-command-optimistically db command)
+                         "Deleting roster..."
+                         command))))
+
+
+(rf/reg-event-fx
  :delete-chapter
  (fn [{:keys [db]} [_ chapter-id]]
    (let [command {:id (sync/next-command-id)

@@ -21,12 +21,15 @@
 (rf/reg-sub :saga-name-inputs (fn [db _] (get-in db [:view-state :index :name-inputs])))
 (rf/reg-sub :chapter-name-inputs (fn [db _] (get-in db [:view-state :saga :name-inputs])))
 (rf/reg-sub :character-name-inputs (fn [db _] (get-in db [:view-state :roster :name-inputs])))
+(rf/reg-sub :roster-name-inputs (fn [db _] (get-in db [:view-state :roster-meta :name-inputs])))
 (rf/reg-sub :saga-description-inputs (fn [db _] (get-in db [:view-state :index :description-inputs])))
 (rf/reg-sub :chapter-description-inputs (fn [db _] (get-in db [:view-state :saga :description-inputs])))
 (rf/reg-sub :character-description-inputs (fn [db _] (get-in db [:view-state :roster :description-inputs])))
+(rf/reg-sub :roster-description-inputs (fn [db _] (get-in db [:view-state :roster-meta :description-inputs])))
 (rf/reg-sub :editing-saga-id (fn [db _] (get-in db [:view-state :index :editing-id])))
 (rf/reg-sub :editing-chapter-id (fn [db _] (get-in db [:view-state :saga :editing-id])))
 (rf/reg-sub :editing-character-id (fn [db _] (get-in db [:view-state :roster :editing-id])))
+(rf/reg-sub :editing-roster-id (fn [db _] (get-in db [:view-state :roster-meta :editing-id])))
 (rf/reg-sub :gallery-chapter-collapsed?
             (fn [db [_ chapter-id]]
               (contains? (get-in db [:view-state :gallery :collapsed-chapter-ids] #{})
@@ -50,89 +53,95 @@
 (rf/reg-sub :new-character-panel-open? (fn [db _] (get-in db [:view-state :roster :new-panel-open?])))
 (rf/reg-sub :show-chapter-celebration? (fn [db _] (get-in db [:view-state :saga :show-celebration?])))
 (rf/reg-sub :route (fn [db _] (:route db)))
-(rf/reg-sub
- :selected-roster-id
- (fn [db _]
-   (or (get-in db [:route :roster-id])
-       (some-> (:rosters db) first :rosterId))))
-(rf/reg-sub
- :selected-roster
- (fn [db _]
-   (let [roster-id (or (get-in db [:route :roster-id])
-                       (some-> (:rosters db) first :rosterId))]
-     (some (fn [roster]
-             (when (= (:rosterId roster) roster-id)
-               roster))
-           (:rosters db)))))
-(rf/reg-sub
- :characters-for-selected-roster
- (fn [db _]
-   (let [roster-id (or (get-in db [:route :roster-id])
-                       (some-> (:rosters db) first :rosterId))]
-     (->> (or (:roster db) [])
-          (filter (fn [character]
-                    (= (:rosterId character) roster-id)))
-          vec))))
-(rf/reg-sub
- :characters-for-roster
- (fn [db [_ roster-id]]
-   (->> (or (:roster db) [])
-        (filter (fn [character]
-                  (= (:rosterId character) roster-id)))
-        vec)))
-(rf/reg-sub
- :roster-link-state
- (fn [db _]
-   (get-in db [:view-state :roster-link])))
-(rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
-(rf/reg-sub
- :selected-saga-id
- (fn [db _]
-   (get-in db [:route :saga-id])))
-(rf/reg-sub
- :selected-saga
- (fn [db _]
-   (let [saga-id (get-in db [:route :saga-id])]
-     (some (fn [saga]
-             (when (= (:sagaId saga) saga-id)
-               saga))
-           (:sagas db)))))
-(rf/reg-sub
- :chapters-for-selected-saga
- (fn [db _]
-   (let [saga-id (get-in db [:route :saga-id])]
-     (->> (or (:saga db) [])
-          (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-          vec))))
-(rf/reg-sub
- :chapters-by-saga-id
- (fn [db [_ saga-id]]
-   (->> (or (:saga db) [])
-        (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-        vec)))
-(rf/reg-sub
- :chapter-by-id
- (fn [db [_ chapter-id]]
-   (some (fn [chapter]
-           (when (= (:chapterId chapter) chapter-id)
-             chapter))
-         (:saga db))))
+(rf/reg-sub :view :<- [:route] (fn [route _] (:view route)))
+(rf/reg-sub :selected-saga-id :<- [:route] (fn [route _] (:saga-id route)))
+
+(rf/reg-sub :selected-saga
+            :<- [:selected-saga-id]
+            :<- [:sagas]
+            (fn [[saga-id sagas] _]
+              (some (fn [saga] (when (= (:sagaId saga) saga-id) saga))
+                    sagas)))
+
+(rf/reg-sub :chapters-by-saga-id
+            :<- [:saga]
+            (fn [chapters [_ saga-id]]
+              (->> (or chapters [])
+                   (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
+                   vec)))
+
+(rf/reg-sub :chapters-for-selected-saga
+            :<- [:selected-saga-id]
+            :<- [:saga]
+            (fn [[saga-id chapters] _]
+              (->> (or chapters [])
+                   (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
+                   vec)))
+
+(rf/reg-sub :selected-chapter-id :<- [:route] (fn [route _] (:chapter-id route)))
+
+(rf/reg-sub :selected-chapter
+            :<- [:selected-chapter-id]
+            :<- [:saga]
+            (fn [[chapter-id chapters] _]
+              (some (fn [chapter] (when (= (:chapterId chapter) chapter-id) chapter))
+                    chapters)))
+
 (rf/reg-sub :frames-for-chapter
-            (fn [db [_ chapter-id]]
-              (model/frames-for-chapter (:gallery-items db) chapter-id)))
+            :<- [:gallery-items]
+            (fn [frames [_ chapter-id]]
+              (model/frames-for-chapter frames chapter-id)))
+
 (rf/reg-sub :frames-for-owner
-            (fn [db [_ owner-type owner-id]]
-              (model/frames-for-owner (:gallery-items db) owner-type owner-id)))
-(rf/reg-sub :collection-search
-            (fn [db [_ view-id]]
-              (get-in db [:view-state view-id :search] "")))
-(rf/reg-sub :collection-page
-            (fn [db [_ view-id]]
-              (get-in db [:view-state view-id :page] 1)))
-(rf/reg-sub :collection-per-page
-            (fn [db [_ view-id]]
-              (get-in db [:view-state view-id :per-page] 12)))
+            :<- [:gallery-items]
+            (fn [frames [_ owner-type owner-id]]
+              (model/frames-for-owner frames owner-type owner-id)))
+
+(rf/reg-sub :selected-chapter-frames
+            :<- [:selected-chapter-id]
+            :<- [:gallery-items]
+            (fn [[chapter-id frames] _]
+              (model/frames-for-chapter frames chapter-id)))
+
+(rf/reg-sub :selected-frame-id :<- [:route] (fn [route _] (:frame-id route)))
+
+(rf/reg-sub :selected-frame
+            :<- [:selected-frame-id]
+            :<- [:gallery-items]
+            (fn [[frame-id frames] _]
+              (some (fn [frame] (when (= (:frameId frame) frame-id) frame))
+                    frames)))
+
+(rf/reg-sub :fullscreen? :<- [:route] (fn [route _] (:fullscreen route)))
+(rf/reg-sub :roster-link-state (fn [db _] (get-in db [:view-state :roster-link])))
+
+(rf/reg-sub :selected-roster-id
+            :<- [:route]
+            :<- [:rosters]
+            (fn [[route rosters] _]
+              (or (:roster-id route)
+                  (some-> rosters first :rosterId))))
+
+(rf/reg-sub :selected-roster
+            :<- [:selected-roster-id]
+            :<- [:rosters]
+            (fn [[roster-id rosters] _]
+              (some (fn [roster] (when (= (:rosterId roster) roster-id) roster))
+                    rosters)))
+
+(rf/reg-sub :characters-for-selected-roster
+            :<- [:selected-roster-id]
+            :<- [:roster]
+            (fn [[roster-id characters] _]
+              (->> (or characters [])
+                   (filter (fn [character] (= (:rosterId character) roster-id)))
+                   vec)))
+
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
 (rf/reg-sub :cancel-ui-token (fn [db _] (:cancel-ui-token db)))
+
+(rf/reg-sub :collection-search (fn [db [_ view-id]] (get-in db [:view-state view-id :search])))
+(rf/reg-sub :collection-page (fn [db [_ view-id]] (get-in db [:view-state view-id :page] 1)))
+(rf/reg-sub :collection-per-page (fn [db [_ view-id]] (get-in db [:view-state view-id :per-page] 12)))

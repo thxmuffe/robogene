@@ -57,44 +57,45 @@
                        (rf/dispatch [:add-frame owner-id owner-type])))}
        [:div.add-frame-tile-title add-tile-title]]]]))
 
-(defn- chapter-preview-card [chapter]
-  (let [chapter-id (:chapterId chapter)
-        name (or (some-> (:name chapter) str/trim not-empty)
-                 (some-> (:description chapter) str/trim not-empty)
-                 "Chapter")
-        description (some-> (:description chapter) str/trim not-empty)
-        frames @(rf/subscribe [:frames-for-chapter chapter-id])
+(defn- sequence-preview-card [entity]
+  (let [entity-id (:chapterId entity)
+        name (or (some-> (:name entity) str/trim not-empty)
+                 (some-> (:description entity) str/trim not-empty)
+                 "Board")
+        description (some-> (:description entity) str/trim not-empty)
+        frames @(rf/subscribe [:frames-for-chapter entity-id])
         preview-url (some->> frames
                              (keep (fn [frame-row]
                                      (some-> (:imageUrl frame-row) str/trim not-empty)))
                              first)
         frame-count (count frames)]
     [:article
-     {:className "frame frame-clickable add-frame-tile chapter-preview-tile"
+     {:className "frame frame-clickable sequence-preview-tile"
       :role "button"
       :tabIndex 0
-      :onClick #(rf/dispatch [:navigate-chapter-page chapter-id])
+      :onClick #(rf/dispatch [:navigate-chapter-page entity-id])
       :onKeyDown (fn [e]
                    (when (or (= "Enter" (.-key e))
                              (= " " (.-key e)))
                      (.preventDefault e)
-                     (rf/dispatch [:navigate-chapter-page chapter-id])))}
+                     (rf/dispatch [:navigate-chapter-page entity-id])))}
      (if preview-url
-       [:img {:className "chapter-preview-image"
+       [:img {:className "sequence-preview-image"
               :src preview-url
               :alt (str name " preview")}]
-       [:div.chapter-preview-placeholder])
-     [:div.add-frame-tile-title name]
-     [:div.add-frame-tile-sub
+       [:div.sequence-preview-placeholder])
+     [:div.sequence-preview-title name]
+     [:div.sequence-preview-sub
       (or description
           (str frame-count " frame" (when (not= 1 frame-count) "s")))]]))
 
-(defn chapter-preview-gallery [saga-id]
+
+(defn sequence-preview-gallery [saga-id]
   (let [chapters @(rf/subscribe [:chapters-by-saga-id saga-id])]
     [:> Box {:className "gallery"}
-     (map-indexed (fn [idx chapter]
-                    ^{:key (or (:chapterId chapter) (str "chapter-preview-" idx))}
+     (map-indexed (fn [idx entity]
+                    ^{:key (or (:chapterId entity) (str "sequence-preview-" idx))}
                     [:div.gallery-motion-item
-                     {:style (gallery-motion-style (:chapterId chapter))}
-                     [chapter-preview-card chapter]])
+                     {:style (gallery-motion-style (:chapterId entity))}
+                     [sequence-preview-card entity]])
                   chapters)]))

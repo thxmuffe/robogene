@@ -410,7 +410,8 @@
   (let [label (str entity-label)
         owner-type (if (= "character" label) "character" "saga")
         snapshot @state]
-    (if (= "saga" label)
+    (cond
+      (= "saga" label)
       (let [saga (some (fn [s] (when (= (:sagaId s) entity-id) s)) (:sagas snapshot))]
         (swap! state
                (fn [s]
@@ -428,6 +429,23 @@
                                                           rs))))
                      (update :revision inc))))
         saga)
+
+      (= "roster" label)
+      (let [roster (some (fn [r] (when (= (:rosterId r) entity-id) r)) (:rosters snapshot))]
+        (swap! state
+               (fn [s]
+                 (-> s
+                     (update :rosters (fn [rs] (vec (remove #(= (:rosterId %) entity-id) rs))))
+                     (update :roster (fn [rs] (vec (remove #(= (:rosterId %) entity-id) rs))))
+                     (update :frames (fn [rs] (vec (remove (fn [f]
+                                                            (or (= (:rosterId f) entity-id)
+                                                                (let [character (some #(when (= (:chapterId f) (:characterId %)) %) (:roster s))]
+                                                                  (= (:rosterId character) entity-id))))
+                                                          rs))))
+                     (update :revision inc))))
+        roster)
+
+      :else
       (let [{:keys [collection-key id-key]} (entity-type->meta label)
             entity (entity-by-id (collection-key snapshot) id-key entity-id)]
         (swap! state
@@ -442,6 +460,9 @@
 
 (defn delete-saga! [saga-id]
   (delete-entity! "saga" saga-id))
+
+(defn delete-roster! [roster-id]
+  (delete-entity! "roster" roster-id))
 
 (defn delete-chapter! [chapter-id]
   (delete-entity! "chapter" chapter-id))

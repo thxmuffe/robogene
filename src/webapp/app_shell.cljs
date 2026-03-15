@@ -119,18 +119,12 @@
           [roster-page/roster-page selected-roster
            saga-name*
            roster-characters
-           active-frame-id
-           new-character-name
-           new-character-description
-           new-character-panel-open?]
+           active-frame-id]
 
           :saga
           [gallery-page/saga-page selected-saga
            selected-saga-chapters
            active-frame-id
-           new-chapter-name
-           new-chapter-description
-           new-chapter-panel-open?
            show-chapter-celebration?]
 
           [gallery-page/index-page sagas

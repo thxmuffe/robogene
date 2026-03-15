@@ -427,6 +427,16 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-delete-roster
+ (fn [{:keys [roster-id on-success on-failure]}]
+   (post-json "/api/delete-roster"
+              {:rosterId roster-id}
+              on-success
+              on-failure
+              (fn [ok _] ok))))
+
+
+(rf/reg-fx
  :post-delete-chapter
  (fn [{:keys [chapter-id on-success on-failure]}]
    (post-json "/api/delete-chapter"
