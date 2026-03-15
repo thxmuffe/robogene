@@ -113,13 +113,7 @@
      (if (str/blank? (or name ""))
        {:db db}
        {:db (assoc-in db editing-key nil)
-        :dispatch [(case (str entity-label)
-                     "saga" :update-saga
-                     "character" :update-character
-                     :update-chapter)
-                   entity-id
-                   name
-                   description]}))))
+        :dispatch [:update-entity entity-label entity-id name description]}))))
 
 (rf/reg-event-db
  :set-new-saga-panel-open

@@ -136,6 +136,52 @@
                     :loading)))
     db))
 
+(defn merge-entity-row [rows id-key entity]
+  (let [target-id (get entity id-key)
+        found (atom false)
+        updated (mapv (fn [row]
+                        (if (= (get row id-key) target-id)
+                          (do (reset! found true) (merge row entity))
+                          row))
+                      (or rows []))]
+    (if @found
+      updated
+      (conj (vec (or rows [])) entity))))
+
+(defn merge-entity-response [db type entity]
+  (if-let [id-key (case (str type)
+                    "saga" :sagaId
+                    "chapter" :chapterId
+                    "roster" :rosterId
+                    "character" :characterId
+                    nil)]
+    (let [type-key (case (str type)
+                     "saga" :sagas
+                     "chapter" :saga
+                     "roster" :rosters
+                     "character" :roster
+                     nil)]
+      (if (and type-key (seq (or (get entity id-key) "")))
+        (-> db
+            (update-in [:latest-state type-key] (fn [rows] (merge-entity-row rows id-key entity)))
+            (as-> db* (if (and (= "saga" (str type))
+                               (= (get-in db* [:latest-state :sagaMeta :sagaId]) (get entity id-key)))
+                        (assoc-in db* [:latest-state :sagaMeta] entity)
+                        db*)))
+        db))
+    db))
+
+(defn update-entity [db type id name description]
+  (let [id-key (case (str type)
+                 "saga" :sagaId
+                 "chapter" :chapterId
+                 "roster" :rosterId
+                 "character" :characterId
+                 nil)]
+    (if id-key
+      (merge-entity-response db type {id-key id :name name :description description})
+      db)))
+
 (defn merge-command-revision [db command]
   (if-let [revision (some-> command :response :revision)]
     (assoc db :last-rendered-revision revision)
@@ -201,19 +247,6 @@
     (-> db
         (update list-key replace-row-by-id id-key temp-id entity)
         (update-in [:latest-state latest-list-key] replace-row-by-id id-key temp-id entity))))
-
-(defn update-entity [db entity-label entity-id name description]
-  (let [{:keys [list-key id-key latest-list-key]} (entity-meta entity-label)
-        update-entity* (fn [entity]
-                         (if (= (id-key entity) entity-id)
-                           (-> entity
-                               (assoc :name name)
-                               (assoc :description description))
-                           entity))]
-    (-> db
-        (update list-key (fn [rows] (mapv update-entity* (or rows []))))
-        (update-in [:latest-state latest-list-key]
-                   (fn [rows] (mapv update-entity* (or rows [])))))))
 
 (defn update-chapter-roster [db chapter-id roster-id]
   (let [update-roster* (fn [chapter]
@@ -590,6 +623,17 @@
                          (merge-command-revision command)
                          (merge-frame-response (get-in command [:response :frame])))} )}
 
+    :update-entity
+    {:transport-fx :post-update-entity
+     :optimistic (fn [db payload]
+                   (update-entity db (:type payload) (:id payload)
+                                  (:name payload) (:description payload)))
+     :success (fn [db command]
+                {:db (-> db
+                         (merge-command-revision command)
+                         (merge-entity-response (get-in command [:payload :type])
+                                                (get-in command [:response :entity])))})}
+
     :add-saga
     {:transport-fx :post-add-saga
      :optimistic (fn [db payload]
@@ -638,12 +682,6 @@
                 (remove-temp-entity db "character"
                                     (get-in command [:payload :optimistic-character :characterId])))}
 
-    :update-chapter
-    {:transport-fx :post-update-chapter
-     :optimistic (fn [db payload]
-                   (update-entity db "chapter" (:chapter-id payload)
-                                  (:name payload) (:description payload)))}
-
     :update-chapter-roster
     {:transport-fx :post-update-chapter-roster
      :optimistic (fn [db payload]
@@ -655,27 +693,6 @@
      :optimistic (fn [db payload]
                    (add-chapter-roster db (:chapter-id payload)
                                        (:roster-id payload)))}
-
-    :update-character
-    {:transport-fx :post-update-character
-     :optimistic (fn [db payload]
-                   (update-entity db "character" (:character-id payload)
-                                  (:name payload) (:description payload)))}
-
-    :update-saga
-    {:transport-fx :post-update-saga
-     :optimistic (fn [db payload]
-                   (-> db
-                       (update :sagas update-saga-row (:saga-id payload)
-                               (fn [saga]
-                                 (assoc saga
-                                        :name (:name payload)
-                                        :description (or (:description payload) ""))))
-                       (update-in [:latest-state :sagas] update-saga-row (:saga-id payload)
-                                  (fn [saga]
-                                    (assoc saga
-                                           :name (:name payload)
-                                           :description (or (:description payload) ""))))))}
 
     :delete-saga
     {:transport-fx :post-delete-saga

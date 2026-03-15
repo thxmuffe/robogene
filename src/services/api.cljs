@@ -318,8 +318,8 @@
         status (get status-by-message message 500)]
     (json-response status {:error message} request)))
 
-(defn run-command [request {:keys [run! reason default-error status-by-message on-success]}]
-  (-> (chapter/apply-command! {:run! run! :reason reason})
+(defn run-command [request {:keys [run! reason extra default-error status-by-message on-success]}]
+  (-> (chapter/apply-command! {:run! run! :reason reason :extra extra})
       (.then (fn [{:keys [result snapshot]}]
                (on-success result snapshot)))
       (.catch (fn [err]
@@ -347,6 +347,7 @@
         request
         {:run! #(chapter/add-saga! name description)
          :reason "saga-added"
+         :extra (fn [saga] (chapter/state-changed-entity-payload "saga" saga))
          :default-error "Create saga failed."
          :status-by-message {}
          :on-success (fn [saga snapshot]
@@ -368,6 +369,7 @@
         request
         {:run! #(chapter/add-roster! name description)
          :reason "roster-added"
+         :extra (fn [roster] (chapter/state-changed-entity-payload "roster" roster))
          :default-error "Create roster failed."
          :status-by-message {}
          :on-success (fn [roster snapshot]
@@ -395,6 +397,7 @@
             request
             {:run! #(chapter/add-chapter-with-saga-roster! saga-id roster-id name description)
              :reason "chapter-added"
+             :extra (fn [result] {:chapter (:chapter result) :frame (:frame result) :requiresFetch false})
              :default-error "Create chapter failed."
              :status-by-message {"Saga not found." 404
                                  "Roster not found." 404
@@ -452,6 +455,7 @@
           request
           {:run! #(chapter/add-character-with-roster! roster-id name description)
            :reason "character-added"
+           :extra (fn [result] {:character (:character result) :frame (:frame result) :requiresFetch false})
            :default-error "Create character failed."
            :status-by-message {"Roster not found." 404
                                "Missing rosterId." 400}
@@ -506,6 +510,7 @@
                     (character/add-frame-with-id! owner-id frame-id)
                     (chapter/add-frame! owner-id target-owner-type frame-id))
            :reason "frame-added"
+           :extra (fn [frame] (chapter/state-changed-entity-payload "frame" frame))
            :default-error (if (= target-owner-type "character") "Character not found." "Chapter not found.")
            :status-by-message {"Chapter not found." 404
                                "Character not found." 404}
@@ -535,6 +540,7 @@
           request
           {:run! #(chapter/update-chapter-details! chapter-id name description)
            :reason "chapter-updated"
+           :extra (fn [chapter] (chapter/state-changed-entity-payload "chapter" chapter))
            :default-error "Update chapter failed."
            :status-by-message {"Chapter not found." 404
                                "Missing chapter name." 400}
@@ -563,6 +569,7 @@
           request
           {:run! #(chapter/update-chapter-roster! chapter-id roster-id)
            :reason "chapter-roster-updated"
+           :extra (fn [chapter] (chapter/state-changed-entity-payload "chapter" chapter))
            :default-error "Update chapter roster failed."
            :status-by-message {"Chapter not found." 404
                                "Roster not found." 404
@@ -592,6 +599,7 @@
           request
           {:run! #(chapter/add-chapter-roster! chapter-id roster-id)
            :reason "chapter-roster-added"
+           :extra (fn [chapter] (chapter/state-changed-entity-payload "chapter" chapter))
            :default-error "Add chapter roster failed."
            :status-by-message {"Chapter not found." 404
                                "Roster not found." 404
@@ -622,6 +630,7 @@
           request
           {:run! #(character/update-details! character-id name description)
            :reason "character-updated"
+           :extra (fn [character] (chapter/state-changed-entity-payload "character" character))
            :default-error "Update character failed."
            :status-by-message {"Character not found." 404
                                "Missing character name." 400}
@@ -651,6 +660,7 @@
           request
           {:run! #(chapter/update-saga-details! saga-id name description)
            :reason "saga-updated"
+           :extra (fn [saga] (chapter/state-changed-entity-payload "saga" saga))
            :default-error "Update saga failed."
            :status-by-message {"Missing saga name." 400
                                "Saga not found." 404}
@@ -762,12 +772,38 @@
           request
           {:run! #(chapter/update-frame-description! frame-id description)
            :reason "frame-description-updated"
+           :extra (fn [frame] (chapter/state-changed-entity-payload "frame" frame))
            :default-error "Update frame description failed."
            :status-by-message {"Frame not found." 404}
            :on-success (fn [frame snapshot]
                          (json-response 200
                                         (with-revision {:updated true
                                                         :frame frame}
+                                                       snapshot)
+                                        request))}))))))
+
+(defn handle-update-entity [request]
+  (with-synced-body
+   request
+   (fn [body]
+     (let [entity-label (some-> (gobj/get body "type") str str/trim)
+           entity-id (some-> (gobj/get body "id") str str/trim)
+           name (some-> (gobj/get body "name") str)
+           description (some-> (gobj/get body "description") str)]
+       (if (or (str/blank? entity-label) (str/blank? entity-id))
+         (json-response 400 {:error "Missing type or id."} request)
+         (run-command
+          request
+          {:run! #(chapter/update-entity! entity-label entity-id name description)
+           :reason (str entity-label "-updated")
+           :extra (fn [result]
+                    (chapter/state-changed-entity-payload (:type result) (:entity result)))
+           :default-error "Update entity failed."
+           :on-success (fn [{:keys [entity]} snapshot]
+                         (json-response 200
+                                        (with-revision {:updated true
+                                                        :type entity-label
+                                                        :entity entity}
                                                        snapshot)
                                         request))}))))))
 
@@ -835,6 +871,7 @@
    {:method :post :name "post-generate-frame" :route "generate-frame" :handler handle-generate-frame}
    {:method :post :name "post-add-frame" :route "add-frame" :handler handle-add-frame}
    {:method :post :name "post-update-frame-description" :route "update-frame-description" :handler handle-update-frame-description}
+   {:method :post :name "post-update-entity" :route "update-entity" :handler handle-update-entity}
    {:method :post :name "post-replace-frame-image" :route "replace-frame-image" :handler handle-replace-frame-image}
    {:method :post :name "post-add-saga" :route "add-saga" :handler handle-add-saga}
    {:method :post :name "post-add-roster" :route "add-roster" :handler handle-add-roster}

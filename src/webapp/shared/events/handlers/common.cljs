@@ -147,7 +147,7 @@
 (rf/reg-event-db
  :realtime-state-changed
  (fn [db [_ payload]]
-   (let [{:keys [processing frameId imageStatus frame revision pendingCount]} (or payload {})
+   (let [{:keys [processing frameId imageStatus frame chapter character saga roster revision pendingCount]} (or payload {})
          current-revision (or (:last-rendered-revision db) -1)
          next-revision (if (some? revision)
                          (max current-revision revision)
@@ -161,16 +161,16 @@
 
                (some? pendingCount)
                (assoc-in [:latest-state :pendingCount] pendingCount))
-         db** (cond
-                (map? frame)
-                (store/merge-frame-response db* frame)
+         db** (cond-> db*
+                (map? frame) (store/merge-frame-response frame)
+                (map? chapter) (store/merge-entity-response "chapter" chapter)
+                (map? character) (store/merge-entity-response "character" character)
+                (map? saga) (store/merge-entity-response "saga" saga)
+                (map? roster) (store/merge-entity-response "roster" roster)
 
                 (and (seq (or frameId ""))
                      (seq (or imageStatus "")))
-                (store/set-frame-image-status db* frameId imageStatus)
-
-                :else
-                db*)]
+                (store/set-frame-image-status frameId imageStatus))]
      (refresh-derived-status db**))))
 
 (rf/reg-event-fx

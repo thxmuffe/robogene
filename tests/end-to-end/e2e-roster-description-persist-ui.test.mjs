@@ -31,7 +31,7 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     await characterBlock.locator('.chapter-description', { hasText: initialDesc }).waitFor({ timeout: actionTimeoutMs });
     const descField = characterBlock.locator('.chapter-description-input').first();
     const updateResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/update-character') && response.request().method() === 'POST',
+      (response) => (response.url().includes('/api/update-character') || response.url().includes('/api/update-entity')) && response.request().method() === 'POST',
       { timeout: actionTimeoutMs }
     );
     await descField.click();

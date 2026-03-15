@@ -358,6 +358,19 @@
               (fn [ok _] ok))))
 
 (rf/reg-fx
+ :post-update-entity
+ (fn [{:keys [type id name description on-success on-failure]}]
+   (post-json "/api/update-entity"
+              {:type type
+               :id id
+               :name name
+               :description description}
+              on-success
+              on-failure
+              (fn [ok _] ok)
+              {:keepalive true})))
+
+(rf/reg-fx
  :post-update-frame-description
  (fn [{:keys [frame-id description on-success on-failure]}]
    (post-json "/api/update-frame-description"

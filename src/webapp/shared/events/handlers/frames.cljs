@@ -261,21 +261,9 @@
                          command))))
 
 (rf/reg-event-fx
- :update-chapter
- (fn [{:keys [db]} [_ chapter-id name description]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :update-chapter
-                  :payload {:chapter-id chapter-id
-                            :name name
-                            :description description}
-                  :success-status "Chapter name updated."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Updating chapter..."
-                         command))))
-
-(rf/reg-event-fx
  :update-chapter-roster
  (fn [{:keys [db]} [_ chapter-id roster-id]]
+
    (let [command {:id (sync/next-command-id)
                   :kind :update-chapter-roster
                   :payload {:chapter-id chapter-id
@@ -298,35 +286,18 @@
                          command))))
 
 (rf/reg-event-fx
- :update-character
- (fn [{:keys [db]} [_ character-id name description]]
+ :update-entity
+ (fn [{:keys [db]} [_ type id name description]]
    (let [command {:id (sync/next-command-id)
-                  :kind :update-character
-                  :payload {:character-id character-id
+                  :kind :update-entity
+                  :payload {:type (str type)
+                            :id id
                             :name name
                             :description description}
-                  :success-status "Character updated."}]
+                  :success-status (str (str/capitalize (str type)) " updated.")}]
      (sync/queue-command (store/apply-command-optimistically db command)
-                         "Updating character..."
+                         (str "Updating " (str type) "...")
                          command))))
-
-(rf/reg-event-fx
- :update-saga
- (fn [{:keys [db]} [_ saga-id name description]]
-   (let [normalized-name (some-> (or name "") str str/trim)
-         normalized-description (some-> (or description "") str)
-         command {:id (sync/next-command-id)
-                  :kind :update-saga
-                  :payload {:saga-id saga-id
-                            :name normalized-name
-                            :description normalized-description}
-                  :success-status "Saga updated."}]
-     (if (or (str/blank? (or saga-id ""))
-             (str/blank? (or normalized-name "")))
-       {:db db}
-       (sync/queue-command (store/apply-command-optimistically db command)
-                           "Updating saga..."
-                           command)))))
 
 (rf/reg-event-fx
  :delete-saga
