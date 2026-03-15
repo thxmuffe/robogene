@@ -17,10 +17,10 @@
    :set-open-event :set-new-character-panel-open
    :add-event :add-character
    :name-input-placeholder "Name this character..."
-   :description-input-placeholder "Describe aliases, style, and references..."
-   :add-title "Add New Character"
-   :teaser-title "Add New Character"
-   :teaser-sub "Create a character profile with image frames"
+   :description-input-placeholder ""
+   :add-title "Add new"
+   :teaser-title "Add new"
+   :teaser-sub ""
    :search-placeholder "Search characters..."
    :empty-label "No characters match this search."
    :saga-back-label nil})

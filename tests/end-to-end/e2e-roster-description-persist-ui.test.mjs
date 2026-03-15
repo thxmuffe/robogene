@@ -17,19 +17,25 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     logStep('roster-persist', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
-    await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
+    await page.locator('.add-frame-tile', { hasText: 'Add new' }).first().click();
     const createPanel = page.locator('.new-chapter-panel').first();
-    await createPanel.getByPlaceholder('Name this character...').fill(characterName);
-    await createPanel.getByPlaceholder('Describe aliases, style, and references...').fill(initialDesc);
-    await page.locator('.new-chapter-panel h3').click();
-    await page.waitForTimeout(300);
-    await createPanel.getByRole('button', { name: 'Submit' }).click();
+    await createPanel.getByRole('button', { name: 'Add new' }).click();
     logStep('roster-persist', 'character created');
 
-    const characterBlock = page.locator('.chapter-block', { hasText: characterName }).first();
+    const characterBlock = page.locator('.chapter-block').first();
     await characterBlock.waitFor({ timeout: actionTimeoutMs });
-    await characterBlock.locator('.chapter-description', { hasText: initialDesc }).waitFor({ timeout: actionTimeoutMs });
+    
+    // Inline edit the name and description
+    const nameField = characterBlock.locator('.chapter-name-input').first();
+    await characterBlock.locator('.chapter-name').first().click();
+    await nameField.fill(characterName);
+    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+
     const descField = characterBlock.locator('.chapter-description-input').first();
+    await characterBlock.locator('.chapter-description').first().click();
+    await descField.fill(initialDesc);
+    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+
     const updateResponse = page.waitForResponse(
       (response) => (response.url().includes('/api/update-character') || response.url().includes('/api/update-entity')) && response.request().method() === 'POST',
       { timeout: actionTimeoutMs }

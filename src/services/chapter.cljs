@@ -277,12 +277,7 @@
                   saga-id (assoc :sagaId saga-id)
                   roster-id (assoc :rosterId roster-id))
          entity-id (id-key entity)
-         first-frame (assoc (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))
-                            :description (str/trim
-                                          (or (not-empty normalized-description)
-                                              (if (= "character" (str entity-label))
-                                                "Character reference portrait."
-                                                "Chapter opening scene."))))]
+         first-frame (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))]
      (swap! state
             (fn [s]
               (-> s

@@ -19,16 +19,20 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     logStep('roster-generate', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
-    await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
+    await page.locator('.add-frame-tile', { hasText: 'Add new' }).first().click();
     const createPanel = page.locator('.new-chapter-panel').first();
-    await createPanel.getByPlaceholder('Name this character...').fill(characterName);
-    await page.locator('.new-chapter-panel h3').click();
-    await page.waitForTimeout(300);
-    await createPanel.getByRole('button', { name: 'Submit' }).click();
+    await createPanel.getByRole('button', { name: 'Add new' }).click();
     logStep('roster-generate', 'character created');
 
-    const chapter = page.locator('.chapter-block', { hasText: characterName }).first();
+    const chapter = page.locator('.chapter-block').first();
     await chapter.waitFor({ timeout: actionTimeoutMs });
+
+    // Inline edit the name
+    const nameField = chapter.locator('.chapter-name-input').first();
+    await chapter.locator('.chapter-name').first().click();
+    await nameField.fill(characterName);
+    await page.locator('.roster-page').click({ position: { x: 10, y: 10 } });
+
 
     const frames = chapter.locator('.gallery .frame-panel[data-frame-id]');
     const beforeCount = await frames.count();

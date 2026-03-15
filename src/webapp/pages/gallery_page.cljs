@@ -453,32 +453,18 @@
           "saga" [gallery/chapter-preview-gallery entity-id]
           [gallery/frame-gallery entity-id owner-type active-frame-id])])]))
 
-(defn new-entity-form [cfg name description]
-  (let [{:keys [add-event set-open-event add-title name-input-placeholder description-input-placeholder name-changed-event description-changed-event]} cfg]
+(defn new-entity-form [cfg _name _description]
+  (let [{:keys [add-event set-open-event add-title]} cfg]
     [:> Box {:component "section"
              :className "new-chapter-panel"}
      [:h3 add-title]
-     [:> TextInput
-      {:className "new-chapter-input"
-       :value (or name "")
-       :placeholder name-input-placeholder
-       :onChange #(rf/dispatch [name-changed-event (.. % -target -value)])
-       :onKeyDown (on-new-item-name-keydown add-event set-open-event)}]
-     [:> Textarea
-      {:className "new-chapter-input"
-       :value (or description "")
-       :autosize true
-       :minRows 3
-       :maxRows 10
-       :placeholder description-input-placeholder
-       :onChange #(rf/dispatch [description-changed-event (.. % -target -value)])}]
      [:div.chapter-edit-actions
       [:> Button
        {:className "new-chapter-submit"
         :onClick #(do
                     (rf/dispatch [set-open-event false])
                     (rf/dispatch [add-event]))}
-       "Submit"]
+       "Add new"]
       [:> Button
        {:variant "default"
         :className "new-chapter-submit"
@@ -486,7 +472,7 @@
        "Cancel"]]]))
 
 (defn new-entity-teaser [cfg active-frame-id]
-  (let [{:keys [set-open-event teaser-title teaser-sub]} cfg]
+  (let [{:keys [set-open-event teaser-title]} cfg]
     [:article.new-chapter-teaser
      {:class (str "frame frame-clickable add-frame-tile"
                   (when (= active-frame-id controls/new-chapter-frame-id)
@@ -497,8 +483,8 @@
       :on-focus #(controls/activate-frame! controls/new-chapter-frame-id)
       :on-click (on-new-item-teaser-click set-open-event)
       :on-key-down (on-new-item-teaser-keydown set-open-event)}
-     [:div.add-frame-tile-title teaser-title]
-     [:div.add-frame-tile-sub teaser-sub]]))
+     [:div.add-frame-tile-title "Add new"]
+     [:div.add-frame-tile-sub teaser-title]]))
 
 (defn page-header-action [cfg]
   (let [route @(rf/subscribe [:route])]

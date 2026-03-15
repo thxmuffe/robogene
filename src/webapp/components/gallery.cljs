@@ -33,13 +33,7 @@
 
 (defn frame-gallery [owner-id owner-type active-frame-id]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
-        character-owner? (= "character" (str owner-type))
-        add-tile-title (if character-owner?
-                         "Add image"
-                         "Add New Frame")
-        frame-subtitle (if character-owner?
-                         "Create the next image for this character"
-                         "Create the next frame in this chapter")]
+        add-tile-title "Add new"]
     [:> Box {:className "gallery"}
      (map-indexed (fn [idx frame-row]
                     ^{:key (or (:frameId frame-row) (str "frame-" idx))}
@@ -61,8 +55,7 @@
                                (= " " (.-key e)))
                        (.preventDefault e)
                        (rf/dispatch [:add-frame owner-id owner-type])))}
-       [:div.add-frame-tile-title add-tile-title]
-       [:div.add-frame-tile-sub frame-subtitle]]]]))
+       [:div.add-frame-tile-title add-tile-title]]]]))
 
 (defn- chapter-preview-card [chapter]
   (let [chapter-id (:chapterId chapter)

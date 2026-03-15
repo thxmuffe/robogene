@@ -2007,36 +2007,39 @@ button.chapter-separator.is-collapsed {
 }
 
 .add-frame-tile {
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 4 / 3;
   display: grid;
   place-content: center;
   text-align: center;
-  width: calc(var(--card-width) * 0.7);
-  max-width: calc(var(--card-width) * 0.7);
+  width: calc(var(--card-width) * 0.55);
+  max-width: calc(var(--card-width) * 0.55);
   justify-self: center;
   align-self: center;
-  padding: 14px;
-  background: linear-gradient(145deg, rgba(247, 251, 255, 0.42), rgba(232, 241, 251, 0.34));
-  border: 0;
-  border-radius: 14px;
+  padding: 8px;
+  background: linear-gradient(145deg, rgba(247, 251, 255, 0.35), rgba(232, 241, 251, 0.25));
+  border: 1px dashed rgba(22, 50, 79, 0.2);
+  border-radius: 12px;
   color: #16324f;
-  box-shadow: 0 8px 18px rgba(32, 99, 155, 0.12);
+  box-shadow: 0 4px 12px rgba(32, 99, 155, 0.08);
+  transition: all 0.2s ease;
 }
 
 .add-frame-tile-title {
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
 }
 
 .add-frame-tile-sub {
-  margin-top: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  opacity: 0.9;
+  display: none;
 }
 
 .add-frame-tile:hover {
-  background: linear-gradient(145deg, rgba(241, 248, 255, 0.54), rgba(221, 234, 248, 0.46));
+  background: linear-gradient(145deg, rgba(241, 248, 255, 0.45), rgba(221, 234, 248, 0.35));
+  border-color: rgba(22, 50, 79, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(32, 99, 155, 0.12);
 }
 
 .chapter-preview-tile {
