@@ -148,30 +148,33 @@
  :realtime-state-changed
  (fn [db [_ payload]]
    (let [{:keys [processing frameId imageStatus frame chapter character saga roster revision pendingCount]} (or payload {})
-         current-revision (or (:last-rendered-revision db) -1)
-         next-revision (if (some? revision)
-                         (max current-revision revision)
-                         current-revision)
-         db* (cond-> db
-               (some? revision)
-               (assoc :last-rendered-revision next-revision)
+         current-revision (or (:last-rendered-revision db) -1)]
+     (if (and (some? revision) (<= revision current-revision))
+       ;; Drop stale broadcast - we already have a newer or same version
+       db
+       (let [next-revision (if (some? revision)
+                             (max current-revision revision)
+                             current-revision)
+             db* (cond-> db
+                   (some? revision)
+                   (assoc :last-rendered-revision next-revision)
 
-               (some? processing)
-               (assoc-in [:latest-state :processing] processing)
+                   (some? processing)
+                   (assoc-in [:latest-state :processing] processing)
 
-               (some? pendingCount)
-               (assoc-in [:latest-state :pendingCount] pendingCount))
-         db** (cond-> db*
-                (map? frame) (store/merge-frame-response frame)
-                (map? chapter) (store/merge-entity-response "chapter" chapter)
-                (map? character) (store/merge-entity-response "character" character)
-                (map? saga) (store/merge-entity-response "saga" saga)
-                (map? roster) (store/merge-entity-response "roster" roster)
+                   (some? pendingCount)
+                   (assoc-in [:latest-state :pendingCount] pendingCount))
+             db** (cond-> db*
+                    (map? frame) (store/merge-frame-response frame)
+                    (map? chapter) (store/merge-entity-response "chapter" chapter)
+                    (map? character) (store/merge-entity-response "character" character)
+                    (map? saga) (store/merge-entity-response "saga" saga)
+                    (map? roster) (store/merge-entity-response "roster" roster)
 
-                (and (seq (or frameId ""))
-                     (seq (or imageStatus "")))
-                (store/set-frame-image-status frameId imageStatus))]
-     (refresh-derived-status db**))))
+                    (and (seq (or frameId ""))
+                         (seq (or imageStatus "")))
+                    (store/set-frame-image-status frameId imageStatus))]
+         (refresh-derived-status db**))))))
 
 (rf/reg-event-fx
  :set-active-frame

@@ -212,29 +212,17 @@
    :description (str/trim (or description ""))
    :createdAt (.toISOString (js/Date.))})
 
-(defn best-frame-description [descriptions visual frame-number]
-  (let [description-text (some (fn [b] (when (= (:index b) frame-number) (:text b))) descriptions)
-        page-prompt (get-in visual [:pagePrompts frame-number] "")]
-    (or (some-> page-prompt str/trim not-empty)
-        (some-> description-text str/trim not-empty)
-        (str "Frame " frame-number))))
-
-(defn default-frame-description [frame-number]
-  (best-frame-description (:descriptions @state)
-                          (:visual @state)
-                          frame-number))
-
 (defn make-draft-frame
   ([chapter-id frame-number]
    (make-draft-frame chapter-id frame-number "saga"))
   ([chapter-id frame-number owner-type]
-  {:frameId (new-uuid)
-   :chapterId chapter-id
-   :ownerType (or owner-type "saga")
-   :frameNumber frame-number
-   :description (default-frame-description frame-number)
-   :imageStatus "draft"
-   :createdAt (.toISOString (js/Date.))}))
+   {:frameId (new-uuid)
+    :chapterId chapter-id
+    :ownerType (or owner-type "saga")
+    :frameNumber frame-number
+    :description ""
+    :imageStatus "draft"
+    :createdAt (.toISOString (js/Date.))}))
 
 (defn next-chapter-number [saga]
   (inc (reduce max 0 (map :chapterNumber saga))))
