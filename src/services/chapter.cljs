@@ -52,6 +52,8 @@
            :visual {:globalStyle "" :pagePrompts {}}
            :sagaMeta {:name "Robot Emperor"
                       :description ""}
+           :sagas []
+           :rosters []
            :saga []
            :roster []
            :frames []
@@ -60,6 +62,11 @@
            :revision 0
            :openaiOptions openai-options
            :referenceImageBytes nil})))
+
+(defn find-frame-index [frames frame-id]
+  (first (keep-indexed (fn [idx frame]
+                         (when (= (:frameId frame) frame-id) idx))
+                       frames)))
 
 (defn make-chapter [chapter-number name description]
   {:chapterId (new-uuid)
@@ -96,7 +103,7 @@
    :ownerType (or owner-type "saga")
    :frameNumber frame-number
    :description (default-frame-description frame-number)
-   :status "draft"
+   :imageStatus "draft"
    :createdAt (.toISOString (js/Date.))}))
 
 (defn next-chapter-number [saga]
@@ -148,34 +155,39 @@
     (make-character number name description)
     (make-chapter number name description)))
 
-(defn add-entity! [entity-label name description]
-  (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
-        entities (collection-key @state)
-        number-key (if (= "character" (str entity-label)) :characterNumber :chapterNumber)
-        entity-number (next-entity-number entities number-key)
-        normalized-name (str/trim (or name ""))
-        normalized-description (str/trim (or description ""))
-        entity (make-entity entity-label
-                            entity-number
-                            (if (str/blank? normalized-name)
-                              (str default-name " " entity-number)
-                              normalized-name)
-                            normalized-description)
-        entity-id (id-key entity)
-        first-frame (assoc (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))
-                           :description (str/trim
-                                         (or (not-empty normalized-description)
-                                             (if (= "character" (str entity-label))
-                                               "Character reference portrait."
-                                               "Chapter opening scene."))))]
-    (swap! state
-           (fn [s]
-             (-> s
-                 (update collection-key conj entity)
-                 (update :frames conj first-frame)
-                 (update :revision inc))))
-    {:entity entity
-     :frame first-frame}))
+(defn add-entity!
+  ([entity-label name description]
+   (add-entity! entity-label name description nil nil))
+  ([entity-label name description saga-id roster-id]
+   (let [{:keys [collection-key id-key default-name]} (entity-type->meta entity-label)
+         entities (collection-key @state)
+         number-key (if (= "character" (str entity-label)) :characterNumber :chapterNumber)
+         entity-number (next-entity-number entities number-key)
+         normalized-name (str/trim (or name ""))
+         normalized-description (str/trim (or description ""))
+         entity (cond-> (make-entity entity-label
+                                     entity-number
+                                     (if (str/blank? normalized-name)
+                                       (str default-name " " entity-number)
+                                       normalized-name)
+                                     normalized-description)
+                  saga-id (assoc :sagaId saga-id)
+                  roster-id (assoc :rosterId roster-id))
+         entity-id (id-key entity)
+         first-frame (assoc (make-draft-frame entity-id 1 (if (= "character" (str entity-label)) "character" "saga"))
+                            :description (str/trim
+                                          (or (not-empty normalized-description)
+                                              (if (= "character" (str entity-label))
+                                                "Character reference portrait."
+                                                "Chapter opening scene."))))]
+     (swap! state
+            (fn [s]
+              (-> s
+                  (update collection-key conj entity)
+                  (update :frames conj first-frame)
+                  (update :revision inc))))
+     {:entity entity
+      :frame first-frame})))
 
 (defn add-chapter! [name]
   (let [{:keys [entity frame]} (add-entity! "chapter" name "")]
@@ -187,34 +199,62 @@
     {:character entity
      :frame frame}))
 
-(defn add-chapter-with-details! [name description]
-  (let [{:keys [entity frame]} (add-entity! "chapter" name description)]
-    {:chapter entity
-     :frame frame}))
+(defn add-chapter-with-details!
+  ([name description]
+   (add-chapter-with-details! name description nil nil))
+  ([name description saga-id roster-id]
+   (let [{:keys [entity frame]} (add-entity! "chapter" name description saga-id roster-id)]
+     {:chapter entity
+      :frame frame})))
 
 (defn add-chapter-with-saga-roster! [saga-id roster-id name description]
   (let [saga-meta (:sagaMeta @state)]
     (when-not (and saga-meta (= (:sagaId saga-meta) saga-id))
       (throw (js/Error. "Saga not found.")))
-    (let [roster (entity-by-id (:roster @state) :characterId roster-id)]
+    (let [rosters (:rosters @state)
+          roster (some (fn [r] (when (= (:rosterId r) roster-id) r)) rosters)]
       (when-not roster
         (throw (js/Error. "Roster not found.")))
-      (add-chapter-with-details! name description))))
+      (add-chapter-with-details! name description saga-id roster-id))))
+
+(defn make-roster [roster-number name description]
+  {:rosterId (new-uuid)
+   :rosterNumber roster-number
+   :name (str/trim (or name ""))
+   :description (str/trim (or description ""))
+   :createdAt (.toISOString (js/Date.))})
 
 (defn add-roster! [name description]
-  (let [{:keys [entity frame]} (add-entity! "character" name description)]
-    entity))
+  (let [rosters (:rosters @state)
+        roster-number (inc (reduce max 0 (map :rosterNumber rosters)))
+        normalized-name (str/trim (or name ""))
+        normalized-description (str/trim (or description ""))
+        roster (make-roster roster-number
+                            (if (str/blank? normalized-name)
+                              (str "Roster " roster-number)
+                              normalized-name)
+                            normalized-description)]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :rosters (fn [rs] (conj (vec (or rs [])) roster)))
+                 (update :revision inc))))
+    roster))
 
-(defn add-character-with-details! [name description]
-  (let [{:keys [entity frame]} (add-entity! "character" name description)]
-    {:character entity
-     :frame frame}))
+(defn add-character-with-details!
+  ([name description]
+   (add-character-with-details! name description nil))
+  ([name description roster-id]
+   (let [{:keys [entity frame]} (add-entity! "character" name description nil roster-id)]
+     {:character entity
+      :frame frame})))
 
 (defn add-character-with-roster! [roster-id name description]
-  (let [roster (entity-by-id (:roster @state) :characterId roster-id)]
+  (let [rosters (:rosters @state)
+        roster (some (fn [r] (when (= (:rosterId r) roster-id) r)) rosters)]
     (when-not roster
       (throw (js/Error. "Roster not found.")))
-    (add-character-with-details! name description)))
+    (add-character-with-details! name description roster-id)))
 
 (defn add-frame!
   ([chapter-id]
@@ -297,16 +337,16 @@
           normalized-description (or (some-> (or description "") str str/trim) "")]
       (when (str/blank? normalized-name)
         (throw (js/Error. "Missing saga name.")))
-      (swap! state
-             (fn [s]
-               (-> s
-                   (assoc :sagaMeta {:sagaId saga-id
-                                     :name normalized-name
-                                     :description normalized-description})
-                   (update :revision inc))))
-      {:sagaId saga-id
-       :name normalized-name
-       :description normalized-description})))
+      (let [saga {:sagaId saga-id
+                  :name normalized-name
+                  :description normalized-description}]
+        (swap! state
+               (fn [s]
+                 (-> s
+                     (assoc :sagaMeta saga)
+                     (update :sagas (fn [sagas] (conj (vec (or sagas [])) saga)))
+                     (update :revision inc))))
+        saga))))
 
 (defn normalize-entity [entity-label entity]
   (let [name (some-> (or (:name entity) (:description entity)) str str/trim)
@@ -317,28 +357,68 @@
            :name (or name "")
            :description (or description ""))))
 
+(defn update-chapter-roster! [chapter-id roster-id]
+  (let [idx (find-frame-index (:saga @state) chapter-id)]
+    (when-not (number? idx) (throw (js/Error. "Chapter not found.")))
+    (swap! state assoc-in [:saga idx :rosterId] roster-id)
+    (get-in @state [:saga idx])))
+
+(defn add-chapter-roster! [chapter-id roster-id]
+  (update-chapter-roster! chapter-id roster-id))
+
+(defn update-saga-details! [saga-id name description]
+  (let [normalized-name (some-> (or name "") str str/trim)
+        normalized-description (or (some-> (or description "") str str/trim) "")
+        sagas (:sagas @state)
+        idx (first (keep-indexed (fn [i s] (when (= (:sagaId s) saga-id) i)) sagas))]
+    (when (str/blank? normalized-name) (throw (js/Error. "Missing saga name.")))
+    (when-not (number? idx) (throw (js/Error. "Saga not found.")))
+    (let [updated {:sagaId saga-id :name normalized-name :description normalized-description}]
+      (swap! state
+             (fn [s]
+               (cond-> (assoc-in s [:sagas idx] updated)
+                 (= (get-in s [:sagaMeta :sagaId]) saga-id) (assoc :sagaMeta updated)
+                 true (update :revision inc))))
+      updated)))
+
 (defn delete-entity! [entity-label entity-id]
-  (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta entity-label)
-        owner-type (if (= "character" (str entity-label)) "character" "saga")
-        snapshot @state
-        entity (entity-by-id (collection-key snapshot) id-key entity-id)]
-    (when-not entity
-      (throw (js/Error. not-found-msg)))
-    (swap! state
-           (fn [s]
-             (-> s
-                 (update collection-key (fn [rows]
-                                          (->> (or rows [])
-                                               (remove (fn [row] (= (id-key row) entity-id)))
-                                               vec)))
-                 (update :frames (fn [rows]
-                                   (->> (or rows [])
-                                        (remove (fn [frame]
-                                                  (and (= (:chapterId frame) entity-id)
-                                                       (= (or (:ownerType frame) "saga") owner-type))))
-                                        vec)))
-                 (update :revision inc))))
-    entity))
+  (let [label (str entity-label)
+        owner-type (if (= "character" label) "character" "saga")
+        snapshot @state]
+    (if (= "saga" label)
+      (let [saga (some (fn [s] (when (= (:sagaId s) entity-id) s)) (:sagas snapshot))]
+        (when-not saga (throw (js/Error. "Saga not found.")))
+        (swap! state
+               (fn [s]
+                 (-> s
+                     (update :sagas (fn [rs] (vec (remove #(= (:sagaId %) entity-id) rs))))
+                     (as-> s* (if (= (get-in s* [:sagaMeta :sagaId]) entity-id)
+                                (assoc s* :sagaMeta {:name "" :description ""})
+                                s*))
+                     (update :saga (fn [rs] (vec (remove #(= (:sagaId %) entity-id) rs))))
+                     (update :roster (fn [rs] (vec (remove #(= (:sagaId %) entity-id) rs))))
+                     (update :frames (fn [rs] (vec (remove (fn [f]
+                                                            (or (= (:sagaId f) entity-id)
+                                                                (let [chapter (some #(when (= (:chapterId f) (:chapterId %)) %) (:saga s))]
+                                                                  (= (:sagaId chapter) entity-id))))
+                                                          rs))))
+                     (update :revision inc))))
+        saga)
+      (let [{:keys [collection-key id-key not-found-msg]} (entity-type->meta label)
+            entity (entity-by-id (collection-key snapshot) id-key entity-id)]
+        (when-not entity (throw (js/Error. not-found-msg)))
+        (swap! state
+               (fn [s]
+                 (-> s
+                     (update collection-key (fn [rows] (vec (remove #(= (id-key %) entity-id) rows))))
+                     (update :frames (fn [rows] (vec (remove #(and (= (:chapterId %) entity-id)
+                                                                  (= (or (:ownerType %) "saga") owner-type))
+                                                            rows))))
+                     (update :revision inc))))
+        entity))))
+
+(defn delete-saga! [saga-id]
+  (delete-entity! "saga" saga-id))
 
 (defn delete-chapter! [chapter-id]
   (delete-entity! "chapter" chapter-id))
@@ -411,6 +491,8 @@
              :visual {}
              :sagaMeta {:name "Robot Emperor"
                         :description ""}
+             :sagas []
+             :rosters []
              :saga []
              :roster []
              :frames []
@@ -437,6 +519,8 @@
                  (assoc :chapterId (:chapterId persisted))
                  (assoc :revision (:revision persisted))
                  (assoc :failedJobs (vec (:failedJobs persisted)))
+                 (assoc :sagas (vec (or (:sagas persisted) [])))
+                 (assoc :rosters (vec (or (:rosters persisted) [])))
                  (assoc :sagaMeta (let [meta* (:sagaMeta persisted)
                                         name (some-> (or (:name meta*) "Robot Emperor") str str/trim not-empty)
                                         description (some-> (or (:description meta*) "") str str/trim)
@@ -461,7 +545,7 @@
   (-> (store/load-or-init-state
        (clj->js (select-keys @state
                              [:chapterId :revision :failedJobs :saga :roster :frames
-                              :sagaMeta :descriptions :visual])))
+                              :sagaMeta :sagas :rosters :descriptions :visual])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage sync failed" err)
@@ -470,7 +554,7 @@
 (defn persist-state! []
   (-> (store/save-state
        (clj->js (select-keys @state
-                             [:chapterId :revision :failedJobs :sagaMeta :saga :roster :frames])))
+                             [:chapterId :revision :failedJobs :sagaMeta :sagas :rosters :saga :roster :frames])))
       (.then apply-persisted-state!)
       (.catch (fn [err]
                 (js/console.error "[robogene] storage persist failed" err)
@@ -574,7 +658,7 @@
 
 (defn next-queued-frame-index [frames]
   (first (keep-indexed (fn [idx frame]
-                         (when (= "queued" (:status frame)) idx))
+                         (when (= "queued" (:imageStatus frame)) idx))
                        frames)))
 
 (defn mark-frame-processing! [frame-id]
@@ -583,7 +667,7 @@
       (swap! state
              (fn [s]
                (-> s
-                   (assoc-in [:frames idx :status] "processing")
+                   (assoc-in [:frames idx :imageStatus] "processing")
                    (assoc-in [:frames idx :startedAt] (.toISOString (js/Date.)))
                    (update :revision inc))))
       true)))
@@ -595,7 +679,7 @@
              (fn [s]
                (-> s
                    (assoc-in [:frames idx :imageUrl] image-data-url)
-                   (assoc-in [:frames idx :status] "ready")
+                   (assoc-in [:frames idx :imageStatus] "ready")
                    (assoc-in [:frames idx :error] nil)
                    (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
                    (update :revision inc))))
@@ -613,7 +697,7 @@
                              :error message
                              :createdAt (.toISOString (js/Date.))}]
                  (-> s
-                     (assoc-in [:frames idx :status] "failed")
+                     (assoc-in [:frames idx :imageStatus] "failed")
                      (assoc-in [:frames idx :error] message)
                      (assoc-in [:frames idx :completedAt] (.toISOString (js/Date.)))
                      (update :failedJobs (fn [rows] (vec (take 20 (cons failed rows)))))
@@ -694,7 +778,7 @@
       (js/console.info
        (str "[robogene] image persisted"
             " frameId=" frame-id
-            " status=" (:status frame)
+            " imageStatus=" (:imageStatus frame)
             " revision=" (:revision snapshot)
             " ownerType=" (or (:ownerType frame) "saga")
             " ownerId=" (:chapterId frame))))))
@@ -765,7 +849,7 @@
                                        (process-step!)
                                        nil))
                               (.catch (fn [persist-err]
-                                        (js/console.error "[robogene] persist failed after generation error" persist-err)
+                                        (js/error "[robogene] persist failed after generation error" persist-err)
                                         (emit-state-changed! "failed")
                                         (process-step!)
                                         nil)))
@@ -773,6 +857,7 @@
                             (js/console.warn (str "[robogene] generation failure dropped; frame deleted frameId=" frame-id))
                             (process-step!)
                             nil))))))))))
+
 (defn process-queue! []
   (when-not (:processing @state)
     (swap! state assoc :processing true)
@@ -787,11 +872,6 @@
 
 (defn active-queue-count [frames]
   (count (filter (fn [f]
-                   (or (= "queued" (:status f))
-                       (= "processing" (:status f))))
+                   (or (= "queued" (:imageStatus f))
+                       (= "processing" (:imageStatus f))))
                  frames)))
-
-(defn find-frame-index [frames frame-id]
-  (first (keep-indexed (fn [idx frame]
-                         (when (= (:frameId frame) frame-id) idx))
-                       frames)))

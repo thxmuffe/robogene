@@ -373,7 +373,7 @@
          :on-success (fn [roster snapshot]
                        (json-response 201
                                       (with-revision {:created true
-                                                      :rosterEntity roster}
+                                                      :roster roster}
                                                      snapshot)
                                       request))})))))
 

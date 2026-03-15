@@ -192,6 +192,7 @@
                       :rowKey "active"
                       :chapterId (read-chapter-id payload)
                       :revision (js/Number (or (gobj/get payload "revision") 0))
+                      :sagaMetaJson (.stringify js/JSON (or (gobj/get payload "sagaMeta") #js {}))
                       :failedJobsJson (.stringify js/JSON (or (gobj/get payload "failedJobs") #js []))}
                  "Replace"))
 
@@ -506,6 +507,7 @@
            (if-not meta
              (-> (set-active-meta! #js {:chapterId (read-chapter-id initial-state)
                                         :revision (or (gobj/get initial-state "revision") 1)
+                                        :sagaMeta (or (gobj/get initial-state "sagaMeta") #js {})
                                         :failedJobs (or (gobj/get initial-state "failedJobs") #js [])})
                  (.then (fn [_]
                           (save-sagas! (read-chapter-id initial-state)
@@ -565,6 +567,7 @@
                  (.then (fn [_]
                           (set-active-meta! #js {:chapterId chapter-root-id
                                                  :revision (or (gobj/get state "revision") 1)
+                                                 :sagaMeta (or (gobj/get state "sagaMeta") #js {})
                                                  :failedJobs (or (gobj/get state "failedJobs") #js [])})))
                  (.then (fn [_]
                           (gobj/set state "frames" (clj->js frames))

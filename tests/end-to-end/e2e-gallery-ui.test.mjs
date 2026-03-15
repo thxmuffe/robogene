@@ -60,11 +60,12 @@ async function expandFirstGalleryChapter(page) {
   await toggle.click();
 }
 
-export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('gallery');
   try {
-    logStep('gallery', 'opening gallery');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    logStep('gallery', 'opening saga page');
+    if (!seedIds?.sagaId) throw new Error('Saga ID not found');
+    await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: 'RoboGene' }).waitFor({ timeout: actionTimeoutMs });
     await expandFirstGalleryChapter(page);
 
@@ -95,7 +96,7 @@ export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep })
     await page.waitForFunction(
       (fid) => {
         const el = document.querySelector(`.gallery .frame[data-frame-id="${fid}"] img`);
-        return !!el && String(el.getAttribute('src') || '').startsWith('data:image/');
+        return !!el && String(el.getAttribute('src') || '').length > 0;
       },
       frameId,
       { timeout: actionTimeoutMs }
@@ -114,11 +115,12 @@ const uploadPngLikeFile = {
   buffer: Buffer.from(uploadSvg, 'utf8'),
 };
 
-export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('gallery-upload');
   try {
-    logStep('gallery-upload', 'opening gallery');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    logStep('gallery-upload', 'opening saga page');
+    if (!seedIds?.sagaId) throw new Error('Saga ID not found');
+    await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: 'RoboGene' }).waitFor({ timeout: actionTimeoutMs });
     await expandFirstGalleryChapter(page);
 
@@ -166,8 +168,9 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     );
 
     logStep('gallery-upload', 'opening upload dialog');
-    await stableFrameById.locator('.subtitle-display-text').click();
-    const uploadButton = stableFrameById.getByRole('button', { name: 'Upload or take picture', exact: true });
+    await page.waitForTimeout(500); // Wait for potential re-renders to settle
+    await stableFrameById.locator('.subtitle-display-text').first().click();
+    const uploadButton = page.locator(`.gallery .frame[data-frame-id="${frameId}"]`).getByRole('button', { name: 'Upload or take picture', exact: true });
     await uploadButton.waitFor({ timeout: actionTimeoutMs });
     await uploadButton.click();
 

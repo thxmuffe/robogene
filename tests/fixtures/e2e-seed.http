@@ -27,7 +27,7 @@ Content-Type: application/json
 
 {
   "sagaId": "{{createSaga.saga.sagaId}}",
-  "rosterId": "{{createRoster.rosterEntity.characterId}}",
+  "rosterId": "{{createRoster.roster.rosterId}}",
   "name": "Smoke Chapter",
   "description": "A deterministic chapter for local E2E runs."
 }

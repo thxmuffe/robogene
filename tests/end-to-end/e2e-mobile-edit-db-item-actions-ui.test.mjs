@@ -8,13 +8,14 @@ function inViewport(box, viewport) {
     && box.y + box.height <= viewport.height;
 }
 
-export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logStep }) {
+export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logStep, seedIds }) {
   const { page, consoleGuard, close } = await openPage('mobile-actions', {
     viewport: { width: 390, height: 844 },
   });
   try {
-    logStep('mobile-actions', 'opening gallery on mobile viewport');
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    logStep('mobile-actions', 'opening saga page on mobile viewport');
+    if (!seedIds?.sagaId) throw new Error('Saga ID not found');
+    await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
     await page.locator('.chapter-separator-toggle').first().click();
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
