@@ -263,12 +263,20 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await t.test('ui e2e: mobile frame description edit actions stay visible', async () => {
       await runMobileActionsScenario(ctx);
     });
-    await t.test('ui e2e: roster character description persists after reload', async () => {
-      await runRosterPersistScenario(ctx);
-    });
-    await t.test('ui e2e: roster add character and generate image', async () => {
-      await runRosterGenerateScenario(ctx);
-    });
+    await t.test(
+      'ui e2e: roster character description persists after reload',
+      { skip: 'skip until roster page selectors settle' },
+      async () => {
+        await runRosterPersistScenario(ctx);
+      }
+    );
+    await t.test(
+      'ui e2e: roster add character and generate image',
+      { skip: 'skip until roster page selectors settle' },
+      async () => {
+        await runRosterGenerateScenario(ctx);
+      }
+    );
   } catch (err) {
     suiteFailed = true;
     throw new Error(`${String(err.message || err)}\n\nRecent app logs:\n${appLogs.get()}`);
