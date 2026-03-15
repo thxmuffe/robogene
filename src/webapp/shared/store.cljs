@@ -455,17 +455,19 @@
 
 (defn create-entity-success [db command entity-label temp-entity-id view-state-key]
   (let [response (:response command)
-        created-entity (get response entity-label)
+        entity-kw (keyword entity-label)
+        created-entity (get response entity-kw)
         created-frame (:frame response)
-        temp-frame-id (get-in command [:payload :optimistic-frame :frameId])]
+        temp-frame-id (get-in command [:payload :optimistic-frame :frameId])
+        id-key (case entity-label
+                 "saga" :sagaId
+                 "character" :characterId
+                 :chapterId)]
     {:db (-> db
              (merge-command-revision command)
              (replace-entity-row entity-label temp-entity-id
                                  (or created-entity
-                                     {(case entity-label
-                                        "saga" :sagaId
-                                        "character" :characterId
-                                        :chapterId) temp-entity-id}))
+                                     {id-key temp-entity-id}))
              (replace-temp-frame temp-frame-id created-frame)
              (assoc-in (conj view-state-key :new-name) "")
              (assoc-in (conj view-state-key :new-description) "")
@@ -484,7 +486,7 @@
 
 (defn create-roster-success [db command]
   (let [temp-roster-id (get-in command [:payload :optimistic-roster :rosterId])
-        created-roster (or (:rosterEntity (:response command))
+        created-roster (or (:roster (:response command))
                            {:rosterId temp-roster-id})
         created-roster-id (:rosterId created-roster)
         after-create (:after-create (:payload command))
@@ -502,11 +504,11 @@
                                           created-roster-id]
                                          [:navigate-roster-page created-roster-id saga-id]]
                      [[:navigate-roster-page created-roster-id saga-id]])]
-    {:db (-> db
-             (merge-command-revision command)
-             (update :rosters replace-row-by-id :rosterId temp-roster-id created-roster)
-             (update-in [:latest-state :rosters] replace-row-by-id :rosterId temp-roster-id created-roster))
-     :dispatch-n (vec dispatches)}))
+     {:db (-> db
+              (merge-command-revision command)
+              (update :rosters replace-row-by-id :rosterId temp-roster-id created-roster)
+              (update-in [:latest-state :rosters] replace-row-by-id :rosterId temp-roster-id created-roster))
+      :dispatch-n (vec dispatches)}))
 
 (defn create-chapter-success [db command]
   (assoc (create-entity-success db command "chapter"
