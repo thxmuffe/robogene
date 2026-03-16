@@ -31,8 +31,9 @@
          "--gallery-motion-pointer-weight" "1"
          "--gallery-motion-duration" (str settle-ms "ms")}))
 
-(defn frame-gallery [owner-id owner-type active-frame-id]
+(defn frame-gallery [owner-id owner-type]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
+        active-frame-id @(rf/subscribe [:active-frame-id])
         character-owner? (= "character" (str owner-type))
         add-tile-title (if character-owner?
                          "Add image"

@@ -61,22 +61,9 @@
   (let [sagas @(rf/subscribe [:sagas])
         chapters @(rf/subscribe [:saga])
         selected-saga @(rf/subscribe [:selected-saga])
-        selected-saga-chapters @(rf/subscribe [:chapters-for-selected-saga])
         selected-roster @(rf/subscribe [:selected-roster])
-        roster-characters @(rf/subscribe [:characters-for-selected-roster])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
-        active-frame-id @(rf/subscribe [:active-frame-id])
-        new-saga-name @(rf/subscribe [:new-saga-name])
-        new-saga-description @(rf/subscribe [:new-saga-description])
-        new-saga-panel-open? @(rf/subscribe [:new-saga-panel-open?])
-        new-chapter-name @(rf/subscribe [:new-chapter-name])
-        new-chapter-description @(rf/subscribe [:new-chapter-description])
-        new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
-        new-character-name @(rf/subscribe [:new-character-name])
-        new-character-description @(rf/subscribe [:new-character-description])
-        new-character-panel-open? @(rf/subscribe [:new-character-panel-open?])
-        show-chapter-celebration? @(rf/subscribe [:show-chapter-celebration?])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
@@ -116,29 +103,12 @@
           [chapter-page/chapter-page route]
 
           :roster
-          [roster-page/roster-page selected-roster
-           saga-name*
-           roster-characters
-           active-frame-id
-           new-character-name
-           new-character-description
-           new-character-panel-open?]
+          [roster-page/roster-page saga-name*]
 
           :saga
-          [gallery-page/saga-page selected-saga
-           selected-saga-chapters
-           active-frame-id
-           new-chapter-name
-           new-chapter-description
-           new-chapter-panel-open?
-           show-chapter-celebration?]
+          [gallery-page/saga-page]
 
-          [gallery-page/index-page sagas
-           chapters
-           gallery-items
-           new-saga-name
-           new-saga-description
-           new-saga-panel-open?])
+          [gallery-page/index-page])
         [traffic-indicator/traffic-indicator
          {:pending-api-requests pending-api-requests
           :wait-lights-visible? wait-lights-visible?

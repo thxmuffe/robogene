@@ -856,8 +856,14 @@
    :search-placeholder "Search chapters..."
    :empty-label "No chapters match this search."})
 
-(defn index-page [sagas chapters frames new-saga-name new-saga-description new-saga-panel-open?]
-  (let [search @(rf/subscribe [:collection-search :index])
+(defn index-page []
+  (let [sagas @(rf/subscribe [:sagas])
+        chapters @(rf/subscribe [:saga])
+        frames @(rf/subscribe [:gallery-items])
+        new-saga-name @(rf/subscribe [:new-saga-name])
+        new-saga-description @(rf/subscribe [:new-saga-description])
+        new-saga-panel-open? @(rf/subscribe [:new-saga-panel-open?])
+        search @(rf/subscribe [:collection-search :index])
         current-page @(rf/subscribe [:collection-page :index])
         per-page @(rf/subscribe [:collection-per-page :index])
         entries (index-entries sagas chapters frames search)
@@ -902,13 +908,20 @@
                             :teaser-sub "Start a new saga"}
          nil])]]))
 
-(defn saga-page [selected-saga chapters active-frame-id new-chapter-name new-chapter-description new-chapter-panel-open? show-chapter-celebration?]
-  [collection-page (assoc saga-config
-                          :page-title (or (:name selected-saga) "Saga")
-                          :header-saga selected-saga)
-   chapters
-   active-frame-id
-   {:name new-chapter-name
-    :description new-chapter-description}
-   new-chapter-panel-open?
-   show-chapter-celebration?])
+(defn saga-page []
+  (let [selected-saga @(rf/subscribe [:selected-saga])
+        chapters @(rf/subscribe [:chapters-for-selected-saga])
+        active-frame-id @(rf/subscribe [:active-frame-id])
+        new-chapter-name @(rf/subscribe [:new-chapter-name])
+        new-chapter-description @(rf/subscribe [:new-chapter-description])
+        new-chapter-panel-open? @(rf/subscribe [:new-chapter-panel-open?])
+        show-chapter-celebration? @(rf/subscribe [:show-chapter-celebration?])]
+    [collection-page (assoc saga-config
+                            :page-title (or (:name selected-saga) "Saga")
+                            :header-saga selected-saga)
+     chapters
+     active-frame-id
+     {:name new-chapter-name
+      :description new-chapter-description}
+     new-chapter-panel-open?
+     show-chapter-celebration?]))
