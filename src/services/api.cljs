@@ -12,8 +12,6 @@
   (when (empty? (settings/allowed-origins))
     (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
 
-(require-startup-env!)
-
 (defn cors-headers [request]
   (let [origins (settings/allowed-origins)
         req-origin (or (some-> request .-headers (.get "origin"))
@@ -56,7 +54,9 @@
 (defn handle-options-preflight [request]
   #js {:status 204 :headers (cors-headers request)})
 
-;; Fixed function names to match what host expects or common conventions
+;; Register routes at top level so they run when the module is loaded
+(require-startup-env!)
+
 (.http app "get-state"
        #js {:methods #js ["GET"]
             :authLevel "anonymous"
@@ -93,4 +93,5 @@
             :route "{*path}"
             :handler handle-options-preflight})
 
-(defn init! [& _] true)
+(defn init! [& _]
+  true)
