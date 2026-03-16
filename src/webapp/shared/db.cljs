@@ -6,6 +6,13 @@
    :wait-lights-visible? true
    :wait-lights-events []
    :cancel-ui-token 0
+   
+   ;; Generic entity storage (flat pool)
+   :entities {}  ; {entity-id -> {id title description children vanityRole payload}}
+   :ui-state {}  ; {entity-id -> {name-input description-input editing?}}
+   :derived-state {}  ; Cached computations: {parent-id -> [child-ids]} etc
+   
+   ;; Legacy state (kept for backward compatibility during migration)
    :frame-drafts {}
    :open-frame-actions {}
    :view-state {:gallery {:collapsed-chapter-ids nil}

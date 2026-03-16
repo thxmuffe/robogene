@@ -12,6 +12,7 @@
             [webapp.shared.events.handlers.frame-page]
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.frames]
+            [webapp.shared.events.handlers.entity]
             [webapp.shared.model :as model]))
 
 (defn push-wait-lights-event [db kind message]
@@ -142,7 +143,8 @@
                            (if (nil? ids)
                              chapter-ids
                              (set (filter chapter-ids ids)))))
-              (store/reapply-pending-commands))})))))
+               (store/reapply-pending-commands))
+           :dispatch [:entities-load-from-legacy-state state]})))))
 
 (rf/reg-event-db
  :realtime-state-changed

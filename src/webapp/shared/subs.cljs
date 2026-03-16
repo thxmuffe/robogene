@@ -136,3 +136,40 @@
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
 (rf/reg-sub :cancel-ui-token (fn [db _] (:cancel-ui-token db)))
+
+;; Generic entity subscriptions (Phase 2)
+
+(rf/reg-sub :entities (fn [db _] (:entities db)))
+
+(rf/reg-sub :entity
+            (fn [db [_ entity-id]]
+              (get-in db [:entities entity-id])))
+
+(rf/reg-sub :entity-children
+            (fn [db [_ entity-id]]
+              (let [entity (get-in db [:entities entity-id])
+                    child-ids (or (:children entity) [])
+                    entities (:entities db)]
+                (mapv #(get entities %) child-ids))))
+
+(rf/reg-sub :entity-ui-state
+            (fn [db [_ entity-id]]
+              (get-in db [:ui-state entity-id] {})))
+
+(rf/reg-sub :entity-editing?
+            (fn [db [_ entity-id]]
+              (true? (get-in db [:ui-state entity-id :editing?]))))
+
+(rf/reg-sub :entity-name-draft
+            (fn [db [_ entity-id]]
+              (get-in db [:ui-state entity-id :name-draft] "")))
+
+(rf/reg-sub :entity-description-draft
+            (fn [db [_ entity-id]]
+              (get-in db [:ui-state entity-id :description-draft] "")))
+
+(rf/reg-sub :derived-state (fn [db _] (:derived-state db)))
+
+(rf/reg-sub :children-by-parent-id
+            (fn [db _]
+              (get-in db [:derived-state :children-by-parent-id] {})))
