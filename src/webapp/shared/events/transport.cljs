@@ -201,6 +201,54 @@
 (defn realtime-disabled? []
   (true? @realtime-disabled?*))
 
+(defn patch-json
+  ([path payload success-event fail-event ok?]
+   (patch-json path payload success-event fail-event ok? nil))
+  ([path payload success-event fail-event ok? request-options]
+   (request-json (api-url path)
+                 (merge {:method "PATCH"
+                         :cache "no-store"
+                         :headers {"Content-Type" "application/json"}
+                         :body (.stringify js/JSON (clj->js payload))}
+                        (or request-options {}))
+                 success-event
+                 fail-event
+                 ok?)))
+
+(defn delete-json
+  [path success-event fail-event ok?]
+  (request-json (api-url path)
+                {:method "DELETE"
+                 :cache "no-store"
+                 :headers {"Content-Type" "application/json"}}
+                success-event
+                fail-event
+                ok?))
+
+; Generic entity transport handlers for new unified API
+(rf/reg-fx
+ :post-save-entity
+ (fn [{:keys [entity is-update on-success on-failure]}]
+   (if is-update
+     (patch-json (str "/api/entity/" (:id entity))
+                 entity
+                 on-success
+                 on-failure
+                 (fn [ok _] ok))
+     (post-json "/api/entity"
+                entity
+                on-success
+                on-failure
+                (fn [ok _] ok)))))
+
+(rf/reg-fx
+ :post-delete-entity
+ (fn [{:keys [id on-success on-failure]}]
+   (delete-json (str "/api/entity/" id)
+                on-success
+                on-failure
+                (fn [ok _] ok))))
+
 (rf/reg-fx
  :realtime-connect
  (fn [_]

@@ -3,7 +3,71 @@
             [re-frame.core :as rf]
             [webapp.shared.events.image-ui :as image-ui]
             [webapp.shared.events.sync :as sync]
-            [webapp.shared.events.transport :as transport]))
+            [webapp.shared.events.transport :as transport]
+            [webapp.shared.model :as model]))
+
+; Entity conversion helpers for new generic API
+(defn payload->entity 
+  "Convert domain-specific payload to unified entity structure"
+  [kind payload]
+  (case kind
+    :add-saga
+    {:vanityRole "saga"
+     :title (:name payload)
+     :description (or (:description payload) "")}
+    
+    :add-roster
+    {:vanityRole "roster"
+     :title (:name payload)
+     :description (or (:description payload) "")}
+    
+    :add-chapter
+    {:vanityRole "chapter"
+     :title (:name payload)
+     :description (or (:description payload) "")
+     :children []}
+    
+    :add-character
+    {:vanityRole "character"
+     :title (:name payload)
+     :description (or (:description payload) "")
+     :children []}
+    
+    :add-frame
+    {:vanityRole "frame"
+     :title ""
+     :description (or (:description payload) "")
+     :children []}
+    
+    :update-entity
+    {:vanityRole (:type payload)
+     :title (:name payload)
+     :description (:description payload)}
+    
+    nil))
+
+(defn command->generic-entity-payload
+  "Convert command payload to generic entity structure with id"
+  [kind payload]
+  (let [base-entity (payload->entity kind payload)
+        optimistic (or (:optimistic-saga payload)
+                      (:optimistic-roster payload)
+                      (:optimistic-chapter payload)
+                      (:optimistic-character payload)
+                      (:optimistic-frame payload))]
+    (if base-entity
+      (let [entity-id (if optimistic
+                       (case kind
+                         :add-saga (:sagaId optimistic)
+                         :add-roster (:rosterId optimistic)
+                         :add-chapter (:chapterId optimistic)
+                         :add-character (:characterId optimistic)
+                         :add-frame (:frameId optimistic)
+                         :update-entity (:id payload)
+                         (str (random-uuid)))
+                       (str (random-uuid)))]
+        (assoc base-entity :id entity-id))
+      nil)))
 
 (defn frame-by-id [db frame-id]
   (some (fn [frame]
@@ -471,21 +535,83 @@
              (assoc-in (conj view-state-key :new-description) "")
              (assoc-in (conj view-state-key :new-panel-open?) false))}))
 
-(defn create-saga-success [db command]
-  {:db (-> db
-           (merge-command-revision command)
-           (replace-entity-row "saga"
-                               (get-in command [:payload :optimistic-saga :sagaId])
-                               (or (:saga (:response command))
-                                   {:sagaId (get-in command [:payload :optimistic-saga :sagaId])}))
-           (assoc-in [:view-state :index :new-name] "")
-           (assoc-in [:view-state :index :new-description] "")
-           (assoc-in [:view-state :index :new-panel-open?] false))})
+(defn entity->domain-specific
+  "Convert unified entity response to domain-specific format"
+  [entity]
+  (let [vanity-role (:vanityRole entity)
+        id (:id entity)]
+    (case vanity-role
+      "saga" (-> entity
+                (assoc :sagaId id)
+                (assoc :name (:title entity))
+                (dissoc :id :vanityRole :title :children :payload))
+      "roster" (-> entity
+                  (assoc :rosterId id)
+                  (assoc :name (:title entity))
+                  (dissoc :id :vanityRole :title :children :payload))
+      "chapter" (-> entity
+                   (assoc :chapterId id)
+                   (assoc :name (:title entity))
+                   (dissoc :id :vanityRole :title :children :payload))
+      "character" (-> entity
+                     (assoc :characterId id)
+                     (assoc :name (:title entity))
+                     (dissoc :id :vanityRole :title :children :payload))
+      "frame" (-> entity
+                 (assoc :frameId id)
+                 (dissoc :id :vanityRole :title :children :payload))
+      entity)))
+
+(defn generic-entity-success [db command]
+  "Generic success handler for POST/PATCH to /api/entity endpoint"
+  (let [response (:response command)
+        kind (:kind command)
+        temp-id (case kind
+                  :add-saga (get-in command [:payload :optimistic-saga :sagaId])
+                  :add-roster (get-in command [:payload :optimistic-roster :rosterId])
+                  :add-chapter (get-in command [:payload :optimistic-chapter :chapterId])
+                  :add-character (get-in command [:payload :optimistic-character :characterId])
+                  :add-frame (get-in command [:payload :optimistic-frame :frameId])
+                  nil)
+        entity-label (case kind
+                       :add-saga "saga"
+                       :add-roster "roster"
+                       :add-chapter "chapter"
+                       :add-character "character"
+                       :add-frame "frame"
+                       nil)
+        domain-entity (when response (entity->domain-specific response))
+        celebration? (= :add-chapter kind)
+        temp-frame-id (get-in command [:payload :optimistic-frame :frameId])
+        view-state-path (case entity-label
+                          "saga" [:view-state :index]
+                          "roster" [:view-state :index]
+                          "chapter" [:view-state :saga]
+                          "character" [:view-state :roster]
+                          nil)]
+    {:db (-> db
+             (merge-command-revision command)
+             (replace-entity-row entity-label temp-id
+                                 (or domain-entity
+                                     {(case entity-label
+                                        "saga" :sagaId
+                                        "roster" :rosterId
+                                        "chapter" :chapterId
+                                        "character" :characterId
+                                        "frame" :frameId
+                                        nil) temp-id}))
+             (cond-> temp-frame-id
+               (replace-temp-frame temp-frame-id nil))
+             (assoc-in (conj view-state-path :new-name) "")
+             (assoc-in (conj view-state-path :new-description) "")
+             (assoc-in (conj view-state-path :new-panel-open?) false))
+     :start-chapter-celebration celebration?}))
 
 (defn create-roster-success [db command]
   (let [temp-roster-id (get-in command [:payload :optimistic-roster :rosterId])
-        created-roster (or (:rosterEntity (:response command))
-                           {:rosterId temp-roster-id})
+        response (:response command)
+        domain-entity (when response (entity->domain-specific response))
+        created-roster (or domain-entity {:rosterId temp-roster-id})
         created-roster-id (:rosterId created-roster)
         after-create (:after-create (:payload command))
         saga-id (:saga-id after-create)
@@ -509,15 +635,11 @@
      :dispatch-n (vec dispatches)}))
 
 (defn create-chapter-success [db command]
-  (assoc (create-entity-success db command "chapter"
-                                (get-in command [:payload :optimistic-chapter :chapterId])
-                                [:view-state :saga])
+  (assoc (generic-entity-success db command)
          :start-chapter-celebration true))
 
 (defn create-character-success [db command]
-  (create-entity-success db command "character"
-                         (get-in command [:payload :optimistic-character :characterId])
-                         [:view-state :roster]))
+  (generic-entity-success db command))
 
 (defn remove-temp-saga [db command]
   (let [temp-id (get-in command [:payload :optimistic-saga :sagaId])]
@@ -638,7 +760,7 @@
     {:transport-fx :post-add-saga
      :optimistic (fn [db payload]
                    (add-saga-row db (:optimistic-saga payload)))
-     :success create-saga-success
+     :success generic-entity-success
      :failure remove-temp-saga}
 
     :add-roster
@@ -727,10 +849,34 @@
                   (or (:sync-outbox db) []))))
 
 (defn command->fx [command]
-  (let [transport-fx (get-in (mutation-spec (:kind command)) [:transport-fx])]
+  (let [kind (:kind command)
+        transport-fx (get-in (mutation-spec kind) [:transport-fx])]
     (when transport-fx
-      {transport-fx (merge (:payload command)
-                           (sync/callback-events (:id command)))})))
+      (case kind
+        ; Generic entity operations use new unified API
+        (:add-saga :add-roster :add-chapter :add-character :add-frame :update-entity)
+        (let [entity (command->generic-entity-payload kind (:payload command))
+              optimistic-entity (or (get-in command [:payload :optimistic-saga])
+                                   (get-in command [:payload :optimistic-roster])
+                                   (get-in command [:payload :optimistic-chapter])
+                                   (get-in command [:payload :optimistic-character])
+                                   (get-in command [:payload :optimistic-frame]))
+              is-update (= :update-entity kind)]
+          {:post-save-entity (merge {:entity entity
+                                     :is-update is-update}
+                                    (sync/callback-events (:id command)))})
+        
+        (:delete-saga :delete-chapter :delete-character)
+        (let [entity-id (case kind
+                          :delete-saga (get-in command [:payload :saga-id])
+                          :delete-chapter (get-in command [:payload :chapter-id])
+                          :delete-character (get-in command [:payload :character-id]))]
+          {:post-delete-entity (merge {:id entity-id}
+                                      (sync/callback-events (:id command)))})
+        
+        ; Keep other operations on old transport for now
+        {transport-fx (merge (:payload command)
+                            (sync/callback-events (:id command)))}))))
 
 (defn fetch-after-success? [kind]
   (true? (get (mutation-spec kind) :fetch-after-success? false)))
