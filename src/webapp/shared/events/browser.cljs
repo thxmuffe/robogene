@@ -4,4 +4,8 @@
 (rf/reg-fx
  :set-hash
  (fn [hash]
-   (set! (.-hash js/location) hash)))
+   (let [loc js/location
+         pathname (.-pathname loc)]
+     (if (re-find #"/index\.html$" pathname)
+       (set! (.-href loc) (str (.replace pathname "/index.html" "/") hash))
+       (set! (.-hash loc) hash)))))
