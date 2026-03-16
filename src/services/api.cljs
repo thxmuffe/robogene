@@ -43,7 +43,8 @@
                               (json-response 200 saved request)))))))))
 
 (defn handle-delete-entity [request]
-  (let [id (gobj/get (.-params request) "id")]
+  (let [params (gobj/get request "params")
+        id (gobj/get params "id")]
     (-> (entity/delete-entity! id)
         (.then (fn [_]
                  (json-response 200 {:deleted true :id id} request))))))
