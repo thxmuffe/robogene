@@ -5,7 +5,7 @@
             [host.settings :as settings]
             [services.azure-store :as store]
             ["crypto" :as crypto]
-            ["goog.object" :as gobj]))
+            [goog.object :as gobj]))
 
 (defn new-uuid []
   (.randomUUID crypto))
