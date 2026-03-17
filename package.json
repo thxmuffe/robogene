@@ -31,7 +31,7 @@
     "webapi:watch": "shadow-cljs watch webapi-debug host-debug",
     "watch:all": "shadow-cljs watch webapp-debug webapi-debug host-debug",
     "host:start": "func start --script-root src/host",
-    "build": "shadow-cljs release webapp-release && mkdir -p dist/release/webapp && cp src/webapp/index.html src/webapp/styles.css dist/release/webapp/ && cp node_modules/@mantine/core/styles.css dist/release/webapp/mantine.css",
+    "build": "shadow-cljs release webapp-release && node -e \"const fs=require('fs');const p=require('path');const out=p.join('dist','release','webapp');fs.mkdirSync(out,{recursive:true});for(const [src,name] of [[p.join('src','webapp','index.html'),'index.html'],[p.join('src','webapp','styles.css'),'styles.css'],[p.join('node_modules','@mantine','core','styles.css'),'mantine.css']]){fs.copyFileSync(src,p.join(out,name));}\"",
     "build:webapi": "shadow-cljs release webapi-release host-release",
     "build:webapi:debug": "shadow-cljs compile webapi-debug host-debug",
     "package:webapi": "node scripts/package-webapi-dist.js",

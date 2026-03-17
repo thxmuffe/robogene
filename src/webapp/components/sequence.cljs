@@ -2,6 +2,7 @@
   "Generic Sequence component - renders a collection of child entities.
    A Sequence is any entity with children (saga, chapter, character, roster, etc).
    Styling is applied via vanityRole CSS classes."
+  (:refer-clojure :exclude [sequence])
   (:require [clojure.string :as str]
             [reagent.core :as r]
             [re-frame.core :as rf]
