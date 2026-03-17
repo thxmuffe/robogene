@@ -28,15 +28,14 @@
                          (rf/dispatch [:entity-update entity-id {:title text}]))
         :on-save-description (fn [text]
                                (rf/dispatch [:entity-update entity-id {:description text}]))
+        ;; Sequences rendered here are item-level parents (chapter/character/roster).
+        ;; Saga/roster-level "add sequence" belongs in gallery, so we only add items here.
         :add-child-label (case (:vanityRole entity)
-                           ("saga" "gallery") "Add Sequence"
                            ("chapter" "character" "roster") "Add Item"
                            "Add Item")
         :add-child-fn (fn []
-                        (case (:vanityRole entity)
-                          ("saga" "gallery") (rf/dispatch [:add-chapter (:id entity)])
-                          ("chapter" "character" "roster") (rf/dispatch [:add-frame (:id entity)])
-                          nil))
+                        (when (#{ "chapter" "character" "roster"} (:vanityRole entity))
+                          (rf/dispatch [:add-frame (:id entity)])))
         :on-delete (fn []
                      (when (js/confirm "Delete this sequence?")
                        (rf/dispatch [:entity-delete entity-id])))}])))
