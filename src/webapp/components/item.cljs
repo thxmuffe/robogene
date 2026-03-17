@@ -50,13 +50,13 @@
         :src (str image-url)
         :alt (str (:title entity) " image")
         :fit image-fit
-        :onLoad (when-let [on-load (:on-image-load options)]
-                  #(on-load))
-        :onError (when-let [on-error (:on-image-error options)]
-                   #(on-error))}]
+       :onLoad (when-let [on-load (:on-image-load options)]
+                 #(on-load))
+       :onError (when-let [on-error (:on-image-error options)]
+                  #(on-error))}]
       [:> Box {:className "placeholder-img"}
        [:div {:className "spinner"}]
-       [:div.placeholder-text "No image"])))
+       [:div.placeholder-text "No image"]])))
 
 (defn item-status-note
   "Status overlay for image generation/upload/error states."
