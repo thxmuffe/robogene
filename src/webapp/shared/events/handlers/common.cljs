@@ -33,12 +33,14 @@
                              :roster (:roster db)
                              :frames (:gallery-items db)}
                             (or (:latest-state db) {}))]
-    (assoc db :status
-           (model/status-line latest-state
-                              (:sagas db)
-                              (:saga db)
-                              (:roster db)
-                              (:gallery-items db)))))
+    (-> db
+        (assoc :status
+               (model/status-line latest-state
+                                  (:sagas db)
+                                  (:saga db)
+                                  (:roster db)
+                                  (:gallery-items db)))
+        (store/refresh-entities-from-db))))
 
 (rf/reg-event-fx
  :initialize
@@ -143,7 +145,8 @@
                            (if (nil? ids)
                              chapter-ids
                              (set (filter chapter-ids ids)))))
-               (store/reapply-pending-commands))
+              (store/reapply-pending-commands)
+              (store/refresh-entities-from-db))
            :dispatch [:entities-load-from-legacy-state state]})))))
 
 (rf/reg-event-db

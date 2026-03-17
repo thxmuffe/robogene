@@ -4,9 +4,8 @@
             [webapp.shared.theme :as theme]
             [webapp.shared.model :as model]
             [webapp.pages.gallery-page :as gallery-page]
-            [webapp.pages.entity-gallery-page :as entity-gallery-page]
-            [webapp.pages.chapter-page :as chapter-page]
-            [webapp.pages.frame-page :as frame-page]
+            [webapp.pages.sequence-page :as sequence-page]
+            [webapp.pages.item-page :as item-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
 
@@ -97,13 +96,13 @@
            app-name]]]
         (case (:view route)
           :frame
-          [frame-page/frame-page route saga-name*]
+          [item-page/item-page-view]
 
           :chapter
-          [chapter-page/chapter-page route]
+          [sequence-page/sequence-page-view]
 
           :roster
-          [entity-gallery-page/entity-gallery-page-view]
+          [sequence-page/sequence-page-view]
 
           :saga
           [gallery-page/saga-page]
