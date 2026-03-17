@@ -6,6 +6,7 @@
             [webapp.pages.search-page :as search-page]
             [webapp.pages.sequence-page :as sequence-page]
             [webapp.pages.item-page :as item-page]
+            [webapp.pages.gallery-page :as gallery-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
 
@@ -65,10 +66,10 @@
           [sequence-page/sequence-page-view]
 
           :roster
-          [search-page/search-page-view]
+          [gallery-page/gallery-page-view]
 
           :saga
-          [search-page/search-page-view]
+          [gallery-page/gallery-page-view]
 
           [search-page/search-page-view])
         [traffic-indicator/traffic-indicator
