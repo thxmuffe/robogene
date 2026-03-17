@@ -72,7 +72,8 @@
   (let [route @(rf/subscribe [:route])]
     (if-let [entity-id (or (:entity-id route)
                           (:saga-id route)
-                          (:roster-id route))]
+                          (:roster-id route)
+                          (:chapter-id route))]
       [entity-gallery-page {:entity-id entity-id}]
       [:div.entity-gallery-page
        [:p "No entity specified in route."]])))

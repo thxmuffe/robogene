@@ -4,7 +4,7 @@
             [webapp.shared.theme :as theme]
             [webapp.shared.model :as model]
             [webapp.pages.gallery-page :as gallery-page]
-            [webapp.pages.roster-page :as roster-page]
+            [webapp.pages.entity-gallery-page :as entity-gallery-page]
             [webapp.pages.chapter-page :as chapter-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
@@ -103,7 +103,7 @@
           [chapter-page/chapter-page route]
 
           :roster
-          [roster-page/roster-page saga-name*]
+          [entity-gallery-page/entity-gallery-page-view]
 
           :saga
           [gallery-page/saga-page]
