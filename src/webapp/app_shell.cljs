@@ -3,78 +3,41 @@
             [re-frame.core :as rf]
             [webapp.shared.theme :as theme]
             [webapp.shared.model :as model]
-            [webapp.pages.gallery-page :as gallery-page]
+            [webapp.pages.search-page :as search-page]
             [webapp.pages.sequence-page :as sequence-page]
             [webapp.pages.item-page :as item-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
 
-(def app-name
-  "robogene")
+(def app-name "robogene")
 
-(defn display-saga-name [saga]
-  (or (some-> (:name saga) str/trim not-empty)
-      "Saga"))
+(defn route-entity-id [route]
+  (or (:entity-id route)
+      (:frame-id route)
+      (:chapter route)
+      (:roster-id route)
+      (:saga-id route)))
 
-(defn chapter-by-id [chapters chapter-id]
-  (some (fn [row]
-          (when (= (:chapterId row) chapter-id)
-            row))
-        chapters))
-
-(defn saga-for-chapter [sagas chapters chapter-id]
-  (let [chapter (chapter-by-id chapters chapter-id)]
-    (some (fn [saga]
-            (when (= (:sagaId saga) (:sagaId chapter))
-              saga))
-          sagas)))
-
-(defn frame-page-title [route sagas chapters]
-  (let [chapter (chapter-by-id chapters (:chapter route))
-        saga (saga-for-chapter sagas chapters (:chapter route))
-        chapter-name (or (some-> chapter :name str/trim not-empty)
-                         (some-> chapter :description str/trim not-empty)
-                         "Chapter")]
-    (str "Frame Page · " chapter-name " · " (display-saga-name saga))))
-
-(defn chapter-page-title [route sagas chapters]
-  (let [chapter (chapter-by-id chapters (:chapter route))
-        saga (saga-for-chapter sagas chapters (:chapter route))
-        chapter-name (or (some-> chapter :name str/trim not-empty)
-                         (some-> chapter :description str/trim not-empty)
-                         "Chapter")]
-    (str "Chapter Page · " chapter-name " · " (display-saga-name saga))))
-
-(defn display-roster-name [roster]
-  (or (some-> (:name roster) str/trim not-empty)
-      "Roster"))
-
-(defn main-page-title [route selected-saga selected-roster]
-  (let [page-title (case (:view route)
-                     :index "Index"
-                     :roster (display-roster-name selected-roster)
-                     (display-saga-name selected-saga))]
-    (str app-name " · " page-title)))
+(defn page-title [route entities]
+  (let [entity-id (route-entity-id route)
+        entity (when entity-id (get entities entity-id))
+        entity-title (some-> (:title entity) str/trim not-empty)]
+    (str app-name
+         (when (not (str/blank? (or entity-title "")))
+           (str " · " entity-title))
+         (when (and (str/blank? (or entity-title "")) (:view route))
+           (str " · " (name (:view route)))))))
 
 (defn main-view []
-  (let [sagas @(rf/subscribe [:sagas])
-        chapters @(rf/subscribe [:saga])
-        selected-saga @(rf/subscribe [:selected-saga])
-        selected-roster @(rf/subscribe [:selected-roster])
+  (let [entities @(rf/subscribe [:entities])
         gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])
-        frame-view? (= :frame (:view route))
-        collection-view? (not frame-view?)
-        saga-name* (display-saga-name selected-saga)]
-    (set! (.-title js/document)
-          (case (:view route)
-            :frame (frame-page-title route sagas chapters)
-            :chapter (chapter-page-title route sagas chapters)
-            (main-page-title route selected-saga selected-roster)))
+        frame-view? (= :frame (:view route))]
+    (set! (.-title js/document) (page-title route entities))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
                     :px (when frame-view? 0)
@@ -89,7 +52,7 @@
         [:> Box {:component "header"
                  :className (str "hero"
                                  (when frame-view? " hero-frame")
-                                 (when collection-view? " hero-collection"))}
+                                 (when (not frame-view?) " hero-collection"))}
          [:h1
           [:a {:href (model/index-hash)
                :className "hero-home-link"}
@@ -102,12 +65,12 @@
           [sequence-page/sequence-page-view]
 
           :roster
-          [sequence-page/sequence-page-view]
+          [search-page/search-page-view]
 
           :saga
-          [gallery-page/saga-page]
+          [search-page/search-page-view]
 
-          [gallery-page/index-page])
+          [search-page/search-page-view])
         [traffic-indicator/traffic-indicator
          {:pending-api-requests pending-api-requests
           :wait-lights-visible? wait-lights-visible?

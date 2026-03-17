@@ -42,7 +42,8 @@
   (let [{:keys [image-field image-fit image-loading? image-error?]} options
         image-field (or image-field :imageUrl)
         image-fit (or image-fit "contain")
-        image-url (get (:payload entity) image-field)]
+        image-url (or (get (:payload entity) image-field)
+                      (get entity image-field))]
     (if (and image-url (not (str/blank? (str image-url))))
       [:> Image
        {:key (str (:id entity) "|" image-url)
