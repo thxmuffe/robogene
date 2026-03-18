@@ -1,7 +1,6 @@
 (ns webapp.pages.search-page
   (:require [re-frame.core :as rf]
-            [webapp.components.sequence :as sequence]
-            [webapp.components.item :as item]
+            [webapp.components.gallery :as gallery]
             [webapp.shared.search :as search]
             [clojure.string :as str]
             ["@mantine/core" :refer [Box Stack TextInput Text]]))
@@ -38,13 +37,8 @@
                     :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
      (when (and (not (empty? (str query))) (empty? filtered))
        [:> Text {:color "dimmed"} "No matches"])
-     [:> Box {:className "gallery"}
-      (for [entity filtered]
-        ^{:key (:id entity)}
-        [:div.gallery-motion-item
-         (if (seq (:children entity))
-           [sequence/sequence entity {:children-fetcher entity-by-id}]
-           [item/item entity {:clickable? true}])])]
+     [gallery/search-gallery {:entities filtered
+                              :entity-by-id entity-by-id}]
      (when (seq filtered)
        [:> Text {:color "dimmed" :size "sm"}
         (str "Results: " (clojure.string/join ", " result-ids))])]))

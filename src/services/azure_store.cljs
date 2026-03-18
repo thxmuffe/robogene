@@ -44,6 +44,14 @@
         fallback))
     fallback))
 
+(defn derive-image-path [image-url]
+  (when (seq image-url)
+    (when-let [[_ path] (re-find #"robogene-images/([^?]+)" image-url)]
+      (-> path
+          (js/decodeURIComponent)
+          (str/replace #"^/+" "")
+          (str/replace #"/+" "/")))))
+
 (defn normalize-image-path [workspace-id entity-id extension]
   (str "workspaces/" workspace-id "/entities/" entity-id "/image." (or extension "png")))
 
@@ -191,13 +199,21 @@
                (reduce-promise rows
                                (fn [acc row]
                                  (let [payload (parse-json (gobj/get row "payloadJson") {})
-                                       image-path (get payload :imagePath)]
+                                       image-path (or (get payload :imagePath)
+                                                      (get-in payload [:payload :imagePath])
+                                                      (derive-image-path (or (:imageUrl payload)
+                                                                             (get-in payload [:payload :imageUrl]))))]
                                    (if (seq image-path)
+                                     ;; Always mint a fresh SAS URL; stored imageUrl may have expired.
                                      (-> (to-readable-image-url image-path)
                                          (.then (fn [url]
-                                                  (conj acc (assoc payload :imageUrl url)))))
+                                                  (conj acc (-> payload
+                                                                (assoc :imagePath image-path
+                                                                       :imageUrl url)
+                                                                (assoc-in [:payload :imagePath] image-path)
+                                                                (assoc-in [:payload :imageUrl] url))))))
                                      (js/Promise.resolve (conj acc payload)))))
-                               [])))))
+                               []))))) 
 
 ;; Legacy adapters for load-or-init-state and save-state
 (defn load-or-init-state [initial-state]

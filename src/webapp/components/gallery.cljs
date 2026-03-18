@@ -2,6 +2,8 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.components.frame :as frame]
+            [webapp.components.sequence :as sequence]
+            [webapp.components.item :as item]
             ["@mantine/core" :refer [Box]]))
 
 (defn- seeded-unit [seed n]
@@ -30,6 +32,27 @@
          "--gallery-motion-float-x" (str float-offset "px")
          "--gallery-motion-pointer-weight" "1"
          "--gallery-motion-duration" (str settle-ms "ms")}))
+
+(defn search-gallery
+  "Generic gallery for search results. Renders sequences if an entity has children,
+   frames via the frame component, otherwise generic item cards."
+  [{:keys [entities entity-by-id]}]
+  [:> Box {:className "gallery"}
+   (map-indexed
+    (fn [idx ent]
+      ^{:key (or (:id ent) (str "search-" idx))}
+      [:div.gallery-motion-item
+       {:style (gallery-motion-style (:id ent))}
+       (cond
+         (seq (:children ent))
+         [sequence/sequence ent {:children-fetcher entity-by-id}]
+
+         (= "frame" (str/lower-case (or (:vanityRole ent) "")))
+         [frame/frame ent {:active? false}]
+
+         :else
+         [item/item ent {:clickable? true}])])
+    entities)])
 
 (defn frame-gallery [owner-id owner-type]
   (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
