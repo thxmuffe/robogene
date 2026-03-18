@@ -304,20 +304,38 @@ h2 { margin: 24px 0 10px; }
   align-items: center;
 }
 
+/* Search page uses same gallery metrics */
+.search-page {
+  --card-width: 260px;
+  --card-gap: 14px;
+  --cols: 1;
+  width: 100%;
+  align-items: center;
+}
+
+.search-page .gallery {
+  justify-content: center;
+}
+
 @media (min-width: 640px) {
   .saga-page, .roster-page { --cols: 2; }
+  .search-page { --cols: 2; }
 }
 @media (min-width: 940px) {
   .saga-page, .roster-page { --cols: 3; }
+  .search-page { --cols: 3; }
 }
 @media (min-width: 1240px) {
   .saga-page, .roster-page { --cols: 4; }
+  .search-page { --cols: 4; }
 }
 @media (min-width: 1540px) {
   .saga-page, .roster-page { --cols: 5; }
+  .search-page { --cols: 5; }
 }
 @media (min-width: 1840px) {
   .saga-page, .roster-page { --cols: 6; }
+  .search-page { --cols: 6; }
 }
 
 .collection-header {
