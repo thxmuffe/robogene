@@ -31,9 +31,12 @@
                            (run))))))))]
       run)))
 
+(def ^:const default-api-base "http://localhost:7071")
+
 (defn api-base []
-  (-> (or (.-ROBOGENE_API_BASE js/window) "")
-      (str/replace #"/+$" "")))
+  (let [base (-> (or (.-ROBOGENE_API_BASE js/window) "")
+                 (str/replace #"/+$" ""))]
+    (if (str/blank? base) default-api-base base)))
 
 (defn api-url [path]
   (let [base (api-base)]
@@ -57,6 +60,7 @@
 (defn dispatch-api-response
   [{:keys [ok status text]} success-event fail-event ok? request-label]
   (let [data (model/parse-json-safe text)]
+    (js/console.log "dispatch-api-response" request-label "status" status "ok" ok "has-entities" (boolean (:entities data)))
     (rf/dispatch
      [:wait-lights-log
       (if (ok? ok status) :incoming :error)
@@ -261,6 +265,7 @@
      (reset! coalesced-fetch-state!*
              (create-coalesced-runner
               (fn []
+                (js/console.log "fetch-state =>" (state-url))
                 (request-json (state-url)
                               {:cache "no-store"}
                               :state-loaded

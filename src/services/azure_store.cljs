@@ -184,7 +184,9 @@
           (fn [_] nil)))
 
 (defn load-entities [workspace-id]
-  (-> (list-entities workspace-id)
+  ;; Ensure backing table/container exists before listing to avoid TableNotFound on fresh dev storage.
+  (-> (ensure!)
+      (.then (fn [_] (list-entities workspace-id)))
       (.then (fn [rows]
                (reduce-promise rows
                                (fn [acc row]

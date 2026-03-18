@@ -7,7 +7,10 @@
                  :asset-path "./js"
                  :modules {:main {:init-fn webapp.shared.bootstrap/init!}}
                  :devtools {:after-load webapp.shared.bootstrap/after-load!}
-                 :compiler-options {:warnings-as-errors false}}
+                 :compiler-options {:warnings-as-errors false
+                                    :optimizations :none
+                                    :source-map true
+                                    :pseudo-names true}}
   :webapp-release {:target :browser
                    :output-dir "dist/release/webapp/js"
                    :asset-path "./js"
@@ -16,7 +19,10 @@
   :webapi-debug {:target :node-script
                  :main services.api/init!
                  :output-to "dist/debug/webapi/webapi_compiled.js"
-                 :compiler-options {:warnings-as-errors false}}
+                 :compiler-options {:warnings-as-errors false
+                                    :optimizations :none
+                                    :source-map true
+                                    :pseudo-names true}}
   :webapi-release {:target :node-script
                    :main services.api/init!
                    :output-to "dist/release/webapi/webapi_compiled.js"

@@ -141,7 +141,8 @@
 ;; Initialize
 (defn init! []
   (when-not (:workspaceId @state)
-    (swap! state assoc :workspaceId (new-uuid)))
+    ;; Use stable workspace if provided, else generate once and keep in memory.
+    (swap! state assoc :workspaceId (or (settings/workspace-id) (new-uuid))))
   (sync-state!))
 
 (init!)

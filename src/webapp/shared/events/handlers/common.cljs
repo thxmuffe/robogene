@@ -93,61 +93,64 @@
  (fn [{:keys [db]} [_ state]]
    (let [incoming-revision (or (:revision state) 0)
          current-revision (or (:last-rendered-revision db) -1)]
-     (if (< incoming-revision current-revision)
-       {:db db}
+    (if (< incoming-revision current-revision)
+      {:db db}
        (let [previous-frames (:gallery-items db)
-              {:keys [sagas rosters saga roster frames]} (model/derived-state state)
-              existing-active-id (:active-frame-id db)
-              frame-ids (set (map :frameId frames))
-              old-open-map (:open-frame-actions db)
-              open-frame-actions (into {}
-                                      (for [[frame-id open?] old-open-map
-                                            :when (contains? frame-ids frame-id)]
-                                        [frame-id open?]))
-              active-frame-id (cond
-                                (and (some? existing-active-id) (contains? frame-ids existing-active-id))
-                                existing-active-id
-                                (= existing-active-id controls/new-chapter-frame-id)
-                                existing-active-id
-                                (seq frames)
-                                (:frameId (first frames))
-                                :else nil)
-              image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
-                                    (:image-ui-by-frame-id db)
-                                    previous-frames
-                                    frames)
-              chapter-ids (set (map :chapterId saga))]
-         {:db
-          (-> db
-              (assoc :latest-state state
-                     :status (model/status-line state sagas saga roster frames)
-                     :last-rendered-revision incoming-revision
-                     :sagas sagas
-                     :rosters rosters
-                     :saga saga
-                     :roster roster
-                     :gallery-items frames
-                     :image-ui-by-frame-id image-ui-by-frame-id
-                     :hidden-frame-images (into {}
-                                               (for [[frame-id hidden?] (or (:hidden-frame-images db) {})
-                                                     :when (and hidden? (contains? frame-ids frame-id))]
-                                                 [frame-id true]))
-                     :open-frame-actions open-frame-actions
-                     :active-frame-id active-frame-id)
-              (update :frame-drafts
-                      (fn [drafts]
-                        (into {}
-                              (for [[frame-id draft] (or drafts {})
-                                    :when (true? (get open-frame-actions frame-id))]
-                                [frame-id draft]))))
-              (update-in [:view-state :gallery :collapsed-chapter-ids]
-                         (fn [ids]
-                           (if (nil? ids)
-                             chapter-ids
-                             (set (filter chapter-ids ids)))))
-              (store/reapply-pending-commands)
-              (store/refresh-entities-from-db))
-           :dispatch [:entities-load-from-legacy-state state]})))))
+             {:keys [sagas rosters saga roster frames]} (model/derived-state state)
+             existing-active-id (:active-frame-id db)
+             frame-ids (set (map :frameId frames))
+            old-open-map (:open-frame-actions db)
+            open-frame-actions (into {}
+                                     (for [[frame-id open?] old-open-map
+                                           :when (contains? frame-ids frame-id)]
+                                       [frame-id open?]))
+            active-frame-id (cond
+                              (and (some? existing-active-id) (contains? frame-ids existing-active-id))
+                              existing-active-id
+                              (= existing-active-id controls/new-chapter-frame-id)
+                              existing-active-id
+                              (seq frames)
+                              (:frameId (first frames))
+                              :else nil)
+            image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
+                                  (:image-ui-by-frame-id db)
+                                  previous-frames
+                                  frames)
+            chapter-ids (set (map :chapterId saga))
+           db* (-> db
+                   (assoc :latest-state state
+                           :status (str "Loaded " (count (:entities state)) " entities")
+                           :status (model/status-line state sagas saga roster frames)
+                           :last-rendered-revision incoming-revision
+                           :sagas sagas
+                           :rosters rosters
+                           :saga saga
+                           :roster roster
+                           :gallery-items frames
+                           :image-ui-by-frame-id image-ui-by-frame-id
+                           :hidden-frame-images (into {}
+                                                      (for [[frame-id hidden?] (or (:hidden-frame-images db) {})
+                                                            :when (and hidden? (contains? frame-ids frame-id))]
+                                                        [frame-id true]))
+                           :open-frame-actions open-frame-actions
+                           :active-frame-id active-frame-id)
+                    (update :frame-drafts
+                            (fn [drafts]
+                              (into {}
+                                    (for [[frame-id draft] (or drafts {})
+                                          :when (true? (get open-frame-actions frame-id))]
+                                      [frame-id draft]))))
+                    (update-in [:view-state :gallery :collapsed-chapter-ids]
+                               (fn [ids]
+                                 (if (nil? ids)
+                                   chapter-ids
+                                   (set (filter chapter-ids ids)))))
+                    (store/reapply-pending-commands))]
+        (cond-> {:db (if (:entities state)
+                       (store/refresh-entities-from-flat db* (:entities state))
+                       (store/refresh-entities-from-db db*))}
+          (not (:entities state))
+          (assoc :dispatch [:entities-load-from-legacy-state state]))))))) 
 
 (rf/reg-event-db
  :realtime-state-changed

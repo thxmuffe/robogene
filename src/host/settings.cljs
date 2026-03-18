@@ -50,3 +50,8 @@
 
 (defn allow-dev-storage-for-smoke? []
   (= "1" (or (config/setting "ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE") "")))
+
+(defn workspace-id []
+  ;; Use a stable workspace partition when provided; fallback to "default".
+  (or (some-> (config/setting "ROBOGENE_WORKSPACE_ID") str/trim not-empty)
+      "default"))

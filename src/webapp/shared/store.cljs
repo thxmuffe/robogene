@@ -108,7 +108,7 @@
             {}
             (concat sagas rosters chapters characters frames))))
 
-(defn- compute-derived-state [entities]
+(defn compute-derived-state [entities]
   {:children-by-parent-id
    (reduce (fn [acc [entity-id entity]]
              (if (seq (:children entity))
@@ -131,6 +131,15 @@
         derived (compute-derived-state entities)]
     (assoc db
            :entities entities
+           :derived-state derived)))
+
+(defn refresh-entities-from-flat
+  "Set entities/derived-state directly from an entities map."
+  [db entities]
+  (let [entities* (or entities {})
+        derived (compute-derived-state entities*)]
+    (assoc db
+           :entities entities*
            :derived-state derived)))
 
 (defn command->generic-entity-payload
