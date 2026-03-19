@@ -93,12 +93,16 @@
   (let [{:keys [on-save-title on-save-description]} options
         title (or (:title entity) "")
         description (or (:description entity) "")]
-    [:div.sequence-header
+    [:div.chapter-header
      [db-text/db-text
       {:id (str (:id entity) "-title")
        :value title
        :editing? @editing-atom
        :multiline? false
+       :class-name "chapter-header-body"
+       :display-class-name "chapter-name"
+       :editing-class-name "chapter-db-item"
+       :input-class-name "chapter-name-input"
        :placeholder "Sequence title..."
        :on-open-edit #(reset! editing-atom true)
        :on-close-edit #(reset! editing-atom false)
@@ -112,6 +116,10 @@
        :value description
        :editing? @editing-atom
        :multiline? true
+       :class-name "chapter-header-body"
+       :display-class-name "chapter-description"
+       :editing-class-name "chapter-db-item"
+       :input-class-name "chapter-description-input"
        :placeholder "Add description..."
        :max-chars 500
        :min-rows 2
@@ -124,9 +132,10 @@
                     (on-save-description text)))}]
      
      (when @editing-atom
-       [:div.sequence-action-buttons
+       [:div.chapter-header-controls
         [waterfall-row/waterfall-row
-         {:actions (vec (filter
+         {:class-name "chapter-header-actions-row"
+          :actions (vec (filter
                           some?
                           [{:id "delete" :label "Delete" :icon FaTrashCan :color "red" :on-select (:on-delete options)}]))
           :mandatory-count 1}]])]))
@@ -153,26 +162,26 @@
   ([entity]
    [sequence entity {}])
   ([{:keys [id title description children vanityRole payload]} options]
-   (let [children-ids (or children [])
-         child-data-fn (or (:children-fetcher options) (constantly {}))
-         child-options-fn (:child-options-fn options)
-         add-child-label (:add-child-label options)
-         add-child-fn (:add-child-fn options)
-         editing-atom (r/atom false)]
-     [:div.sequence
-      {:className (str "sequence-" (str/lower-case (or vanityRole "generic")))}
-      
-      [:div.sequence-header-container
-       [sequence-description-editor 
-        {:id id :title title :description description}
-        options
-        editing-atom]]
-      
-      (when (seq children-ids)
-        [sequence-gallery
-         {:entity-id id
-          :children-ids children-ids
-          :child-data-fn child-data-fn
-          :child-options-fn child-options-fn
-          :add-child-label add-child-label
-          :add-child-fn add-child-fn}])])))
+   (r/with-let [editing-atom (r/atom false)]
+     (let [children-ids (or children [])
+           child-data-fn (or (:children-fetcher options) (constantly {}))
+           child-options-fn (:child-options-fn options)
+           add-child-label (:add-child-label options)
+           add-child-fn (:add-child-fn options)]
+       [:div.sequence
+        {:className (str "sequence-" (str/lower-case (or vanityRole "generic")))}
+        
+        [:div.sequence-header-container
+         [sequence-description-editor 
+          {:id id :title title :description description}
+          options
+          editing-atom]]
+        
+        (when (seq children-ids)
+          [sequence-gallery
+           {:entity-id id
+            :children-ids children-ids
+            :child-data-fn child-data-fn
+            :child-options-fn child-options-fn
+            :add-child-label add-child-label
+            :add-child-fn add-child-fn}])]))))
