@@ -58,40 +58,43 @@
         nil))))
 
 (defn chapter-block [chapter entities]
-  (let [chapter-id (:id chapter)
-        collapsed? @(rf/subscribe [:gallery-chapter-collapsed? chapter-id])
-        preview-url (model/preview-image-url entities chapter-id)
-        title (model/primary-label chapter)]
-    [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
-     [:div {:className (str "chapter-separator-row" (when collapsed? " is-collapsed"))}
-      [:button.chapter-separator-toggle
-       {:type "button"
-        :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
-        :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
-       [:span {:className (str "chapter-separator-toggle-triangle"
-                               (when collapsed? " is-collapsed"))}]]
-      [:button {:type "button"
-                :className (str "chapter-separator" (when collapsed? " is-collapsed"))
-                :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
-       (when collapsed?
-         [:div.chapter-separator-preview
-          (if (seq preview-url)
-            [:img {:className "chapter-separator-preview-image"
-                   :src preview-url
-                   :alt (str title " preview")}]
-            [:div.chapter-separator-preview-placeholder])])
-       (when collapsed?
-         [:span.chapter-separator-title title])]]
-     (when-not collapsed?
-       [:div.chapter-content
-        [sequence/sequence-description-editor
-         {:id (:id chapter)
-          :title (:title chapter)
-          :description (:description chapter)}
-         {:on-save-title #(rf/dispatch [:entity-update "chapter" (:id chapter) % (:description chapter)])
-          :on-save-description #(rf/dispatch [:entity-update "chapter" (:id chapter) (:title chapter) %])}
-         (r/atom false)]
-        [gallery/frame-gallery chapter-id "saga"]])]))
+  (r/with-let [title-editing-atom (r/atom false)
+               description-editing-atom (r/atom false)]
+    (let [chapter-id (:id chapter)
+          collapsed? @(rf/subscribe [:gallery-chapter-collapsed? chapter-id])
+          preview-url (model/preview-image-url entities chapter-id)
+          title (model/primary-label chapter)]
+      [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
+       [:div {:className (str "chapter-separator-row" (when collapsed? " is-collapsed"))}
+        [:button.chapter-separator-toggle
+         {:type "button"
+          :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
+          :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
+         [:span {:className (str "chapter-separator-toggle-triangle"
+                                 (when collapsed? " is-collapsed"))}]]
+        [:button {:type "button"
+                  :className (str "chapter-separator" (when collapsed? " is-collapsed"))
+                  :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
+         (when collapsed?
+           [:div.chapter-separator-preview
+            (if (seq preview-url)
+              [:img {:className "chapter-separator-preview-image"
+                     :src preview-url
+                     :alt (str title " preview")}]
+              [:div.chapter-separator-preview-placeholder])])
+         (when collapsed?
+           [:span.chapter-separator-title title])]]
+       (when-not collapsed?
+         [:div.chapter-content
+          [sequence/sequence-description-editor
+           {:id (:id chapter)
+            :title (:title chapter)
+            :description (:description chapter)}
+           {:on-save-title #(rf/dispatch [:entity-update "chapter" (:id chapter) % (:description chapter)])
+            :on-save-description #(rf/dispatch [:entity-update "chapter" (:id chapter) (:title chapter) %])}
+           title-editing-atom
+           description-editing-atom]
+          [gallery/frame-gallery chapter-id "saga"]])])))
 
 (defn gallery-page [{:keys [entity-id]}]
   (r/with-let [key-context* (r/atom nil)

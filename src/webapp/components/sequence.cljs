@@ -89,7 +89,7 @@
 
 (defn sequence-description-editor
   "Editable title and description fields with actions."
-  [entity options editing-atom]
+  [entity options title-editing-atom description-editing-atom]
   (let [{:keys [on-save-title on-save-description]} options
         title (or (:title entity) "")
         description (or (:description entity) "")]
@@ -97,24 +97,24 @@
      [db-text/db-text
       {:id (str (:id entity) "-title")
        :value title
-       :editing? @editing-atom
+       :editing? @title-editing-atom
        :multiline? false
        :class-name "chapter-header-body"
        :display-class-name "chapter-name"
        :editing-class-name "chapter-db-item"
        :input-class-name "chapter-name-input"
        :placeholder "Sequence title..."
-       :on-open-edit #(reset! editing-atom true)
-       :on-close-edit #(reset! editing-atom false)
+       :on-open-edit #(reset! title-editing-atom true)
+       :on-close-edit #(reset! title-editing-atom false)
        :on-save (when on-save-title
                   (fn [text]
-                    (reset! editing-atom false)
+                    (reset! title-editing-atom false)
                     (on-save-title text)))}]
      
      [db-text/db-text
       {:id (str (:id entity) "-description")
        :value description
-       :editing? @editing-atom
+       :editing? @description-editing-atom
        :multiline? true
        :class-name "chapter-header-body"
        :display-class-name "chapter-description"
@@ -124,14 +124,14 @@
        :max-chars 500
        :min-rows 2
        :max-rows 8
-       :on-open-edit #(reset! editing-atom true)
-       :on-close-edit #(reset! editing-atom false)
+       :on-open-edit #(reset! description-editing-atom true)
+       :on-close-edit #(reset! description-editing-atom false)
        :on-save (when on-save-description
                   (fn [text]
-                    (reset! editing-atom false)
+                    (reset! description-editing-atom false)
                     (on-save-description text)))}]
      
-     (when @editing-atom
+     (when (or @title-editing-atom @description-editing-atom)
        [:div.chapter-header-controls
         [waterfall-row/waterfall-row
          {:class-name "chapter-header-actions-row"
@@ -162,7 +162,8 @@
   ([entity]
    [sequence entity {}])
   ([{:keys [id title description children vanityRole payload]} options]
-   (r/with-let [editing-atom (r/atom false)]
+   (r/with-let [title-editing-atom (r/atom false)
+                description-editing-atom (r/atom false)]
      (let [children-ids (or children [])
            child-data-fn (or (:children-fetcher options) (constantly {}))
            child-options-fn (:child-options-fn options)
@@ -175,7 +176,8 @@
          [sequence-description-editor 
           {:id id :title title :description description}
           options
-          editing-atom]]
+          title-editing-atom
+          description-editing-atom]]
         
         (when (seq children-ids)
           [sequence-gallery
