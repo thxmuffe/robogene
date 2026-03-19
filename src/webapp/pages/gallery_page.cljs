@@ -1,9 +1,7 @@
 (ns webapp.pages.gallery-page
   "Gallery page: render a sequence of sequences (e.g., saga → chapters, roster → characters)."
   (:require [re-frame.core :as rf]
-            [clojure.string :as str]
             [reagent.core :as r]
-            [webapp.components.gallery :as gallery]
             [webapp.components.sequence :as sequence]
             [webapp.shared.controls :as controls]
             [webapp.shared.model :as model]
@@ -58,41 +56,39 @@
         nil))))
 
 (defn chapter-block [chapter entities]
-  (r/with-let [title-editing-atom (r/atom false)
-               description-editing-atom (r/atom false)]
-    (let [chapter-id (:id chapter)
-          collapsed? @(rf/subscribe [:gallery-chapter-collapsed? chapter-id])
-          preview-url (model/preview-image-url entities chapter-id)
-          title (model/primary-label chapter)]
-      [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
-       [:div {:className (str "chapter-separator-row" (when collapsed? " is-collapsed"))}
-        [:button.chapter-separator-toggle
-         {:type "button"
-          :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
-          :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
-         [:span {:className (str "chapter-separator-toggle-triangle"
-                                 (when collapsed? " is-collapsed"))}]]
-        [:button {:type "button"
-                  :className (str "chapter-separator" (when collapsed? " is-collapsed"))
-                  :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
-         (when collapsed?
-           [:div.chapter-separator-preview
-            (if (seq preview-url)
-              [:img {:className "chapter-separator-preview-image"
-                     :src preview-url
-                     :alt (str title " preview")}]
-              [:div.chapter-separator-preview-placeholder])])
-         (when collapsed?
-           [:span.chapter-separator-title title])]]
-       (when-not collapsed?
-         [:div.chapter-content
-         [sequence/sequence-description-editor
-           chapter
-           {:on-save-title #(rf/dispatch [:entity-update "chapter" (:id chapter) % (:description chapter)])
-            :on-save-description #(rf/dispatch [:entity-update "chapter" (:id chapter) (:title chapter) %])}
-           title-editing-atom
-           description-editing-atom]
-          [gallery/frame-gallery chapter-id "saga"]])])))
+  (let [chapter-id (:id chapter)
+        collapsed? @(rf/subscribe [:gallery-chapter-collapsed? chapter-id])
+        preview-url (model/preview-image-url entities chapter-id)
+        title (model/primary-label chapter)]
+    [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
+     [:div {:className (str "chapter-separator-row" (when collapsed? " is-collapsed"))}
+      [:button.chapter-separator-toggle
+       {:type "button"
+        :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
+        :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
+       [:span {:className (str "chapter-separator-toggle-triangle"
+                               (when collapsed? " is-collapsed"))}]]
+      [:button {:type "button"
+                :className (str "chapter-separator" (when collapsed? " is-collapsed"))
+                :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
+       (when collapsed?
+         [:div.chapter-separator-preview
+          (if (seq preview-url)
+            [:img {:className "chapter-separator-preview-image"
+                   :src preview-url
+                   :alt (str title " preview")}]
+            [:div.chapter-separator-preview-placeholder])])
+       (when collapsed?
+         [:span.chapter-separator-title title])]]
+     (when-not collapsed?
+       [:div.chapter-content
+        [sequence/sequence
+         chapter
+         {:children-fetcher fetch-entity
+          :on-save-title #(rf/dispatch [:entity-update "chapter" chapter-id % (:description chapter)])
+          :on-save-description #(rf/dispatch [:entity-update "chapter" chapter-id (:title chapter) %])
+          :add-child-label "Add New Frame"
+          :add-child-fn #(rf/dispatch [:add-frame chapter-id "saga"])}]])]))
 
 (defn gallery-page [{:keys [entity-id]}]
   (r/with-let [key-context* (r/atom nil)

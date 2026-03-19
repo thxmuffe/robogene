@@ -6,14 +6,16 @@
   (:require [clojure.string :as str]
             [reagent.core :as r]
             [re-frame.core :as rf]
+            [webapp.components.frame :as frame]
             [webapp.components.item :as item]
             [webapp.components.db-text :as db-text]
             [webapp.components.waterfall-row :as waterfall-row]
             [webapp.components.confirm-dialog :as confirm-dialog]
+            [webapp.components.roster-select-dialog :as roster-select-dialog]
             [webapp.components.upload-dialog :as upload-dialog]
-            [webapp.shared.ui.interaction :as interaction]
-            ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaCamera FaDownload FaImages FaPlus FaTrashCan]]
-            ["@mantine/core" :refer [Box Card]]))
+            [webapp.shared.model :as model]
+            ["react-icons/fa6" :refer [FaBroom FaDownload FaImages FaPlus FaTrashCan]]
+            ["@mantine/core" :refer [Box]]))
 
 (defn- seeded-unit [seed n]
   "Deterministic pseudo-random value based on seed and index."
@@ -54,6 +56,8 @@
     (let [entity-id (:id entity)
           role (some-> (:vanityRole entity) str str/lower-case)
           cancel-ui-token @(rf/subscribe [:cancel-ui-token])
+          roster-link-state @(rf/subscribe [:roster-link-state])
+          rosters @(rf/subscribe [:rosters])
           owner-type (if (= role "character") "character" "saga")
           frames (when (not= role "saga")
                    @(rf/subscribe [:frames-for-owner owner-type entity-id]))
@@ -68,6 +72,29 @@
                   "character" "character"
                   "sequence")
           title-case-label (str/capitalize label)
+          roster-target (:target roster-link-state)
+          roster-search (some-> (:search roster-link-state) str str/lower-case str/trim)
+          roster-dialog-open? (and (= role "chapter")
+                                   (:open? roster-link-state)
+                                   (= entity-id (:chapter-id roster-target)))
+          filtered-rosters (if (str/blank? (or roster-search ""))
+                             rosters
+                             (filterv (fn [roster]
+                                        (let [title (some-> (:title roster) str str/lower-case)
+                                              description (some-> (:description roster) str str/lower-case)]
+                                          (or (str/includes? (or title "") roster-search)
+                                              (str/includes? (or description "") roster-search))))
+                                      rosters))
+          roster-items (mapv (fn [roster]
+                               ^{:key (:id roster)}
+                               [:button
+                                {:type "button"
+                                 :className "frame frame-clickable add-frame-tile chapter-preview-tile"
+                                 :onClick #(rf/dispatch [:select-roster-link (:id roster)])}
+                                [:div.add-frame-tile-title (model/primary-label roster)]
+                                [:div.add-frame-tile-sub (or (some-> (:description roster) str/trim not-empty)
+                                                             "Open roster")]])
+                             filtered-rosters)
           items [{:id :download-sequence
                   :label (str "Download " label)
                   :icon FaDownload
@@ -146,7 +173,16 @@
            :on-close #(reset! upload-open?* false)
            :on-submit-many #(rf/dispatch [:upload-chapter-images entity-id %])
            :multiple? true
-           :title "Upload images"}])])))
+           :title "Upload images"}])
+       [roster-select-dialog/roster-select-dialog
+        {:open roster-dialog-open?
+         :title "Select roster"
+         :search (:search roster-link-state)
+         :on-search #(rf/dispatch [:roster-link-search-changed %])
+         :on-close #(rf/dispatch [:close-roster-link-dialog])
+         :on-create #(rf/dispatch [:create-roster-link])
+         :items roster-items
+         :empty-label "No rosters match this search."}]])))
 
 (defn sequence-gallery
   "Render a grid of child entities (items or sequences).
@@ -158,10 +194,21 @@
    - add-child-label: Text for 'add new' tile (optional)
    - add-child-fn: () -> dispatch action to add child (optional)
    - child-options-fn: (child-entity) -> options map for rendering (optional)"
-  [{:keys [entity-id children-ids child-data-fn add-child-label add-child-fn child-options-fn]}]
+  [{:keys [entity-id role children-ids child-data-fn add-child-label add-child-fn child-options-fn]}]
   (let [children-data (map child-data-fn children-ids)
-        get-child-options (or child-options-fn (constantly {}))]
-    [:> Box {:className "gallery"}
+        get-child-options (or child-options-fn (constantly {}))
+        frame-sequence? (and (seq children-data)
+                             (every? model/frame-entity? children-data))
+        active-frame-id (when frame-sequence?
+                          @(rf/subscribe [:active-frame-id]))
+        add-tile-title (or add-child-label
+                           (if (= role "character")
+                             "Add image"
+                             "Add New Frame"))
+        add-tile-subtitle (if (= role "character")
+                            "Create the next image for this character"
+                            "Create the next frame in this sequence")]
+    [:> Box {:className "gallery sequence-gallery-grid"}
      (map-indexed
        (fn [idx child-entity]
          ^{:key (or (:id child-entity) (str "child-" idx))}
@@ -169,7 +216,11 @@
           {:style (gallery-motion-style (:id child-entity))}
           (if (seq (:children child-entity))
             [sequence child-entity (get-child-options child-entity)]
-            [item/item child-entity (get-child-options child-entity)])])
+            (if frame-sequence?
+              [frame/frame (model/frame-row child-entity)
+               (merge {:active? (= active-frame-id (:id child-entity))}
+                      (get-child-options child-entity))]
+              [item/item child-entity (get-child-options child-entity)]))])
        children-data)
      
      (when add-child-fn
@@ -179,15 +230,15 @@
          {:className "frame frame-clickable add-frame-tile"
           :role "button"
           :tabIndex 0
-          :aria-label (or add-child-label "Add item")
+          :aria-label add-tile-title
           :onClick add-child-fn
           :onKeyDown (fn [e]
                        (when (or (= "Enter" (.-key e))
                                  (= " " (.-key e)))
                          (.preventDefault e)
                          (add-child-fn)))}
-         [:div.add-frame-tile-title (or add-child-label "Add item")]
-         [:div.add-frame-tile-sub "Create new item in this sequence"]]])]))
+         [:div.add-frame-tile-title add-tile-title]
+         [:div.add-frame-tile-sub add-tile-subtitle]]])]))
 
 (defn sequence-description-editor
   "Editable title and description fields with actions."
@@ -280,9 +331,10 @@
           title-editing-atom
           description-editing-atom]]
         
-        (when (seq children-ids)
+       (when (seq children-ids)
           [sequence-gallery
            {:entity-id id
+            :role (some-> vanityRole str str/lower-case)
             :children-ids children-ids
             :child-data-fn child-data-fn
             :child-options-fn child-options-fn

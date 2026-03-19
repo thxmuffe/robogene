@@ -747,6 +747,18 @@ button.chapter-separator.is-collapsed {
   overflow: visible;
 }
 
+.sequence {
+  --card-width: 280px;
+  --card-gap: 14px;
+}
+
+.sequence-gallery-grid {
+  --sequence-card-width: var(--card-width, 280px);
+  --sequence-card-gap: var(--card-gap, 14px);
+  gap: var(--sequence-card-gap);
+  grid-template-columns: repeat(auto-fill, minmax(var(--sequence-card-width), var(--sequence-card-width)));
+}
+
 @media (max-width: 320px) {
   .gallery { grid-template-columns: 1fr; }
 }

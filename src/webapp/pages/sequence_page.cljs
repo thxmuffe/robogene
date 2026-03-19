@@ -37,7 +37,11 @@
                            "Add Item")
         :add-child-fn (fn []
                         (when (#{ "chapter" "character" "roster"} (:vanityRole entity))
-                          (rf/dispatch [:add-frame (:id entity)])))
+                          (rf/dispatch [:add-frame
+                                        (:id entity)
+                                        (if (= "character" (:vanityRole entity))
+                                          "character"
+                                          "saga")])))
         :on-delete (fn []
                      (when (js/confirm "Delete this sequence?")
                        (rf/dispatch [:entity-delete entity-id])))}])))

@@ -1,10 +1,7 @@
 (ns webapp.components.gallery
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [webapp.components.frame :as frame]
-            [webapp.components.sequence :as sequence]
             [webapp.components.entity-card :as entity-card]
-            [webapp.components.item :as item]
             [webapp.shared.model :as model]
             ["@mantine/core" :refer [Box]]))
 
@@ -49,40 +46,6 @@
         {:entity ent
          :on-click #(set! (.-hash js/location) (model/route-hash-for-entity ent))}]])
     entities)])
-
-(defn frame-gallery [owner-id owner-type]
-  (let [frames @(rf/subscribe [:frames-for-owner owner-type owner-id])
-        active-frame-id @(rf/subscribe [:active-frame-id])
-        character-owner? (= "character" (str owner-type))
-        add-tile-title (if character-owner?
-                         "Add image"
-                         "Add New Frame")
-        frame-subtitle (if character-owner?
-                         "Create the next image for this character"
-                         "Create the next frame in this chapter")]
-    [:> Box {:className "gallery"}
-     (map-indexed (fn [idx frame-row]
-                    ^{:key (or (:frameId frame-row) (str "frame-" idx))}
-                    [:div.gallery-motion-item
-                     {:style (gallery-motion-style (:frameId frame-row))}
-                     [frame/frame frame-row
-                      {:active? (= active-frame-id (:frameId frame-row))}]])
-                  frames)
-     [:div.gallery-motion-item
-      {:style (gallery-motion-style (str owner-id "-add-tile"))}
-      [:article.add-frame-tile
-       {:className "frame frame-clickable add-frame-tile"
-        :role "button"
-        :tabIndex 0
-        :aria-label add-tile-title
-        :onClick #(rf/dispatch [:add-frame owner-id owner-type])
-        :onKeyDown (fn [e]
-                     (when (or (= "Enter" (.-key e))
-                               (= " " (.-key e)))
-                       (.preventDefault e)
-                       (rf/dispatch [:add-frame owner-id owner-type])))}
-       [:div.add-frame-tile-title add-tile-title]
-       [:div.add-frame-tile-sub frame-subtitle]]]]))
 
 (defn- chapter-preview-card [chapter]
   (let [chapter-id (:chapterId chapter)
