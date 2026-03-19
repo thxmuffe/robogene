@@ -155,6 +155,7 @@
   ([{:keys [id title description children vanityRole payload]} options]
    (let [children-ids (or children [])
          child-data-fn (or (:children-fetcher options) (constantly {}))
+         child-options-fn (:child-options-fn options)
          add-child-label (:add-child-label options)
          add-child-fn (:add-child-fn options)
          editing-atom (r/atom false)]
@@ -172,5 +173,6 @@
          {:entity-id id
           :children-ids children-ids
           :child-data-fn child-data-fn
+          :child-options-fn child-options-fn
           :add-child-label add-child-label
           :add-child-fn add-child-fn}])])))

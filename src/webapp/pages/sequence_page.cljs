@@ -19,11 +19,13 @@
                             {:on-click (fn []
                                          (when (empty? (:children child-entity))
                                            (controls/navigate-frame!
+                                            (or (get-in child-entity [:payload :parentId])
+                                                (get-in child-entity [:payload :chapterId])
+                                                (get-in child-entity [:payload :characterId]))
                                             (:id child-entity)
-                                            (get-in child-entity [:payload :chapterId])
-                                            (case (:vanityRole child-entity)
-                                              "frame" :saga
-                                              :roster))))})
+                                            (case (:vanityRole entity)
+                                              "character" :roster
+                                              :saga))))})
         :on-save-title (fn [text]
                          (rf/dispatch [:entity-update entity-id {:title text}]))
         :on-save-description (fn [text]

@@ -4,6 +4,9 @@
 (defn entity-id [entity]
   (some-> (:id entity) str))
 
+(defn normalize-entity-id [value]
+  (some-> value str js/decodeURIComponent str/trim not-empty))
+
 (defn entity-role [entity]
   (some-> (:vanityRole entity) str str/lower-case))
 
@@ -22,8 +25,13 @@
 (defn entity-item? [entity]
   (not (entity-sequence? entity)))
 
-(defn entity-by-id [entities entity-id]
-  (get entities entity-id))
+(defn entity-by-id [entities target]
+  (let [target-id (normalize-entity-id target)]
+    (or (get entities target-id)
+        (some (fn [[_ entity]]
+                (when (= target-id (entity-id entity))
+                  entity))
+              entities))))
 
 (defn entity-children [entities entity-or-id]
   (let [entity (if (map? entity-or-id) entity-or-id (entity-by-id entities entity-or-id))]
@@ -148,10 +156,11 @@
          {:view :entity
           :entity-id entity-id*}))
      (when-let [[_ chapter query] (re-matches #"^#/chapter/([^/?#]+)(?:\?(.*))?$" raw)]
-       {:view :chapter
-        :chapter chapter
-        :entity-id chapter
-        :saga-id (parse-query-param (or query "") "sagaId")})
+       (let [chapter-id (normalize-entity-id chapter)]
+         {:view :chapter
+          :chapter chapter-id
+          :entity-id chapter-id
+          :saga-id (parse-query-param (or query "") "sagaId")}))
      (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
        (let [query* (or query "")]
          {:view :roster
@@ -206,7 +215,7 @@
   ([chapter-id]
    (chapter-hash chapter-id nil))
   ([chapter-id saga-id]
-   (str "#/chapter/" chapter-id
+   (str "#/chapter/" (js/encodeURIComponent chapter-id)
         (when-not (str/blank? (or saga-id ""))
           (str "?sagaId=" (js/encodeURIComponent saga-id))))))
 
@@ -229,7 +238,7 @@
                        (conj (str "rosterId=" (js/encodeURIComponent roster-id))))
          query (when (seq query-parts)
                  (str "?" (str/join "&" query-parts)))]
-     (str "#/frame/" frame-id (or query "")))))
+     (str "#/frame/" (js/encodeURIComponent frame-id) (or query "")))))
 
 (defn route-hash-for-entity [entity]
   (let [id (:id entity)
