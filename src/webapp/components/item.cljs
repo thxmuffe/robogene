@@ -170,6 +170,7 @@
                          " item-" (str/lower-case (or vanityRole "generic")))]
      [:> Card
       {:className class-name
+       :data-frame-id id
        :onClick (when (:on-click options)
                   (:on-click options))}
       [:> Box {:className "frame-main"}
