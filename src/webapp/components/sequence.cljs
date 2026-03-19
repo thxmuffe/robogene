@@ -10,8 +10,9 @@
             [webapp.components.db-text :as db-text]
             [webapp.components.waterfall-row :as waterfall-row]
             [webapp.components.confirm-dialog :as confirm-dialog]
+            [webapp.components.upload-dialog :as upload-dialog]
             [webapp.shared.ui.interaction :as interaction]
-            ["react-icons/fa6" :refer [FaCamera FaDownload FaEraser FaTrashCan FaWandMagic FaWandMagicSparkles]]
+            ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaCamera FaDownload FaImages FaPlus FaTrashCan]]
             ["@mantine/core" :refer [Box Card]]))
 
 (defn- seeded-unit [seed n]
@@ -45,6 +46,107 @@
          "--gallery-motion-duration" (str settle-ms "ms")}))
 
 (declare sequence)
+
+(defn sequence-actions [entity]
+  (r/with-let [confirm* (r/atom nil)
+               seen-cancel-token* (r/atom nil)
+               upload-open?* (r/atom false)]
+    (let [entity-id (:id entity)
+          role (some-> (:vanityRole entity) str str/lower-case)
+          cancel-ui-token @(rf/subscribe [:cancel-ui-token])
+          owner-type (if (= role "character") "character" "saga")
+          frames (when (not= role "saga")
+                   @(rf/subscribe [:frames-for-owner owner-type entity-id]))
+          empty-frames (filterv (fn [frame]
+                                  (str/blank? (or (:imageUrl frame) "")))
+                                (or frames []))
+          empty-frame-count (count empty-frames)
+          frame-sequence? (contains? #{"chapter" "character"} role)
+          label (case role
+                  "saga" "saga"
+                  "chapter" "chapter"
+                  "character" "character"
+                  "sequence")
+          title-case-label (str/capitalize label)
+          items [{:id :download-sequence
+                  :label (str "Download " label)
+                  :icon FaDownload
+                  :color "teal"
+                  :disabled? true}
+                 {:id :delete-sequence
+                  :label (str "Delete " label)
+                  :icon FaTrashCan
+                  :color "red"
+                  :on-select (fn [_]
+                               (reset! confirm* {:title (str "Delete this " label "?")
+                                                 :text (if (= role "saga")
+                                                         "This deletes all child sequences and frames in this saga."
+                                                         (str "This deletes all frames in this " label "."))
+                                                 :confirm-label (str "Delete " label)
+                                                 :confirm-color "error"
+                                                 :dispatch-event [(case role
+                                                                    "saga" :delete-saga
+                                                                    "character" :delete-character
+                                                                    :delete-chapter)
+                                                                  entity-id]}))}
+                 {:id :link-sequence
+                  :label "Link"
+                  :icon FaPlus
+                  :color "grape"
+                  :disabled? (not= role "chapter")
+                  :on-select (fn [_]
+                               (when (= role "chapter")
+                                 (rf/dispatch [:add-linked-chapter-roster entity-id])))}
+                 {:id :upload-images
+                  :label "Upload images"
+                  :icon FaImages
+                  :color "blue"
+                  :disabled? (not= role "chapter")
+                  :on-select (fn [_]
+                               (when (= role "chapter")
+                                 (reset! upload-open?* true)))}
+                 {:id :delete-empty-frames
+                  :label "Delete empty frames"
+                  :icon FaBroom
+                  :color "orange"
+                  :disabled? (or (not frame-sequence?)
+                                 (zero? empty-frame-count))
+                  :on-select (fn [_]
+                               (when (and frame-sequence? (pos? empty-frame-count))
+                                 (reset! confirm* {:title "Delete empty frames?"
+                                                   :text (str "This deletes " empty-frame-count
+                                                              " frame" (when (not= 1 empty-frame-count) "s")
+                                                              " without an image in this " label ".")
+                                                   :confirm-label "Delete empty frames"
+                                                   :confirm-color "error"
+                                                   :dispatch-event [:delete-empty-frames entity-id owner-type]})))}]
+          selected-item @confirm*]
+      (when (not= cancel-ui-token @seen-cancel-token*)
+        (reset! seen-cancel-token* cancel-ui-token)
+        (reset! confirm* nil)
+        (reset! upload-open?* false))
+      [:<>
+       [waterfall-row/waterfall-row
+        {:class-name "chapter-header-actions-row"
+         :actions items
+         :action-size 44
+         :mandatory-count 2
+         :menu-title (str title-case-label " actions")
+         :menu-aria-label (str title-case-label " actions")}]
+       [confirm-dialog/confirm-dialog
+        {:item selected-item
+         :on-cancel #(reset! confirm* nil)
+         :on-confirm (fn []
+                       (when-let [event (:dispatch-event selected-item)]
+                         (rf/dispatch event))
+                       (reset! confirm* nil))}]
+       (when (= role "chapter")
+         [upload-dialog/upload-dialog
+          {:open @upload-open?*
+           :on-close #(reset! upload-open?* false)
+           :on-submit-many #(rf/dispatch [:upload-chapter-images entity-id %])
+           :multiple? true
+           :title "Upload images"}])])))
 
 (defn sequence-gallery
   "Render a grid of child entities (items or sequences).
@@ -131,14 +233,8 @@
                     (reset! description-editing-atom false)
                     (on-save-description text)))}]
      
-     (when (or @title-editing-atom @description-editing-atom)
-       [:div.chapter-header-controls
-        [waterfall-row/waterfall-row
-         {:class-name "chapter-header-actions-row"
-          :actions (vec (filter
-                          some?
-                          [{:id "delete" :label "Delete" :icon FaTrashCan :color "red" :on-select (:on-delete options)}]))
-          :mandatory-count 1}]])]))
+     [:div.chapter-header-controls
+      [sequence-actions entity]]]))
 
 (defn sequence
   "Generic sequence component for rendering a collection entity.
@@ -174,7 +270,12 @@
         
         [:div.sequence-header-container
          [sequence-description-editor 
-          {:id id :title title :description description}
+          {:id id
+           :title title
+           :description description
+           :vanityRole vanityRole
+           :children children
+           :payload payload}
           options
           title-editing-atom
           description-editing-atom]]

@@ -86,10 +86,8 @@
            [:span.chapter-separator-title title])]]
        (when-not collapsed?
          [:div.chapter-content
-          [sequence/sequence-description-editor
-           {:id (:id chapter)
-            :title (:title chapter)
-            :description (:description chapter)}
+         [sequence/sequence-description-editor
+           chapter
            {:on-save-title #(rf/dispatch [:entity-update "chapter" (:id chapter) % (:description chapter)])
             :on-save-description #(rf/dispatch [:entity-update "chapter" (:id chapter) (:title chapter) %])}
            title-editing-atom
