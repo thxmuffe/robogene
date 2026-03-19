@@ -40,15 +40,19 @@
         route @(rf/subscribe [:route])
         current-entity (when-let [entity-id (route-entity-id route)]
                          (get entities entity-id))
+        index-view? (or (= :search (:view route))
+                        (nil? (:view route)))
         entity-view? (= :entity (:view route))
         frame-view? (or (= :frame (:view route))
                         (and entity-view? (model/entity-item? current-entity)))]
     (set! (.-title js/document) (page-title route entities))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
-                    :px (when frame-view? 0)
+                    :px (when (or frame-view? index-view?) 0)
                     :className (when frame-view? "app-shell-frame")}
-      [:main {:className (str "app" (when frame-view? " app-frame"))
+      [:main {:className (str "app"
+                              (when frame-view? " app-frame")
+                              (when index-view? " app-index"))
               :style (when frame-view?
                        {:padding-left 0
                         :padding-right 0})}
@@ -58,7 +62,8 @@
         [:> Box {:component "header"
                  :className (str "hero"
                                  (when frame-view? " hero-frame")
-                                 (when (not frame-view?) " hero-collection"))}
+                                 (when (not frame-view?) " hero-collection")
+                                 (when index-view? " hero-index"))}
          [:h1
           [:a {:href (model/index-hash)
                :className "hero-home-link"}

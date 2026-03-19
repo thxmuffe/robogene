@@ -85,8 +85,8 @@
         [sequence/sequence
          chapter
          {:children-fetcher fetch-entity
-          :on-save-title #(rf/dispatch [:entity-update "chapter" chapter-id % (:description chapter)])
-          :on-save-description #(rf/dispatch [:entity-update "chapter" chapter-id (:title chapter) %])
+          :on-save-title #(rf/dispatch [:entity-update chapter-id {:title %}])
+          :on-save-description #(rf/dispatch [:entity-update chapter-id {:description %}])
           :add-child-label "Add New Frame"
           :add-child-fn #(rf/dispatch [:add-frame chapter-id "saga"])}]])]))
 
@@ -124,8 +124,8 @@
             {:children-fetcher fetch-entity
              :add-child-label "Add Item"
              :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
-             :on-save-title #(rf/dispatch [:entity-update "character" (:id child) % (:description child)])
-             :on-save-description #(rf/dispatch [:entity-update "character" (:id child) (:title child) %])}])]))
+             :on-save-title #(rf/dispatch [:entity-update (:id child) {:title %}])
+             :on-save-description #(rf/dispatch [:entity-update (:id child) {:description %}])}])]))
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 

@@ -9,6 +9,7 @@
             [webapp.components.frame :as frame]
             [webapp.components.item :as item]
             [webapp.components.db-text :as db-text]
+            [webapp.components.roster-button :as roster-button]
             [webapp.components.waterfall-row :as waterfall-row]
             [webapp.components.confirm-dialog :as confirm-dialog]
             [webapp.components.roster-select-dialog :as roster-select-dialog]
@@ -49,6 +50,14 @@
 
 (declare sequence)
 
+(defn- confirm-item [id title text confirm-label dispatch-event]
+  {:id id
+   :confirm {:title title
+             :text text
+             :confirm-label confirm-label
+             :confirm-color "error"}
+   :dispatch-event dispatch-event})
+
 (defn sequence-actions [entity]
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)
@@ -87,13 +96,11 @@
                                       rosters))
           roster-items (mapv (fn [roster]
                                ^{:key (:id roster)}
-                               [:button
-                                {:type "button"
-                                 :className "frame frame-clickable add-frame-tile chapter-preview-tile"
-                                 :onClick #(rf/dispatch [:select-roster-link (:id roster)])}
-                                [:div.add-frame-tile-title (model/primary-label roster)]
-                                [:div.add-frame-tile-sub (or (some-> (:description roster) str/trim not-empty)
-                                                             "Open roster")]])
+                               [roster-button/roster-button
+                                {:label (model/primary-label roster)
+                                 :description (some-> (:description roster) str/trim not-empty)
+                                 :class-name "roster-select-option"
+                                 :on-click #(rf/dispatch [:select-roster-link (:id roster)])}])
                              filtered-rosters)
           items [{:id :download-sequence
                   :label (str "Download " label)
@@ -105,17 +112,18 @@
                   :icon FaTrashCan
                   :color "red"
                   :on-select (fn [_]
-                               (reset! confirm* {:title (str "Delete this " label "?")
-                                                 :text (if (= role "saga")
-                                                         "This deletes all child sequences and frames in this saga."
-                                                         (str "This deletes all frames in this " label "."))
-                                                 :confirm-label (str "Delete " label)
-                                                 :confirm-color "error"
-                                                 :dispatch-event [(case role
-                                                                    "saga" :delete-saga
-                                                                    "character" :delete-character
-                                                                    :delete-chapter)
-                                                                  entity-id]}))}
+                               (reset! confirm* (confirm-item
+                                                 :delete-sequence
+                                                 (str "Delete this " label "?")
+                                                 (if (= role "saga")
+                                                   "This deletes all child sequences and frames in this saga."
+                                                   (str "This deletes all frames in this " label "."))
+                                                 (str "Delete " label)
+                                                 [(case role
+                                                    "saga" :delete-saga
+                                                    "character" :delete-character
+                                                    :delete-chapter)
+                                                  entity-id])))}
                  {:id :link-sequence
                   :label "Link"
                   :icon FaPlus
@@ -138,15 +146,16 @@
                   :color "orange"
                   :disabled? (or (not frame-sequence?)
                                  (zero? empty-frame-count))
-                  :on-select (fn [_]
+                 :on-select (fn [_]
                                (when (and frame-sequence? (pos? empty-frame-count))
-                                 (reset! confirm* {:title "Delete empty frames?"
-                                                   :text (str "This deletes " empty-frame-count
-                                                              " frame" (when (not= 1 empty-frame-count) "s")
-                                                              " without an image in this " label ".")
-                                                   :confirm-label "Delete empty frames"
-                                                   :confirm-color "error"
-                                                   :dispatch-event [:delete-empty-frames entity-id owner-type]})))}]
+                                 (reset! confirm* (confirm-item
+                                                   :delete-empty-frames
+                                                   "Delete empty frames?"
+                                                   (str "This deletes " empty-frame-count
+                                                        " frame" (when (not= 1 empty-frame-count) "s")
+                                                        " without an image in this " label ".")
+                                                   "Delete empty frames"
+                                                   [:delete-empty-frames entity-id owner-type]))))}]
           selected-item @confirm*]
       (when (not= cancel-ui-token @seen-cancel-token*)
         (reset! seen-cancel-token* cancel-ui-token)

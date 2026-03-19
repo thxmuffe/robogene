@@ -1,16 +1,16 @@
 (ns webapp.shared.events.handlers.saga
   (:require [clojure.string :as str]
-            [re-frame.core :as rf]))
+            [re-frame.core :as rf]
+            [webapp.shared.model :as model]))
 
 (defn inferred-saga-roster-id [db saga-id]
-  (let [roster-ids (->> (or (:saga db) [])
-                        (filter (fn [chapter]
-                                  (= (:sagaId chapter) saga-id)))
+  (let [roster-ids (->> (model/children-by-role (:entities db) saga-id :chapter)
                         (mapcat (fn [chapter]
-                                  (or (:rosterIds chapter)
-                                      (when-let [roster-id (:rosterId chapter)]
+                                  (or (seq (get-in chapter [:payload :rosterIds]))
+                                      (when-let [roster-id (get-in chapter [:payload :rosterId])]
                                         [roster-id])
                                       [])))
+                        (remove str/blank?)
                         distinct
                         vec)]
     (when (= 1 (count roster-ids))
@@ -177,7 +177,7 @@
  :add-character
  (fn [{:keys [db]} _]
    (let [roster-id (or (get-in db [:route :roster-id])
-                       (some-> (:rosters db) first :rosterId))
+                       (some-> (model/entities-by-role (:entities db) :roster) first :id))
          name (some-> (get-in db [:view-state :roster :new-name]) str str/trim)
          description (get-in db [:view-state :roster :new-description])]
      (cond
@@ -244,11 +244,13 @@
  :create-roster-link
  (fn [{:keys [db]} _]
    (let [target (get-in db [:view-state :roster-link :target])
-         chapter (some (fn [row]
-                         (when (= (:chapterId row) (:chapter-id target))
-                           row))
-                       (or (:saga db) []))
-         saga-id (or (:saga-id target) (:sagaId chapter))
+         chapter-id (:chapter-id target)
+         chapter-entity (some->> chapter-id
+                                 (model/entity-by-id (:entities db)))
+         saga-id (or (:saga-id target)
+                     (get-in chapter-entity [:payload :parentId])
+                     (get-in chapter-entity [:payload :sagaId])
+                     (some->> chapter-id (model/chapter-parent-id (:entities db))))
          after-create (case (:mode target)
                         :add-chapter {:mode :add-chapter
                                       :saga-id saga-id
