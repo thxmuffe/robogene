@@ -88,9 +88,11 @@
 (defn item-description-editor
   "Editable description field with actions and dialogs."
   [entity options editing-atom]
-  (let [{:keys [description-field on-save on-generate on-upload on-download on-delete on-click-edit]} options
+  (let [{:keys [description-field on-save on-generate on-generate-without-roster on-upload on-download on-clear-image on-delete on-click-edit]} options
         description-field (or description-field :description)
-        description (get (:payload entity) description-field (or (:description entity) ""))]
+        description (get (:payload entity) description-field (or (:description entity) ""))
+        image-url (or (get-in entity [:payload :imageUrl])
+                      (:imageUrl entity))]
     [:div.subtitle-display-shell
      [db-text/db-text
       {:id (:id entity)
@@ -116,8 +118,11 @@
          {:actions (vec (filter
                           some?
                           [{:id "generate" :label "Generate" :icon FaWandMagicSparkles :on-select on-generate}
+                           {:id "generate-no-roster" :label "No Roster" :icon FaWandMagic :on-select on-generate-without-roster}
                            {:id "upload" :label "Upload" :icon FaCamera :on-select on-upload}
                            {:id "download" :label "Download" :icon FaDownload :on-select on-download}
+                           (when (seq (or image-url ""))
+                             {:id "clear-image" :label "Remove Image" :icon FaEraser :on-select on-clear-image})
                            {:id "delete" :label "Delete" :icon FaTrashCan :color "red" :on-select on-delete}]))
           :mandatory-count 2}]])
      
@@ -159,32 +164,32 @@
   ([entity]
    [item entity {}])
   ([{:keys [id title description vanityRole payload] :as entity} options]
-   (let [clickable? (or (:clickable? options) true)
-         active? (:active? options false)
-         image-nav? (:image-nav? options false)
-         editing-atom (r/atom false)
-         class-name (str "frame"
-                         (when clickable? " frame-clickable")
-                         (when active? " frame-active")
-                         (when @editing-atom " frame-editing")
-                         " item-" (str/lower-case (or vanityRole "generic")))]
-     [:> Card
-      {:className class-name
-       :data-frame-id id
-       :onClick (when (:on-click options)
-                  (:on-click options))}
-      [:> Box {:className "frame-main"}
-       [:> Box {:className "media-shell"}
-        [item-image entity options]
-        (when image-nav?
-          [:div.media-nav-zones
-           [:div.media-nav-zone.nav-prev
-            {:onClick (when-let [on-nav-left (:on-nav-left options)]
-                        #(do (interaction/halt! %)
-                             (on-nav-left)))}]
-           [:div.media-nav-zone.nav-next
-            {:onClick (when-let [on-nav-right (:on-nav-right options)]
-                        #(do (interaction/halt! %)
-                             (on-nav-right)))}]])
-        [item-status-note entity options]]
-       [item-description-editor entity options editing-atom]]])))
+   (r/with-let [editing-atom (r/atom false)]
+     (let [clickable? (or (:clickable? options) true)
+           active? (:active? options false)
+           image-nav? (:image-nav? options false)
+           class-name (str "frame"
+                           (when clickable? " frame-clickable")
+                           (when active? " frame-active")
+                           (when @editing-atom " frame-editing")
+                           " item-" (str/lower-case (or vanityRole "generic")))]
+       [:> Card
+        {:className class-name
+         :data-frame-id id
+         :onClick (when (:on-click options)
+                    (:on-click options))}
+        [:> Box {:className "frame-main"}
+         [:> Box {:className "media-shell"}
+          [item-image entity options]
+          (when image-nav?
+            [:div.media-nav-zones
+             [:div.media-nav-zone.nav-prev
+              {:onClick (when-let [on-nav-left (:on-nav-left options)]
+                          #(do (interaction/halt! %)
+                               (on-nav-left)))}]
+             [:div.media-nav-zone.nav-next
+              {:onClick (when-let [on-nav-right (:on-nav-right options)]
+                          #(do (interaction/halt! %)
+                               (on-nav-right)))}]])
+          [item-status-note entity options]]
+         [item-description-editor entity options editing-atom]]]))))
