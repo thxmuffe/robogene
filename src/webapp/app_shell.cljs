@@ -6,6 +6,7 @@
             [webapp.pages.search-page :as search-page]
             [webapp.pages.sequence-page :as sequence-page]
             [webapp.pages.item-page :as item-page]
+            [webapp.pages.frame-page :as frame-page]
             [webapp.pages.gallery-page :as gallery-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
@@ -64,12 +65,15 @@
            app-name]]]
         (case (:view route)
           :frame
-          [item-page/item-page-view]
+          [frame-page/frame-page route nil]
 
           :entity
           (if (model/entity-sequence? current-entity)
             [sequence-page/sequence-page-view]
             [item-page/item-page-view])
+
+          :character
+          [sequence-page/sequence-page-view]
 
           :chapter
           [sequence-page/sequence-page-view]

@@ -108,6 +108,21 @@
 (defn parse-hash-route [hash]
   (let [raw (or hash "")]
     (or
+     (when-let [[_ frame-id query] (re-matches #"^#/frame/([^/?#]+)(?:\?(.*))?$" raw)]
+       (let [query* (or query "")
+             fullscreen? (boolean (re-find #"(^|&)fullscreen=1(&|$)" query*))
+             from-page (cond
+                         (re-find #"(^|&)from=roster(&|$)" query*) :roster
+                         (re-find #"(^|&)from=saga(&|$)" query*) :saga
+                         :else nil)
+             frame-id* (some-> frame-id js/decodeURIComponent str/trim not-empty)]
+         {:view :frame
+          :frame-id frame-id*
+          :entity-id frame-id*
+          :fullscreen? fullscreen?
+          :from-page from-page
+          :roster-id (parse-query-param query* "rosterId")
+          :saga-id (parse-query-param query* "sagaId")}))
      (when-let [[_ chapter frame query] (re-matches #"^#/chapter/([^/]+)/frame/([^?]+)(?:\?(.*))?$" raw)]
        (let [query* (or query "")
              fullscreen? (boolean (re-find #"(^|&)fullscreen=1(&|$)" query*))
@@ -123,6 +138,11 @@
           :from-page from-page
           :roster-id (parse-query-param query* "rosterId")
           :saga-id (parse-query-param query* "sagaId")}))
+     (when-let [[_ character-id] (re-matches #"^#/character/([^/?#]+)(?:\?.*)?$" raw)]
+       (let [entity-id (some-> character-id js/decodeURIComponent str/trim not-empty)]
+         {:view :character
+          :entity-id entity-id
+          :character-id entity-id}))
      (when-let [[_ entity-id] (re-matches #"^#/entity/([^/?#]+)(?:\?.*)?$" raw)]
        (let [entity-id* (some-> entity-id js/decodeURIComponent str/trim not-empty)]
          {:view :entity
@@ -162,6 +182,11 @@
     (index-hash)
     (str "#/entity/" (js/encodeURIComponent entity-id))))
 
+(defn character-hash [character-id]
+  (if (str/blank? (or character-id ""))
+    (index-hash)
+    (str "#/character/" (js/encodeURIComponent character-id))))
+
 (defn saga-hash [saga-id]
   (if (str/blank? (or saga-id ""))
     (index-hash)
@@ -186,15 +211,15 @@
           (str "?sagaId=" (js/encodeURIComponent saga-id))))))
 
 (defn frame-hash
-  ([chapter frame-id]
-   (frame-hash chapter frame-id false nil nil nil))
-  ([chapter frame-id fullscreen?]
-   (frame-hash chapter frame-id fullscreen? nil nil nil))
-  ([chapter frame-id fullscreen? from-page]
-   (frame-hash chapter frame-id fullscreen? from-page nil nil))
-  ([chapter frame-id fullscreen? from-page saga-id]
-   (frame-hash chapter frame-id fullscreen? from-page saga-id nil))
-  ([chapter frame-id fullscreen? from-page saga-id roster-id]
+  ([frame-id]
+   (frame-hash frame-id false nil nil nil))
+  ([frame-id fullscreen?]
+   (frame-hash frame-id fullscreen? nil nil nil))
+  ([frame-id fullscreen? from-page]
+   (frame-hash frame-id fullscreen? from-page nil nil))
+  ([frame-id fullscreen? from-page saga-id]
+   (frame-hash frame-id fullscreen? from-page saga-id nil))
+  ([frame-id fullscreen? from-page saga-id roster-id]
    (let [query-parts (cond-> []
                        fullscreen? (conj "fullscreen=1")
                        (#{:saga :roster} from-page) (conj (str "from=" (name from-page)))
@@ -204,7 +229,18 @@
                        (conj (str "rosterId=" (js/encodeURIComponent roster-id))))
          query (when (seq query-parts)
                  (str "?" (str/join "&" query-parts)))]
-     (str "#/chapter/" chapter "/frame/" frame-id (or query "")))))
+     (str "#/frame/" frame-id (or query "")))))
+
+(defn route-hash-for-entity [entity]
+  (let [id (:id entity)
+        role (entity-role entity)]
+    (case role
+      "saga" (saga-hash id)
+      "roster" (roster-hash id)
+      "chapter" (chapter-hash id)
+      "character" (character-hash id)
+      "frame" (frame-hash id)
+      (entity-hash id))))
 
 (defn parse-json-safe [text]
   (js->clj (.parse js/JSON text) :keywordize-keys true))

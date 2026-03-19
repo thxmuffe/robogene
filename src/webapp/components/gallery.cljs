@@ -47,7 +47,7 @@
        {:style (gallery-motion-style (:id ent))}
        [entity-card/entity-card
         {:entity ent
-         :on-click #(set! (.-hash js/location) (model/entity-hash (:id ent)))}]])
+         :on-click #(set! (.-hash js/location) (model/route-hash-for-entity ent))}]])
     entities)])
 
 (defn frame-gallery [owner-id owner-type]

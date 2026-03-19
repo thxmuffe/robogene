@@ -12,20 +12,27 @@
  :navigate-frame
  (fn [{:keys [db]} [_ chapter-id frame-id from-page]]
    (let [route (:route db)
-         chapter (or chapter-id (:chapter route) (get-in db [:latest-state :chapterId]) "local")
+         entities (:entities db)
+         frame-entity (get entities frame-id)
+         payload (:payload frame-entity)
+         owner-id (or chapter-id
+                      (:parentId payload)
+                      (:chapterId payload)
+                      (:characterId payload))
          from-page* (or from-page (:from-page route))
+         owner-type (or (:ownerType payload)
+                        (if (= :roster from-page*) "character" "saga"))
          roster-id (or (get-in route [:roster-id])
-                       (some (fn [row]
-                               (when (= (:characterId row) chapter)
-                                 (:rosterId row)))
-                             (:roster db)))
+                       (when (= owner-type "character")
+                         (model/chapter-parent-id entities owner-id))
+                       (:rosterId payload))
          saga-id (or (get-in route [:saga-id])
-                     (some (fn [row]
-                             (when (= (:chapterId row) chapter)
-                               (:sagaId row)))
-                           (:saga db)))]
+                     (when (= owner-type "saga")
+                       (model/chapter-parent-id entities owner-id))
+                     (when roster-id
+                       (model/chapter-parent-id entities roster-id)))]
      {:db db
-      :set-hash (model/frame-hash chapter frame-id (true? (:fullscreen? route)) from-page* saga-id roster-id)})))
+      :set-hash (model/frame-hash frame-id (true? (:fullscreen? route)) from-page* saga-id roster-id)})))
 
 (rf/reg-event-fx
  :navigate-index
@@ -54,10 +61,7 @@
  (fn [{:keys [db]} [_ chapter-id]]
    {:db db
     :set-hash (model/chapter-hash chapter-id
-                                  (some (fn [row]
-                                          (when (= (:chapterId row) chapter-id)
-                                            (:sagaId row)))
-                                        (:saga db)))}))
+                                  (model/chapter-parent-id (:entities db) chapter-id))}))
 
 (rf/reg-event-fx
  :navigate-roster-page
@@ -65,7 +69,7 @@
    {:db db
     :set-hash (model/roster-hash (or roster-id
                                      (get-in db [:route :roster-id])
-                                     (some-> (:rosters db) first :rosterId))
+                                     (some-> (model/entities-by-role (:entities db) :roster) first :id))
                                  (or saga-id (get-in db [:route :saga-id])))}))
 
 (rf/reg-event-fx
@@ -73,8 +77,14 @@
  (fn [{:keys [db]} [_ delta]]
    (let [route (:route db)]
      (if (= :frame (:view route))
-       (let [chapter-id (:chapter route)
-             ordered (model/frames-for-chapter (:gallery-items db) chapter-id)
+       (let [frame-entity (get-in db [:entities (:frame-id route)])
+             payload (:payload frame-entity)
+             chapter-id (or (:parentId payload)
+                            (:chapterId payload)
+                            (:characterId payload))
+             owner-type (or (:ownerType payload)
+                            (if (= :roster (:from-page route)) "character" "saga"))
+             ordered (model/frames-for-owner (:entities db) owner-type chapter-id)
              active-frame-id (:frame-id route)
              target-frame (model/relative-frame-by-id ordered active-frame-id delta)]
        (if target-frame
@@ -89,8 +99,7 @@
    (let [route (:route db)]
      (if (= :frame (:view route))
        {:db db
-        :set-hash (model/frame-hash (:chapter route)
-                                    (:frame-id route)
+        :set-hash (model/frame-hash (:frame-id route)
                                     (true? fullscreen?)
                                     (:from-page route)
                                     (:saga-id route)
@@ -110,15 +119,11 @@
  :toggle-fullscreen-shortcut
  (fn [{:keys [db]} _]
    (let [active-id (:active-frame-id db)
-         active-frame (some (fn [frame]
-                              (when (= (:frameId frame) active-id)
-                                frame))
-                            (or (:gallery-items db) []))
+         active-frame (some-> (get (:entities db) active-id) model/frame-row)
          fullscreen? (true? (get-in db [:route :fullscreen?]))]
      (if active-frame
        {:db db
-        :set-hash (model/frame-hash (:chapterId active-frame)
-                                    (:frameId active-frame)
+        :set-hash (model/frame-hash (:frameId active-frame)
                                     (not fullscreen?)
                                     (get-in db [:route :from-page])
                                     (get-in db [:route :saga-id])
