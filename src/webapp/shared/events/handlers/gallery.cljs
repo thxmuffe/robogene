@@ -3,13 +3,13 @@
             [webapp.shared.model :as model]))
 
 (defn- active-gallery-chapter-id [db]
-  (some (fn [frame]
-          (when (= (:frameId frame) (:active-frame-id db))
-            (:chapterId frame)))
-        (or (:gallery-items db) [])))
+  (some-> (get-in db [:entities (:active-frame-id db)])
+          :payload
+          ((juxt :parentId :chapterId :characterId))
+          (some identity)))
 
 (defn- first-frame-id-for-chapter [db chapter-id]
-  (some->> (model/frames-for-chapter (:gallery-items db) chapter-id)
+  (some->> (model/frames-for-chapter (:entities db) chapter-id)
            first
            :frameId))
 
