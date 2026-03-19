@@ -93,38 +93,42 @@
         description (get (:payload entity) description-field (or (:description entity) ""))
         image-url (or (get-in entity [:payload :imageUrl])
                       (:imageUrl entity))]
-    [:div.subtitle-display-shell
-     [db-text/db-text
-      {:id (:id entity)
-       :value description
-       :editing? @editing-atom
-       :multiline? true
-       :placeholder "Add description..."
-       :max-chars max-description-chars
-       :min-rows 2
-       :max-rows 16
-       :on-open-edit #(do
-                       (reset! editing-atom true)
-                       (when on-click-edit (on-click-edit)))
-       :on-close-edit #(reset! editing-atom false)
-       :on-save (when on-save
-                  (fn [text]
-                    (reset! editing-atom false)
-                    (on-save (clamp-text text))))}]
-     
-     (when @editing-atom
-       [:div.frame-action-buttons
-        [waterfall-row/waterfall-row
-         {:actions (vec (filter
-                          some?
-                          [{:id "generate" :label "Generate" :icon FaWandMagicSparkles :on-select on-generate}
-                           {:id "generate-no-roster" :label "No Roster" :icon FaWandMagic :on-select on-generate-without-roster}
-                           {:id "upload" :label "Upload" :icon FaCamera :on-select on-upload}
-                           {:id "download" :label "Download" :icon FaDownload :on-select on-download}
-                           (when (seq (or image-url ""))
-                             {:id "clear-image" :label "Remove Image" :icon FaEraser :on-select on-clear-image})
-                           {:id "delete" :label "Delete" :icon FaTrashCan :color "red" :on-select on-delete}]))
-          :mandatory-count 2}]])
+    [:div.meta
+     [:div {:className (str "subtitle-display db-text-description-row"
+                            (when @editing-atom " subtitle-display-editing"))}
+      [db-text/db-text
+       {:id (:id entity)
+        :value description
+        :editing? @editing-atom
+        :multiline? true
+        :class-name "subtitle-display-text"
+        :input-class-name "subtitle-display-input"
+        :placeholder "Add description..."
+        :max-chars max-description-chars
+        :min-rows 2
+        :max-rows 16
+        :on-open-edit #(do
+                        (reset! editing-atom true)
+                        (when on-click-edit (on-click-edit)))
+        :on-close-edit #(reset! editing-atom false)
+        :on-save (when on-save
+                   (fn [text]
+                     (reset! editing-atom false)
+                     (on-save (clamp-text text))))}]
+      
+      (when @editing-atom
+        [:div.frame-action-buttons.frame-action-buttons-row
+         [waterfall-row/waterfall-row
+          {:actions (vec (filter
+                           some?
+                           [{:id "generate" :label "Generate" :icon FaWandMagicSparkles :on-select on-generate}
+                            {:id "generate-no-roster" :label "No Roster" :icon FaWandMagic :on-select on-generate-without-roster}
+                            {:id "upload" :label "Upload" :icon FaCamera :on-select on-upload}
+                            {:id "download" :label "Download" :icon FaDownload :on-select on-download}
+                            (when (seq (or image-url ""))
+                              {:id "clear-image" :label "Remove Image" :icon FaEraser :on-select on-clear-image})
+                            {:id "delete" :label "Delete" :icon FaTrashCan :color "red" :on-select on-delete}]))
+           :mandatory-count 2}]])]
      
      (when-let [confirm-fn (:on-confirm-delete options)]
        [confirm-dialog/confirm-dialog
