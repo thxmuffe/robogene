@@ -1177,6 +1177,34 @@ button.chapter-separator.is-collapsed {
     #000 calc(var(--spotlight-radius) + 16px));
 }
 
+.app-dialog .mantine-Modal-content {
+  background: rgba(250, 244, 230, 0.96);
+  border: 1px solid rgba(131, 104, 66, 0.24);
+  border-radius: 12px;
+  box-shadow: 0 18px 36px rgba(16, 32, 49, 0.28);
+}
+
+.app-dialog .mantine-Modal-body {
+  padding: 16px;
+}
+
+.upload-dialog-modal .mantine-Modal-body {
+  padding: 0;
+}
+
+.confirm-dialog-title {
+  margin: 0 0 8px;
+  color: #173655;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.confirm-dialog-text {
+  margin: 0;
+  color: #35526e;
+  font-weight: 600;
+}
+
 /* New Entity Panel */
 .new-chapter-panel {
   margin-top: 26px;

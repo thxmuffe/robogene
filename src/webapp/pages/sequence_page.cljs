@@ -7,6 +7,18 @@
 (defn fetch-child-entity [child-id]
   @(rf/subscribe [:entity child-id]))
 
+(defn save-entity-title! [entity text]
+  (rf/dispatch [:save-entity (:vanityRole entity)
+                (:id entity)
+                text
+                nil]))
+
+(defn save-entity-description! [entity text]
+  (rf/dispatch [:save-entity (:vanityRole entity)
+                (:id entity)
+                nil
+                text]))
+
 (defn sequence-page [{:keys [entity-id]}]
   (let [entity @(rf/subscribe [:entity entity-id])]
     (if (nil? entity)
@@ -26,10 +38,8 @@
                                             (case (:vanityRole entity)
                                               "character" :roster
                                               :saga))))})
-        :on-save-title (fn [text]
-                         (rf/dispatch [:entity-update entity-id {:title text}]))
-        :on-save-description (fn [text]
-                               (rf/dispatch [:entity-update entity-id {:description text}]))
+        :on-save-title #(save-entity-title! entity %)
+        :on-save-description #(save-entity-description! entity %)
         ;; Sequences rendered here are item-level parents (chapter/character/roster).
         ;; Saga/roster-level "add sequence" belongs in gallery, so we only add items here.
         :add-child-label (case (:vanityRole entity)

@@ -11,6 +11,18 @@
 (defn fetch-entity [id]
   @(rf/subscribe [:entity id]))
 
+(defn save-entity-title! [entity text]
+  (rf/dispatch [:save-entity (model/entity-role entity)
+                (:id entity)
+                text
+                nil]))
+
+(defn save-entity-description! [entity text]
+  (rf/dispatch [:save-entity (model/entity-role entity)
+                (:id entity)
+                nil
+                text]))
+
 (defn navigate-active-frame! [direction]
   (when-let [active-id @(rf/subscribe [:active-frame-id])]
     (when-let [target-id (frame-nav/adjacent-frame-id active-id (if (= direction :next) 1 -1))]
@@ -85,13 +97,15 @@
         [sequence/sequence
          chapter
          {:children-fetcher fetch-entity
-          :on-save-title #(rf/dispatch [:entity-update chapter-id {:title %}])
-          :on-save-description #(rf/dispatch [:entity-update chapter-id {:description %}])
+          :on-save-title #(save-entity-title! chapter %)
+          :on-save-description #(save-entity-description! chapter %)
           :add-child-label "Add New Frame"
           :add-child-fn #(rf/dispatch [:add-frame chapter-id "saga"])}]])]))
 
 (defn gallery-page [{:keys [entity-id]}]
   (r/with-let [key-context* (r/atom nil)
+               title-editing-atom (r/atom false)
+               description-editing-atom (r/atom false)
                key-handler (fn [e]
                              (when-let [entities (:entities @key-context*)]
                                (handle-gallery-key-down! entities e)))]
@@ -110,6 +124,13 @@
 
         (= "saga" (:vanityRole entity))
         [:div.gallery-page.saga-page
+         [sequence/sequence-description-editor
+          entity
+          {:on-save-title #(save-entity-title! entity %)
+           :on-save-description #(save-entity-description! entity %)
+           :show-actions? false}
+          title-editing-atom
+          description-editing-atom]
          (for [child children
                :when child]
            ^{:key (:id child)}
@@ -117,6 +138,13 @@
 
         :else
         [:div.gallery-page.roster-page
+         [sequence/sequence-description-editor
+          entity
+          {:on-save-title #(save-entity-title! entity %)
+           :on-save-description #(save-entity-description! entity %)
+           :show-actions? false}
+          title-editing-atom
+          description-editing-atom]
          (for [child children
                :when child]
            ^{:key (:id child)}
@@ -124,8 +152,8 @@
             {:children-fetcher fetch-entity
              :add-child-label "Add Item"
              :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
-             :on-save-title #(rf/dispatch [:entity-update (:id child) {:title %}])
-             :on-save-description #(rf/dispatch [:entity-update (:id child) {:description %}])}])]))
+             :on-save-title #(save-entity-title! child %)
+             :on-save-description #(save-entity-description! child %)}])]))
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 

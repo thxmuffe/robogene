@@ -49,49 +49,49 @@
 ;; --- Unified entity recomputation from legacy state -------------------------
 
 (defn- normalize-saga-entity [saga]
-  {:id (:sagaId saga)
+  {:id (some-> (:sagaId saga) str)
    :title (:name saga)
    :description (:description saga)
    :vanityRole "saga"
-   :children (or (:chapterIds saga) [])
-   :payload {:sagaId (:sagaId saga)}})
+   :children (mapv str (or (:chapterIds saga) []))
+   :payload {:sagaId (some-> (:sagaId saga) str)}})
 
 (defn- normalize-chapter-entity [chapter]
-  {:id (:chapterId chapter)
+  {:id (some-> (:chapterId chapter) str)
    :title (:name chapter)
    :description (:description chapter)
    :vanityRole "chapter"
-   :children (or (:frameIds chapter) [])
-   :payload {:chapterId (:chapterId chapter)
-             :sagaId (:sagaId chapter)
-             :rosterId (:rosterId chapter)}})
+   :children (mapv str (or (:frameIds chapter) []))
+   :payload {:chapterId (some-> (:chapterId chapter) str)
+             :sagaId (some-> (:sagaId chapter) str)
+             :rosterId (some-> (:rosterId chapter) str)}})
 
 (defn- normalize-roster-entity [roster]
-  {:id (:rosterId roster)
+  {:id (some-> (:rosterId roster) str)
    :title (:name roster)
    :description (:description roster)
    :vanityRole "roster"
-   :children (or (:characterIds roster) [])
-   :payload {:rosterId (:rosterId roster)}})
+   :children (mapv str (or (:characterIds roster) []))
+   :payload {:rosterId (some-> (:rosterId roster) str)}})
 
 (defn- normalize-character-entity [character]
-  {:id (:characterId character)
+  {:id (some-> (:characterId character) str)
    :title (:name character)
    :description (:description character)
    :vanityRole "character"
-   :children (or (:frameIds character) [])
-   :payload {:characterId (:characterId character)
-             :rosterId (:rosterId character)}})
+   :children (mapv str (or (:frameIds character) []))
+   :payload {:characterId (some-> (:characterId character) str)
+             :rosterId (some-> (:rosterId character) str)}})
 
 (defn- normalize-frame-entity [frame]
-  {:id (:frameId frame)
+  {:id (some-> (:frameId frame) str)
    :title (str "Frame " (:frameNumber frame))
    :description (:description frame)
    :vanityRole "frame"
    :children []
-   :payload {:frameId (:frameId frame)
-             :chapterId (:chapterId frame)
-             :characterId (:characterId frame)
+   :payload {:frameId (some-> (:frameId frame) str)
+             :chapterId (some-> (:chapterId frame) str)
+             :characterId (some-> (:characterId frame) str)
              :imageUrl (:imageUrl frame)
              :imageStatus (:imageStatus frame)
              :frameNumber (:frameNumber frame)
@@ -107,6 +107,22 @@
               (assoc acc (:id entity) entity))
             {}
             (concat sagas rosters chapters characters frames))))
+
+(defn- normalize-entity [entity]
+  (let [entity-id (some-> (:id entity) str)]
+    (when (seq (or entity-id ""))
+      (-> entity
+          (assoc :id entity-id)
+          (update :children #(mapv str (or % [])))
+          (update :payload #(or % {}))))))
+
+(defn normalize-entities-map [entities]
+  (reduce (fn [acc [_ entity]]
+            (if-let [normalized (normalize-entity entity)]
+              (assoc acc (:id normalized) normalized)
+              acc))
+          {}
+          (or entities {})))
 
 (defn compute-derived-state [entities]
   {:children-by-parent-id
@@ -136,7 +152,7 @@
 (defn refresh-entities-from-flat
   "Set entities/derived-state directly from an entities map."
   [db entities]
-  (let [entities* (or entities {})
+  (let [entities* (normalize-entities-map entities)
         derived (compute-derived-state entities*)]
     (assoc db
            :entities entities*
@@ -342,6 +358,45 @@
       (merge-entity-response db type {id-key id :name name :description description})
       db)))
 
+(defn update-flat-entity [db id name description type]
+  (let [entity-id (str id)
+        entities (normalize-entities-map (:entities db))
+        existing (model/entity-by-id entities entity-id)]
+    (if (map? existing)
+      (let [next-entity (-> existing
+                            (cond-> (some? name)
+                              (assoc :title name))
+                            (cond-> (some? description)
+                              (assoc :description description))
+                            (update :payload #(or % {}))
+                            (update :children #(vec (or % []))))
+            entities* (assoc entities entity-id next-entity)]
+        (-> db
+            (assoc :entities entities*)
+            (assoc :derived-state (compute-derived-state entities*))))
+      db)))
+
+(defn update-command-entity [db payload]
+  (let [entity-id (str (:id payload))
+        existing (model/entity-by-id (:entities db) entity-id)
+        role (or (some-> (:type payload) str str/lower-case)
+                 (:vanityRole existing)
+                 "generic")
+        title (if (contains? payload :name)
+                (:name payload)
+                (:title existing))
+        description (if (contains? payload :description)
+                      (:description payload)
+                      (:description existing))
+        payload-map (or (:payload existing) {})
+        children (vec (or (:children existing) []))]
+    {:id entity-id
+     :vanityRole role
+     :title (or title "")
+     :description (or description "")
+     :children (mapv str children)
+     :payload payload-map}))
+
 (defn merge-command-revision [db command]
   (if-let [revision (some-> command :response :revision)]
     (assoc db :last-rendered-revision revision)
@@ -485,9 +540,8 @@
         (update-in [:latest-state :frames] (fn [_] remaining-frames)))))
 
 (defn remove-saga [db saga-id]
-  (let [chapter-ids (->> (or (:saga db) [])
-                         (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-                         (map :chapterId)
+  (let [chapter-ids (->> (model/children-by-role (:entities db) saga-id :chapter)
+                         (map :id)
                          set)
         frame-ids (->> (or (:gallery-items db) [])
                        (filter (fn [frame] (contains? chapter-ids (:chapterId frame))))
@@ -541,25 +595,24 @@
    :createdAt (.toISOString (js/Date.))
    :frameDescription ""})
 
+(defn- role-entities [db role]
+  (model/entities-by-role (:entities db) role))
+
 (defn next-saga-number [db]
-  (inc (reduce max 0 (keep :sagaNumber (or (:sagas db) [])))))
+  (inc (count (role-entities db :saga))))
 
 (defn next-roster-number [db]
-  (inc (reduce max 0 (keep :rosterNumber (or (:rosters db) [])))))
+  (inc (count (role-entities db :roster))))
 
 (defn next-chapter-number [db saga-id]
-  (inc (reduce max 0 (keep :chapterNumber (filter (fn [chapter]
-                                                    (= (:sagaId chapter) saga-id))
-                                                  (or (:saga db) []))))))
+  (inc (count (model/children-by-role (:entities db) saga-id :chapter))))
 
 (defn next-character-number [db]
-  (inc (reduce max 0 (keep :characterNumber (or (:roster db) [])))))
+  (inc (count (role-entities db :character))))
 
 (defn next-frame-number [db owner-id owner-type]
-  (inc (reduce max 0 (keep :frameNumber (filter (fn [frame]
-                                                  (and (= (:chapterId frame) owner-id)
-                                                       (= (or (:ownerType frame) "saga") (or owner-type "saga"))))
-                                                (or (:gallery-items db) []))))))
+  (let [rows (model/frames-for-owner (:entities db) owner-type owner-id)]
+    (inc (reduce max 0 (keep :frameNumber rows)))))
 
 (defn replace-temp-frame [db temp-frame-id created-frame]
   (if temp-frame-id
@@ -842,15 +895,24 @@
                          (merge-frame-response (get-in command [:response :frame])))} )}
 
     :update-entity
-    {:transport-fx :post-update-entity
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
-                   (update-entity db (:type payload) (:id payload)
-                                  (:name payload) (:description payload)))
+                   (update-flat-entity db (:id payload)
+                                       (:name payload)
+                                       (:description payload)
+                                       (:type payload)))
      :success (fn [db command]
-                {:db (-> db
-                         (merge-command-revision command)
-                         (merge-entity-response (get-in command [:payload :type])
-                                                (get-in command [:response :entity])))})}
+                (let [entity (get-in command [:response])]
+                  {:db (if (map? entity)
+                         (let [entity-id (str (:id entity))
+                               entities (assoc (normalize-entities-map (:entities db))
+                                               entity-id
+                                               (or (normalize-entity entity) entity))]
+                           (-> db
+                               (merge-command-revision command)
+                               (assoc :entities entities)
+                               (assoc :derived-state (compute-derived-state entities))))
+                         (merge-command-revision db command))}))}
 
     :add-saga
     {:transport-fx :post-add-saga
@@ -936,7 +998,9 @@
   (let [db* (if-let [optimistic (get-in (mutation-spec (:kind command)) [:optimistic])]
               (optimistic db (:payload command))
               db)]
-    (refresh-entities-from-db db*)))
+    (if (= :update-entity (:kind command))
+      (refresh-entities-from-flat db* (:entities db*))
+      (refresh-entities-from-db db*))))
 
 (defn reapply-pending-commands [db]
   (reduce apply-command-optimistically
@@ -945,20 +1009,17 @@
                     [command])
                   (or (:sync-outbox db) []))))
 
-(defn command->fx [command]
+(defn command->fx [db command]
   (let [kind (:kind command)
         transport-fx (get-in (mutation-spec kind) [:transport-fx])]
     (when transport-fx
       (case kind
         ; Generic entity operations use new unified API
         (:add-saga :add-roster :add-chapter :add-character :add-frame :update-entity)
-        (let [entity (command->generic-entity-payload kind (:payload command))
-              optimistic-entity (or (get-in command [:payload :optimistic-saga])
-                                   (get-in command [:payload :optimistic-roster])
-                                   (get-in command [:payload :optimistic-chapter])
-                                   (get-in command [:payload :optimistic-character])
-                                   (get-in command [:payload :optimistic-frame]))
-              is-update (= :update-entity kind)]
+        (let [is-update (= :update-entity kind)
+              entity (if is-update
+                       (update-command-entity db (:payload command))
+                       (command->generic-entity-payload kind (:payload command)))]
           {:post-save-entity (merge {:entity entity
                                      :is-update is-update}
                                     (sync/callback-events (:id command)))})
@@ -983,31 +1044,39 @@
                     sync/dequeue-command
                     (assoc :sync-inflight nil))
         db-with-status (assoc base-db :status (or (:success-status command) "Done."))
-        success-handler (get-in (mutation-spec (:kind command)) [:success])]
+        success-handler (get-in (mutation-spec (:kind command)) [:success])
+        kind (:kind command)]
     (-> (if success-handler
           (success-handler db-with-status command)
           {:db (merge-command-revision db-with-status command)})
         (update :db reapply-pending-commands)
-        (update :db refresh-entities-from-db))))
+        (update :db (fn [db*]
+                      (if (= :update-entity kind)
+                        (refresh-entities-from-flat db* (:entities db*))
+                        (refresh-entities-from-db db*)))))))
 
 (defn apply-sync-failure [db command msg]
   (let [base-db (-> db
                     sync/dequeue-command
                     (assoc :sync-inflight nil
                            :status (str "Request failed: " msg)))
-        failure-handler (get-in (mutation-spec (:kind command)) [:failure])]
+        failure-handler (get-in (mutation-spec (:kind command)) [:failure])
+        kind (:kind command)]
     {:db (-> (if failure-handler
                (failure-handler base-db command)
                base-db)
              reapply-pending-commands
-             refresh-entities-from-db)}))
+             ((fn [db*]
+                (if (= :update-entity kind)
+                  (refresh-entities-from-flat db* (:entities db*))
+                  (refresh-entities-from-db db*)))))}))
 
 (rf/reg-event-fx
  :sync-outbox/process
  (fn [{:keys [db]} _]
    (let [inflight (:sync-inflight db)
          next-command (first (or (:sync-outbox db) []))
-         mutation-fx (when next-command (command->fx next-command))]
+         mutation-fx (when next-command (command->fx db next-command))]
      (cond
        (some? inflight)
        {:db db}

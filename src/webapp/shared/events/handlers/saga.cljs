@@ -102,18 +102,23 @@
  :save-entity
  (fn [{:keys [db]} [_ entity-label entity-id provided-name provided-description]]
    (let [{:keys [editing-key name-inputs-key description-inputs-key]} (entity-label->keys entity-label)
+         entity (model/entity-by-id (:entities db) entity-id)
          name-source (if (some? provided-name)
                        provided-name
-                       (get-in db (conj name-inputs-key entity-id)))
+                       (or (get-in db (conj name-inputs-key entity-id))
+                           (:title entity)))
          description-source (if (some? provided-description)
                               provided-description
-                              (get-in db (conj description-inputs-key entity-id)))
+                              (or (get-in db (conj description-inputs-key entity-id))
+                                  (:description entity)))
          name (some-> name-source str str/trim)
-         description (some-> description-source str)]
+         description (some-> description-source str)
+         role (or (model/entity-role entity)
+                  (some-> entity-label str str/lower-case))]
      (if (str/blank? (or name ""))
        {:db db}
        {:db (assoc-in db editing-key nil)
-        :dispatch [:update-entity entity-label entity-id name description]}))))
+        :dispatch [:update-entity role entity-id name description]}))))
 
 (rf/reg-event-db
  :set-new-saga-panel-open

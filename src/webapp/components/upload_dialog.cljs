@@ -250,13 +250,11 @@
       [popup-dialog/popup-dialog
        {:open open
         :on-close do-cancel!
+        :className "upload-dialog-modal"
         :overlay-props {:className (when @spotlight-style* "popup-dialog-overlay-spotlight")
                         :style @spotlight-style*}
         :size "auto"
-        :padding 0
-       :styles #js {:content #js {:background "transparent"
-                                  :boxShadow "none"}
-                     :body #js {:padding 0}}}
+        :padding 0}
        [:div.upload-dialog
         {:className "upload-dialog"
          :style {:transform (str "translate(" (:x @dialog-pos*) "px, " (:y @dialog-pos*) "px)")}

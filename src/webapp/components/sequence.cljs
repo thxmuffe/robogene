@@ -252,7 +252,8 @@
 (defn sequence-description-editor
   "Editable title and description fields with actions."
   [entity options title-editing-atom description-editing-atom]
-  (let [{:keys [on-save-title on-save-description]} options
+  (let [{:keys [on-save-title on-save-description show-actions?]} options
+        show-actions? (not= false show-actions?)
         title (or (:title entity) "")
         description (or (:description entity) "")]
     [:div.chapter-header
@@ -293,8 +294,9 @@
                     (reset! description-editing-atom false)
                     (on-save-description text)))}]
      
-     [:div.chapter-header-controls
-      [sequence-actions entity]]]))
+     (when show-actions?
+       [:div.chapter-header-controls
+        [sequence-actions entity]])]))
 
 (defn sequence
   "Generic sequence component for rendering a collection entity.

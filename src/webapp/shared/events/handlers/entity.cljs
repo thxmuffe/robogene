@@ -114,12 +114,23 @@
 (rf/reg-event-db
   :entity-update
   (fn [db [_ entity-id update-map]]
-    (let [entity (get-in db [:entities entity-id])
-          next-entity (merge entity update-map)
-          next-entities (assoc (:entities db) entity-id next-entity)]
-      (-> db
-          (assoc :entities next-entities)
-          (assoc :derived-state (compute-derived-state next-entities))))))
+    (let [entity (get-in db [:entities entity-id])]
+      (cond
+        (nil? entity)
+        (assoc db :status (str "Entity not found for update: " entity-id))
+
+        (not (map? update-map))
+        (assoc db :status (str "Invalid update payload for entity: " entity-id))
+
+        :else
+        (let [next-entity (-> (merge entity update-map)
+                              (assoc :id entity-id)
+                              (update :children #(vec (or % [])))
+                              (update :payload #(or % {})))
+              next-entities (assoc (:entities db) entity-id next-entity)]
+          (-> db
+              (assoc :entities next-entities)
+              (assoc :derived-state (compute-derived-state next-entities))))))))
 
 (rf/reg-event-db
   :entity-delete
