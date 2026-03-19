@@ -43,6 +43,7 @@
 (defn sequence-page-view []
   (let [route @(rf/subscribe [:route])]
     (if-let [entity-id (or (:entity-id route)
+                           (:chapter route)
                            (:saga-id route)
                            (:roster-id route)
                            (:chapter-id route))]

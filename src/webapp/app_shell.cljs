@@ -37,7 +37,11 @@
         pending-api-requests @(rf/subscribe [:pending-api-requests])
         wait-lights-events @(rf/subscribe [:wait-lights-events])
         route @(rf/subscribe [:route])
-        frame-view? (= :frame (:view route))]
+        current-entity (when-let [entity-id (route-entity-id route)]
+                         (get entities entity-id))
+        entity-view? (= :entity (:view route))
+        frame-view? (or (= :frame (:view route))
+                        (and entity-view? (model/entity-item? current-entity)))]
     (set! (.-title js/document) (page-title route entities))
     [:> MantineProvider {:theme theme/app-theme}
      [:> Container {:fluid true
@@ -61,6 +65,11 @@
         (case (:view route)
           :frame
           [item-page/item-page-view]
+
+          :entity
+          (if (model/entity-sequence? current-entity)
+            [sequence-page/sequence-page-view]
+            [item-page/item-page-view])
 
           :chapter
           [sequence-page/sequence-page-view]

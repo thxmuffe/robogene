@@ -3,7 +3,9 @@
             [re-frame.core :as rf]
             [webapp.components.frame :as frame]
             [webapp.components.sequence :as sequence]
+            [webapp.components.entity-card :as entity-card]
             [webapp.components.item :as item]
+            [webapp.shared.model :as model]
             ["@mantine/core" :refer [Box]]))
 
 (defn- seeded-unit [seed n]
@@ -36,22 +38,16 @@
 (defn search-gallery
   "Generic gallery for search results. Renders sequences if an entity has children,
    frames via the frame component, otherwise generic item cards."
-  [{:keys [entities entity-by-id]}]
+  [{:keys [entities]}]
   [:> Box {:className "gallery"}
    (map-indexed
     (fn [idx ent]
       ^{:key (or (:id ent) (str "search-" idx))}
       [:div.gallery-motion-item
        {:style (gallery-motion-style (:id ent))}
-       (cond
-         (seq (:children ent))
-         [sequence/sequence ent {:children-fetcher entity-by-id}]
-
-         (= "frame" (str/lower-case (or (:vanityRole ent) "")))
-         [frame/frame ent {:active? false}]
-
-         :else
-         [item/item ent {:clickable? true}])])
+       [entity-card/entity-card
+        {:entity ent
+         :on-click #(set! (.-hash js/location) (model/entity-hash (:id ent)))}]])
     entities)])
 
 (defn frame-gallery [owner-id owner-type]

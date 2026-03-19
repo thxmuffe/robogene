@@ -1,6 +1,72 @@
 (ns webapp.shared.model
   (:require [clojure.string :as str]))
 
+(defn entity-id [entity]
+  (some-> (:id entity) str))
+
+(defn entity-role [entity]
+  (some-> (:vanityRole entity) str str/lower-case))
+
+(defn entity-children-ids [entity]
+  (vec (or (:children entity) [])))
+
+(defn entity-sequence? [entity]
+  (let [kind (:kind entity)
+        kind* (cond
+                (keyword? kind) (name kind)
+                (string? kind) kind
+                :else nil)]
+    (or (= "sequence" (some-> kind* str/lower-case))
+        (seq (entity-children-ids entity)))))
+
+(defn entity-item? [entity]
+  (not (entity-sequence? entity)))
+
+(defn entity-by-id [entities entity-id]
+  (get entities entity-id))
+
+(defn entity-children [entities entity-or-id]
+  (let [entity (if (map? entity-or-id) entity-or-id (entity-by-id entities entity-or-id))]
+    (->> (entity-children-ids entity)
+         (map #(entity-by-id entities %))
+         (remove nil?)
+         vec)))
+
+(defn image-url [entity]
+  (let [payload (:payload entity)]
+    (some-> (or (:imageUrl payload)
+                (:imageDataUrl payload)
+                (:imageUrl entity)
+                (:imageDataUrl entity))
+            str
+            str/trim
+            not-empty)))
+
+(defn primary-label [entity]
+  (or (some-> (:title entity) str/trim not-empty)
+      (some-> (:description entity) str/trim not-empty)
+      "Untitled"))
+
+(defn secondary-label [entity]
+  (let [title (some-> (:title entity) str/trim not-empty)
+        description (some-> (:description entity) str/trim not-empty)]
+    (when (and title description (not= title description))
+      description)))
+
+(defn preview-image-url
+  ([entities target-id]
+   (preview-image-url entities target-id #{}))
+  ([entities target-id seen]
+   (let [entity (entity-by-id entities target-id)
+         id (entity-id entity)]
+     (cond
+       (nil? entity) nil
+       (contains? seen id) nil
+       :else
+       (or (image-url entity)
+           (some #(preview-image-url entities % (conj seen id))
+                 (entity-children-ids entity)))))))
+
 (defn frame-id-of [frame]
   (:frameId frame))
 
@@ -52,13 +118,19 @@
          {:view :frame
           :chapter chapter
           :frame-id frame
+          :entity-id frame
           :fullscreen? fullscreen?
           :from-page from-page
           :roster-id (parse-query-param query* "rosterId")
           :saga-id (parse-query-param query* "sagaId")}))
+     (when-let [[_ entity-id] (re-matches #"^#/entity/([^/?#]+)(?:\?.*)?$" raw)]
+       (let [entity-id* (some-> entity-id js/decodeURIComponent str/trim not-empty)]
+         {:view :entity
+          :entity-id entity-id*}))
      (when-let [[_ chapter query] (re-matches #"^#/chapter/([^/?#]+)(?:\?(.*))?$" raw)]
        {:view :chapter
         :chapter chapter
+        :entity-id chapter
         :saga-id (parse-query-param (or query "") "sagaId")})
      (when-let [[_ query] (re-matches #"^#/roster/?(?:\?(.*))?$" raw)]
        (let [query* (or query "")]
@@ -66,13 +138,17 @@
           :roster-id nil
           :saga-id (parse-query-param query* "sagaId")}))
      (when-let [[_ roster-id query] (re-matches #"^#/roster/([^/?#]+)(?:\?(.*))?$" raw)]
-       (let [query* (or query "")]
+       (let [query* (or query "")
+             entity-id (some-> roster-id js/decodeURIComponent str/trim not-empty)]
          {:view :roster
-          :roster-id (some-> roster-id js/decodeURIComponent str/trim not-empty)
+          :roster-id entity-id
+          :entity-id entity-id
           :saga-id (parse-query-param query* "sagaId")}))
      (when-let [[_ saga-id] (re-matches #"^#/saga/([^/?#]+)(?:\?.*)?$" raw)]
-       {:view :saga
-        :saga-id (some-> saga-id js/decodeURIComponent str/trim not-empty)})
+       (let [entity-id (some-> saga-id js/decodeURIComponent str/trim not-empty)]
+         {:view :saga
+          :saga-id entity-id
+          :entity-id entity-id}))
      (when (or (str/blank? raw)
                (re-matches #"^#/?$" raw))
        {:view :index})
@@ -80,6 +156,11 @@
 
 (defn index-hash []
   "#/")
+
+(defn entity-hash [entity-id]
+  (if (str/blank? (or entity-id ""))
+    (index-hash)
+    (str "#/entity/" (js/encodeURIComponent entity-id))))
 
 (defn saga-hash [saga-id]
   (if (str/blank? (or saga-id ""))
@@ -128,132 +209,100 @@
 (defn parse-json-safe [text]
   (js->clj (.parse js/JSON text) :keywordize-keys true))
 
-(defn generic-frame-text? [text]
-  (boolean (re-matches #"(?i)^frame\s+\d+$" (str/trim (or text "")))))
+(defn entity-role-rank [role]
+  (case (some-> role str str/lower-case)
+    "saga" 0
+    "chapter" 1
+    "roster" 2
+    "character" 3
+    "frame" 4
+    5))
 
-(defn clamp-text [text limit]
-  (let [v (str/trim (or text ""))]
-    (if (> (count v) limit)
-      (str (subs v 0 limit) "...")
-      v)))
+(defn sort-entities [entities]
+  (sort-by (fn [entity]
+             [(entity-role-rank (entity-role entity))
+              (primary-label entity)
+              (entity-id entity)])
+           entities))
 
-(defn frame-description [frame]
-  (clamp-text (:description frame) 180))
-
-(defn enrich-frame [frame]
-  (let [description (str/trim (or (:description frame) ""))
-        image-url (or (:imageUrl frame) (:imageDataUrl frame))
-        image-status (or (:imageStatus frame)
-                         (:status frame)
-                         (if (str/blank? (or image-url ""))
-                           "draft"
-                           "ready"))
-        normalized (-> frame
-                       (dissoc :imageDataUrl)
-                       (assoc :imageUrl image-url
-                              :imageStatus image-status)
-                       (dissoc :status))]
-    (if (or (str/blank? description) (generic-frame-text? description))
-      (assoc normalized :description description)
-      normalized)))
-
-(defn dedupe-by-id [id-key rows]
-  (->> (or rows [])
-       (reduce (fn [acc row]
-                 (let [id (get row id-key)
-                       map-key (if (and (string? id) (not (str/blank? id)))
-                                 id
-                                 (str "__idx__" (count acc)))]
-                   (if (contains? acc map-key)
-                     acc
-                     (assoc acc map-key row))))
-               {})
-       vals))
-
-(defn derived-sagas [state]
-  (->> (or (:sagas state) [])
-       (dedupe-by-id :sagaId)
-       (sort-by (fn [saga]
-                  [(or (:sagaNumber saga) js/Number.MAX_SAFE_INTEGER)
-                   (or (:createdAt saga) "")
-                   (or (:sagaId saga) "")]))
+(defn entities-by-role [entities role]
+  (->> (vals entities)
+       (filter #(= (entity-role %) (name role)))
+       sort-entities
        vec))
 
-(defn derived-rosters [state]
-  (->> (or (:rosters state) [])
-       (dedupe-by-id :rosterId)
-       (sort-by (fn [roster]
-                  [(or (:rosterNumber roster) js/Number.MAX_SAFE_INTEGER)
-                   (or (:createdAt roster) "")
-                   (or (:rosterId roster) "")]))
+(defn children-by-role [entities parent-id role]
+  (->> (entity-children entities parent-id)
+       (filter #(= (entity-role %) (name role)))
+       sort-entities
        vec))
 
-(defn derived-saga [state]
-  (->> (or (:saga state) [])
-       (dedupe-by-id :chapterId)
-       (sort-by (fn [chapter]
-                  [(or (:chapterNumber chapter) js/Number.MAX_SAFE_INTEGER)
-                   (or (:createdAt chapter) "")
-                   (or (:chapterId chapter) "")]))
-       vec))
+(defn root-entities [entities]
+  (let [child-ids (->> (vals entities)
+                       (mapcat entity-children-ids)
+                       set)]
+    (->> (vals entities)
+         (remove #(contains? child-ids (entity-id %)))
+         sort-entities
+         vec)))
 
-(defn derived-roster [state]
-  (->> (or (:roster state) [])
-       (dedupe-by-id :characterId)
-       (sort-by (fn [character]
-                  [(or (:characterNumber character) js/Number.MAX_SAFE_INTEGER)
-                   (or (:createdAt character) "")
-                   (or (:characterId character) "")]))
-       vec))
+(defn frame-entity? [entity]
+  (let [role (entity-role entity)
+        payload (:payload entity)]
+    (and (entity-item? entity)
+         (or (= role "frame")
+             (contains? payload :imageUrl)
+             (contains? payload :imageStatus)
+             (contains? payload :frameNumber)))))
 
-(defn frame-owner-type [frame]
-  (let [owner-type (or (:ownerType frame) "saga")]
-    (if (keyword? owner-type)
-      (name owner-type)
-      (str owner-type))))
+(defn frame-row [entity]
+  {:frameId (:id entity)
+   :title (:title entity)
+   :description (:description entity)
+   :frameDescription (:description entity)
+   :imageUrl (get-in entity [:payload :imageUrl])
+   :imageStatus (get-in entity [:payload :imageStatus])
+   :frameNumber (or (get-in entity [:payload :frameNumber]) js/Number.MAX_SAFE_INTEGER)
+   :chapterId (or (get-in entity [:payload :parentId])
+                  (get-in entity [:payload :chapterId])
+                  (get-in entity [:payload :characterId]))
+   :ownerType (or (get-in entity [:payload :ownerType])
+                  (if (= "character" (entity-role entity)) "character" "saga"))
+   :createdAt (get-in entity [:payload :createdAt])
+   :error (get-in entity [:payload :error])})
 
-(defn frames-for-owner [frames owner-type owner-id]
-  (let [owner-type (str owner-type)]
-    (->> (or frames [])
-         (filter (fn [frame]
-                   (and (= owner-type (frame-owner-type frame))
-                        (= (:chapterId frame) owner-id))))
-         ordered-frames)))
+(defn gallery-frames [entities]
+  (->> (vals entities)
+       (filter frame-entity?)
+       (map frame-row)
+       ordered-frames))
 
-(defn frames-for-chapter [frames chapter-id]
-  (frames-for-owner (map (fn [frame]
-                           (if (:ownerType frame)
-                             frame
-                             (assoc frame :ownerType "saga")))
-                         (or frames []))
-                    "saga"
-                    chapter-id))
+(defn frames-for-owner [entities _owner-type owner-id]
+  (->> (entity-children entities owner-id)
+       (filter frame-entity?)
+       (map frame-row)
+       ordered-frames))
 
-(defn derived-state [state]
-  (let [sagas (derived-sagas state)
-        rosters (derived-rosters state)
-        saga (derived-saga state)
-        roster (derived-roster state)
-        enriched-frames (->> (or (:frames state) [])
-                             (map (fn [f]
-                                    (let [enriched (enrich-frame f)]
-                                      (assoc (if (:ownerType enriched)
-                                               enriched
-                                               (assoc enriched :ownerType "saga"))
-                                             :frameDescription (frame-description enriched)))))
-                             vec)]
-    {:sagas sagas
-     :rosters rosters
-     :saga saga
-     :roster roster
-     :frames enriched-frames}))
+(defn frames-for-chapter [entities chapter-id]
+  (frames-for-owner entities "saga" chapter-id))
 
-(defn status-line [state sagas saga roster frames]
-  (let [pending (or (:pendingCount state) 0)]
-    (str "Sagas: " (count sagas)
-         " | Chapters: " (count saga)
-         " | Roster: " (count roster)
-         " | Frames: " (count frames)
+(defn chapter-parent-id [entities chapter-id]
+  (or (get-in (entity-by-id entities chapter-id) [:payload :parentId])
+      (some (fn [entity]
+              (when (some #(= chapter-id %) (entity-children-ids entity))
+                (:id entity)))
+            (vals entities))))
+
+(defn owner-name [entities entity-id]
+  (some-> (entity-by-id entities entity-id) primary-label))
+
+(defn status-line [state entities]
+  (let [all (vals (or entities {}))
+        sequences (count (filter entity-sequence? all))
+        items (count (remove entity-sequence? all))
+        pending (or (:pendingCount state) 0)]
+    (str "Sequences: " sequences
+         " | Items: " items
          (if (pos? pending)
            (str " | Queue: " pending)
            " | Queue idle"))))

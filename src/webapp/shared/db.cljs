@@ -48,12 +48,8 @@
    :hidden-frame-images {}
    :last-rendered-revision nil
    :active-frame-id nil
-   :sagas []
-   :rosters []
-   :saga []
-   :roster []
-   :gallery-items []
    :sync-outbox []
    :sync-inflight nil
-   :latest-state nil
+   :latest-state {:processing false
+                  :pendingCount 0}
    :route {:view :index}})

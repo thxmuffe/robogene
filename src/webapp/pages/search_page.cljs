@@ -10,15 +10,6 @@
 (defn search-page []
   (let [query @(rf/subscribe [:collection-search view-id])
         entities @(rf/subscribe [:entities])
-        entity-by-id (fn [id]
-                       (let [k (cond
-                                 (keyword? id) id
-                                 (string? id) (keyword id)
-                                 :else id)]
-                         (or (get entities id)
-                             (get entities k)
-                             (when (string? id)
-                               (get entities (keyword (str/trim id)))))))
         filtered (search/search-entities entities query)
         result-ids (map :id filtered)]
     (js/console.log "search-page entities count" (count entities)
@@ -37,8 +28,7 @@
                     :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
      (when (and (not (empty? (str query))) (empty? filtered))
        [:> Text {:color "dimmed"} "No matches"])
-     [gallery/search-gallery {:entities filtered
-                              :entity-by-id entity-by-id}]
+     [gallery/search-gallery {:entities filtered}]
      (when (seq filtered)
        [:> Text {:color "dimmed" :size "sm"}
         (str "Results: " (clojure.string/join ", " result-ids))])]))

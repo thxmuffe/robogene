@@ -821,6 +821,28 @@ button.chapter-separator.is-collapsed {
   background: transparent;
 }
 
+.entity-card {
+  overflow: hidden;
+}
+
+.entity-card-media {
+  min-height: 220px;
+}
+
+.entity-card-copy {
+  display: grid;
+  gap: 4px;
+  padding: 12px 2px 2px;
+}
+
+.entity-card-title {
+  line-height: 1.25;
+}
+
+.entity-card-subtitle {
+  line-height: 1.4;
+}
+
 .media-loading-overlay {
   position: absolute;
   inset: 0;

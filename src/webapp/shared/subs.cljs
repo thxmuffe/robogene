@@ -3,11 +3,6 @@
             [webapp.shared.model :as model]))
 
 (rf/reg-sub :status (fn [db _] (:status db)))
-(rf/reg-sub :gallery-items (fn [db _] (:gallery-items db)))
-(rf/reg-sub :sagas (fn [db _] (:sagas db)))
-(rf/reg-sub :rosters (fn [db _] (:rosters db)))
-(rf/reg-sub :saga (fn [db _] (:saga db)))
-(rf/reg-sub :roster (fn [db _] (:roster db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
 (rf/reg-sub :frame-draft
             (fn [db [_ frame-id]]
@@ -50,79 +45,6 @@
 (rf/reg-sub :new-character-panel-open? (fn [db _] (get-in db [:view-state :roster :new-panel-open?])))
 (rf/reg-sub :show-chapter-celebration? (fn [db _] (get-in db [:view-state :saga :show-celebration?])))
 (rf/reg-sub :route (fn [db _] (:route db)))
-(rf/reg-sub
- :selected-roster-id
- (fn [db _]
-   (or (get-in db [:route :roster-id])
-       (some-> (:rosters db) first :rosterId))))
-(rf/reg-sub
- :selected-roster
- (fn [db _]
-   (let [roster-id (or (get-in db [:route :roster-id])
-                       (some-> (:rosters db) first :rosterId))]
-     (some (fn [roster]
-             (when (= (:rosterId roster) roster-id)
-               roster))
-           (:rosters db)))))
-(rf/reg-sub
- :characters-for-selected-roster
- (fn [db _]
-   (let [roster-id (or (get-in db [:route :roster-id])
-                       (some-> (:rosters db) first :rosterId))]
-     (->> (or (:roster db) [])
-          (filter (fn [character]
-                    (= (:rosterId character) roster-id)))
-          vec))))
-(rf/reg-sub
- :characters-for-roster
- (fn [db [_ roster-id]]
-   (->> (or (:roster db) [])
-        (filter (fn [character]
-                  (= (:rosterId character) roster-id)))
-        vec)))
-(rf/reg-sub
- :roster-link-state
- (fn [db _]
-   (get-in db [:view-state :roster-link])))
-(rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
-(rf/reg-sub
- :selected-saga-id
- (fn [db _]
-   (get-in db [:route :saga-id])))
-(rf/reg-sub
- :selected-saga
- (fn [db _]
-   (let [saga-id (get-in db [:route :saga-id])]
-     (some (fn [saga]
-             (when (= (:sagaId saga) saga-id)
-               saga))
-           (:sagas db)))))
-(rf/reg-sub
- :chapters-for-selected-saga
- (fn [db _]
-   (let [saga-id (get-in db [:route :saga-id])]
-     (->> (or (:saga db) [])
-          (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-          vec))))
-(rf/reg-sub
- :chapters-by-saga-id
- (fn [db [_ saga-id]]
-   (->> (or (:saga db) [])
-        (filter (fn [chapter] (= (:sagaId chapter) saga-id)))
-        vec)))
-(rf/reg-sub
- :chapter-by-id
- (fn [db [_ chapter-id]]
-   (some (fn [chapter]
-           (when (= (:chapterId chapter) chapter-id)
-             chapter))
-         (:saga db))))
-(rf/reg-sub :frames-for-chapter
-            (fn [db [_ chapter-id]]
-              (model/frames-for-chapter (:gallery-items db) chapter-id)))
-(rf/reg-sub :frames-for-owner
-            (fn [db [_ owner-type owner-id]]
-              (model/frames-for-owner (:gallery-items db) owner-type owner-id)))
 (rf/reg-sub :collection-search
             (fn [db [_ view-id]]
               (get-in db [:view-state view-id :search] "")))
@@ -136,21 +58,19 @@
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
 (rf/reg-sub :cancel-ui-token (fn [db _] (:cancel-ui-token db)))
+(rf/reg-sub :latest-state (fn [db _] (:latest-state db)))
 
-;; Generic entity subscriptions (Phase 2)
+;; Entity pool
 
 (rf/reg-sub :entities (fn [db _] (:entities db)))
 
 (rf/reg-sub :entity
             (fn [db [_ entity-id]]
-              (get-in db [:entities entity-id])))
+              (model/entity-by-id (:entities db) entity-id)))
 
 (rf/reg-sub :entity-children
             (fn [db [_ entity-id]]
-              (let [entity (get-in db [:entities entity-id])
-                    child-ids (or (:children entity) [])
-                    entities (:entities db)]
-                (mapv #(get entities %) child-ids))))
+              (model/entity-children (:entities db) entity-id)))
 
 (rf/reg-sub :entity-ui-state
             (fn [db [_ entity-id]]
@@ -173,3 +93,95 @@
 (rf/reg-sub :children-by-parent-id
             (fn [db _]
               (get-in db [:derived-state :children-by-parent-id] {})))
+
+;; Compatibility selectors derived from entities
+
+(rf/reg-sub :gallery-items
+            (fn [db _]
+              (model/gallery-frames (:entities db))))
+
+(rf/reg-sub :sagas
+            (fn [db _]
+              (model/entities-by-role (:entities db) :saga)))
+
+(rf/reg-sub :rosters
+            (fn [db _]
+              (model/entities-by-role (:entities db) :roster)))
+
+(rf/reg-sub :saga
+            (fn [db _]
+              (let [saga-id (get-in db [:route :saga-id])]
+                (if saga-id
+                  (model/children-by-role (:entities db) saga-id :chapter)
+                  []))))
+
+(rf/reg-sub :roster
+            (fn [db _]
+              (let [roster-id (or (get-in db [:route :roster-id])
+                                  (some-> (model/entities-by-role (:entities db) :roster) first :id))]
+                (if roster-id
+                  (model/children-by-role (:entities db) roster-id :character)
+                  []))))
+
+(rf/reg-sub
+ :selected-roster-id
+ (fn [db _]
+   (or (get-in db [:route :roster-id])
+       (some-> (model/entities-by-role (:entities db) :roster) first :id))))
+
+(rf/reg-sub
+ :selected-roster
+ (fn [db _]
+   (let [roster-id (or (get-in db [:route :roster-id])
+                       (some-> (model/entities-by-role (:entities db) :roster) first :id))]
+     (model/entity-by-id (:entities db) roster-id))))
+
+(rf/reg-sub
+ :characters-for-selected-roster
+ (fn [db _]
+   (let [roster-id (or (get-in db [:route :roster-id])
+                       (some-> (model/entities-by-role (:entities db) :roster) first :id))]
+     (model/children-by-role (:entities db) roster-id :character))))
+
+(rf/reg-sub
+ :characters-for-roster
+ (fn [db [_ roster-id]]
+   (model/children-by-role (:entities db) roster-id :character)))
+
+(rf/reg-sub
+ :roster-link-state
+ (fn [db _]
+   (get-in db [:view-state :roster-link])))
+
+(rf/reg-sub
+ :selected-saga-id
+ (fn [db _]
+   (get-in db [:route :saga-id])))
+
+(rf/reg-sub
+ :selected-saga
+ (fn [db _]
+   (model/entity-by-id (:entities db) (get-in db [:route :saga-id]))))
+
+(rf/reg-sub
+ :chapters-for-selected-saga
+ (fn [db _]
+   (model/children-by-role (:entities db) (get-in db [:route :saga-id]) :chapter)))
+
+(rf/reg-sub
+ :chapters-by-saga-id
+ (fn [db [_ saga-id]]
+   (model/children-by-role (:entities db) saga-id :chapter)))
+
+(rf/reg-sub
+ :chapter-by-id
+ (fn [db [_ chapter-id]]
+   (model/entity-by-id (:entities db) chapter-id)))
+
+(rf/reg-sub :frames-for-chapter
+            (fn [db [_ chapter-id]]
+              (model/frames-for-chapter (:entities db) chapter-id)))
+
+(rf/reg-sub :frames-for-owner
+            (fn [db [_ owner-type owner-id]]
+              (model/frames-for-owner (:entities db) owner-type owner-id)))

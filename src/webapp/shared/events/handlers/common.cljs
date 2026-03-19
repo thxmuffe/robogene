@@ -27,20 +27,10 @@
     (assoc db :wait-lights-events next-events)))
 
 (defn refresh-derived-status [db]
-  (let [latest-state (merge {:sagas (:sagas db)
-                             :rosters (:rosters db)
-                             :saga (:saga db)
-                             :roster (:roster db)
-                             :frames (:gallery-items db)}
-                            (or (:latest-state db) {}))]
+  (let [latest-state (or (:latest-state db) {})]
     (-> db
         (assoc :status
-               (model/status-line latest-state
-                                  (:sagas db)
-                                  (:saga db)
-                                  (:roster db)
-                                  (:gallery-items db)))
-        (store/refresh-entities-from-db))))
+               (model/status-line latest-state (:entities db))))))
 
 (rf/reg-event-fx
  :initialize
@@ -95,8 +85,9 @@
          current-revision (or (:last-rendered-revision db) -1)]
     (if (< incoming-revision current-revision)
       {:db db}
-       (let [previous-frames (:gallery-items db)
-             {:keys [sagas rosters saga roster frames]} (model/derived-state state)
+       (let [entities (or (:entities state) {})
+             previous-frames (model/gallery-frames (:entities db))
+             frames (model/gallery-frames entities)
              existing-active-id (:active-frame-id db)
              frame-ids (set (map :frameId frames))
             old-open-map (:open-frame-actions db)
@@ -112,26 +103,26 @@
                               (seq frames)
                               (:frameId (first frames))
                               :else nil)
-            image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
-                                  (:image-ui-by-frame-id db)
-                                  previous-frames
-                                  frames)
-            chapter-ids (set (map :chapterId saga))
-           db* (-> db
-                   (assoc :latest-state state
-                           :status (str "Loaded " (count (:entities state)) " entities")
-                           :status (model/status-line state sagas saga roster frames)
-                           :last-rendered-revision incoming-revision
-                           :sagas sagas
-                           :rosters rosters
-                           :saga saga
-                           :roster roster
-                           :gallery-items frames
-                           :image-ui-by-frame-id image-ui-by-frame-id
-                           :hidden-frame-images (into {}
-                                                      (for [[frame-id hidden?] (or (:hidden-frame-images db) {})
-                                                            :when (and hidden? (contains? frame-ids frame-id))]
-                                                        [frame-id true]))
+             image-ui-by-frame-id (image-ui/sync-image-ui-by-frame-id
+                                   (:image-ui-by-frame-id db)
+                                   previous-frames
+                                   frames)
+            chapter-ids (->> (vals entities)
+                             (filter #(= "chapter" (model/entity-role %)))
+                             (map :id)
+                             set)
+            db* (-> db
+                    (assoc :latest-state {:processing (:processing state)
+                                          :pendingCount (:pendingCount state)}
+                            :status (model/status-line state entities)
+                            :last-rendered-revision incoming-revision
+                            :entities entities
+                            :derived-state (store/compute-derived-state entities)
+                            :image-ui-by-frame-id image-ui-by-frame-id
+                            :hidden-frame-images (into {}
+                                                       (for [[frame-id hidden?] (or (:hidden-frame-images db) {})
+                                                             :when (and hidden? (contains? frame-ids frame-id))]
+                                                         [frame-id true]))
                            :open-frame-actions open-frame-actions
                            :active-frame-id active-frame-id)
                     (update :frame-drafts
@@ -142,47 +133,49 @@
                                       [frame-id draft]))))
                     (update-in [:view-state :gallery :collapsed-chapter-ids]
                                (fn [ids]
-                                 (if (nil? ids)
-                                   chapter-ids
-                                   (set (filter chapter-ids ids)))))
-                    (store/reapply-pending-commands))]
-        (cond-> {:db (if (:entities state)
-                       (store/refresh-entities-from-flat db* (:entities state))
-                       (store/refresh-entities-from-db db*))}
-          (not (:entities state))
-          (assoc :dispatch [:entities-load-from-legacy-state state]))))))) 
+                                (if (nil? ids)
+                                  chapter-ids
+                                  (set (filter chapter-ids ids)))))
+                     (store/reapply-pending-commands))]
+        {:db (store/refresh-entities-from-flat db* entities)}))))) 
 
-(rf/reg-event-db
+(rf/reg-event-fx
  :realtime-state-changed
- (fn [db [_ payload]]
-   (let [{:keys [processing frameId imageStatus frame chapter character saga roster revision pendingCount]} (or payload {})
+ (fn [{:keys [db]} [_ payload]]
+   (let [{:keys [processing entity id revision pendingCount]} (or payload {})
          current-revision (or (:last-rendered-revision db) -1)]
      (if (and (some? revision) (<= revision current-revision))
-       ;; Drop stale broadcast - we already have a newer or same version
-       db
+       {:db db}
        (let [next-revision (if (some? revision)
                              (max current-revision revision)
                              current-revision)
-             db* (cond-> db
-                   (some? revision)
-                   (assoc :last-rendered-revision next-revision)
+             next-db (cond-> db
+                       (some? revision)
+                       (assoc :last-rendered-revision next-revision)
 
-                   (some? processing)
-                   (assoc-in [:latest-state :processing] processing)
+                       (some? processing)
+                       (assoc-in [:latest-state :processing] processing)
 
-                   (some? pendingCount)
-                   (assoc-in [:latest-state :pendingCount] pendingCount))
-             db** (cond-> db*
-                    (map? frame) (store/merge-frame-response frame)
-                    (map? chapter) (store/merge-entity-response "chapter" chapter)
-                    (map? character) (store/merge-entity-response "character" character)
-                    (map? saga) (store/merge-entity-response "saga" saga)
-                    (map? roster) (store/merge-entity-response "roster" roster)
+                       (some? pendingCount)
+                       (assoc-in [:latest-state :pendingCount] pendingCount))
+             next-db (cond
+                       (map? entity)
+                       (let [entities (assoc (:entities next-db) (:id entity) entity)]
+                         (-> next-db
+                             (assoc :entities entities)
+                             (assoc :derived-state (store/compute-derived-state entities))
+                             refresh-derived-status))
 
-                    (and (seq (or frameId ""))
-                         (seq (or imageStatus "")))
-                    (store/set-frame-image-status frameId imageStatus))]
-         (refresh-derived-status db**))))))
+                       (seq (or id ""))
+                       (let [entities (dissoc (:entities next-db) id)]
+                         (-> next-db
+                             (assoc :entities entities)
+                             (assoc :derived-state (store/compute-derived-state entities))
+                             refresh-derived-status))
+
+                       :else
+                       (refresh-derived-status next-db))]
+         {:db next-db})))))
 
 (rf/reg-event-fx
  :set-active-frame
@@ -195,10 +188,7 @@
  :set-frame-actions-open
  (fn [db [_ frame-id open?]]
    (let [open? (true? open?)
-         frame-description (or (:description (some (fn [frame]
-                                                     (when (= (:frameId frame) frame-id)
-                                                       frame))
-                                                   (or (:gallery-items db) [])))
+         frame-description (or (:description (get-in db [:entities frame-id]))
                                "")]
      (if open?
        (-> db
