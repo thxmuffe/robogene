@@ -550,7 +550,6 @@ h2 { margin: 24px 0 10px; }
   margin: 6px 0 10px;
 }
 
-.chapter-separator,
 .sequence-box {
   width: 100%;
   height: 8px;
@@ -561,7 +560,6 @@ h2 { margin: 24px 0 10px; }
   box-shadow: 0 1px 4px rgba(16, 26, 38, 0.12);
 }
 
-.chapter-separator.is-collapsed,
 .sequence-box.is-collapsed {
   height: auto;
   min-height: 104px;
@@ -573,7 +571,6 @@ h2 { margin: 24px 0 10px; }
   cursor: pointer;
 }
 
-button.chapter-separator,
 button.sequence-box {
   appearance: none;
   -webkit-appearance: none;
@@ -582,13 +579,11 @@ button.sequence-box {
   outline: none;
 }
 
-button.chapter-separator.is-collapsed,
 button.sequence-box.is-collapsed {
   width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap) - 36px));
   max-width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap) - 36px));
 }
 
-.chapter-separator-row,
 .sequence-box-row {
   width: 100%;
   display: flex;
@@ -596,21 +591,17 @@ button.sequence-box.is-collapsed {
   gap: 8px;
 }
 
-.chapter-separator-row.is-collapsed,
 .sequence-box-row.is-collapsed {
   width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
   max-width: 100%;
 }
 
-.chapter-separator-row .chapter-separator,
 .sequence-box-row .sequence-box { flex: 1; }
 
-.chapter-separator-row.is-collapsed .chapter-separator,
 .sequence-box-row.is-collapsed .sequence-box {
   flex: 0 1 auto;
 }
 
-.chapter-separator-title,
 .sequence-box-title {
   display: inline-block;
   color: #111827;
@@ -621,13 +612,11 @@ button.sequence-box.is-collapsed {
   overflow-wrap: anywhere;
 }
 
-.chapter-separator.is-collapsed .chapter-separator-title,
 .sequence-box.is-collapsed .sequence-box-title {
   flex: 1 1 16rem;
   max-width: 32ch;
 }
 
-.chapter-separator-preview,
 .sequence-box-preview {
   width: 96px;
   height: 96px;
@@ -640,7 +629,6 @@ button.sequence-box.is-collapsed {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
-.chapter-separator-preview-image,
 .sequence-box-preview-image {
   width: 100%;
   height: 100%;
@@ -648,7 +636,6 @@ button.sequence-box.is-collapsed {
   object-fit: contain;
 }
 
-.chapter-separator-preview-placeholder,
 .sequence-box-preview-placeholder {
   width: 100%;
   height: 100%;
@@ -662,7 +649,6 @@ button.sequence-box.is-collapsed {
     );
 }
 
-.chapter-separator-toggle,
 .sequence-box-toggle {
   width: 28px;
   height: 28px;
@@ -679,16 +665,13 @@ button.sequence-box.is-collapsed {
   cursor: pointer;
 }
 
-.chapter-separator-toggle:hover,
 .sequence-box-toggle:hover { background: rgba(32, 99, 155, 0.12); }
 
-.chapter-separator-toggle:focus-visible,
 .sequence-box-toggle:focus-visible {
   outline: 2px solid rgba(32, 99, 155, 0.8);
   outline-offset: 1px;
 }
 
-.chapter-separator-toggle-triangle,
 .sequence-box-toggle-triangle {
   display: block;
   width: 0;
@@ -700,7 +683,6 @@ button.sequence-box.is-collapsed {
   transition: transform 140ms ease;
 }
 
-.chapter-separator-toggle-triangle.is-collapsed,
 .sequence-box-toggle-triangle.is-collapsed { transform: rotate(0deg); }
 
 .chapter-header {
@@ -737,7 +719,7 @@ button.sequence-box.is-collapsed {
 }
 
 .roster-page .chapter-header { --chapter-menu-fg: #f3f8ff; }
-.roster-page .chapter-separator {
+.roster-page .sequence-box {
   background: linear-gradient(90deg, #2a7ebd, #2aa7a0, #6fbf7a, #d2b35f);
   box-shadow: 0 3px 10px rgba(9, 20, 32, 0.26);
 }

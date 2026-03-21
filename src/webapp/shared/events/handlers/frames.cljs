@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.events.image-ui :as image-ui]
+            [webapp.shared.model :as model]
             [webapp.shared.store :as store]
             [webapp.shared.events.sync :as sync]))
 
@@ -112,7 +113,7 @@
 (rf/reg-event-fx
  :delete-empty-frames
  (fn [{:keys [db]} [_ owner-id owner-type]]
-   (let [empty-frame-ids (->> (or (:gallery-items db) [])
+   (let [empty-frame-ids (->> (model/frames-for-owner (:entities db) owner-type owner-id)
                               (filter (fn [frame]
                                         (and (= (or (:ownerType frame) "saga") (str owner-type))
                                              (= (:chapterId frame) owner-id)
@@ -333,10 +334,7 @@
                          command))))
 
 (defn current-image-url [db frame-id]
-  (or (some (fn [frame]
-              (when (= (:frameId frame) frame-id)
-                (:imageUrl frame)))
-            (or (:gallery-items db) []))
+  (or (some-> (store/frame-by-id db frame-id) :imageUrl)
       ""))
 
 (rf/reg-event-db

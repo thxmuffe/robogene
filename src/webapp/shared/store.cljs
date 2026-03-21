@@ -44,7 +44,7 @@
     
     nil))
 
-;; --- Unified entity recomputation from legacy state -------------------------
+;; --- Entity normalization helpers ------------------------------------------
 
 (defn- normalize-saga-entity [saga]
   {:id (some-> (:sagaId saga) str)
@@ -248,12 +248,8 @@
       nil)))
 
 (defn frame-by-id [db frame-id]
-  (or (some-> (model/entity-by-id (:entities db) frame-id)
-              model/frame-row)
-      (some (fn [frame]
-              (when (= (:frameId frame) frame-id)
-                frame))
-            (or (:gallery-items db) []))))
+  (some-> (model/entity-by-id (:entities db) frame-id)
+          model/frame-row))
 
 (declare merge-frame-row)
 
@@ -263,19 +259,14 @@
                        (assoc frame :imageStatus image-status)
                        frame))]
     (-> db
-        (update :gallery-items (fn [frames] (mapv set-status (or frames []))))
         (update-in [:latest-state :frames]
-                   (fn [frames] (mapv set-status (or frames [])))))))
+                   (fn [frames] (mapv set-status (or frames []))))
+        (update-entity-in-pool frame-id
+                               #(assoc-in % [:payload :imageStatus] image-status)))))
 
 (defn add-frame-row [db frame]
   (let [frame-id (:frameId frame)]
     (-> db
-        (update :gallery-items
-                (fn [frames]
-                  (let [rows (vec (or frames []))]
-                    (if (some (fn [row] (= (:frameId row) frame-id)) rows)
-                      (merge-frame-row rows frame)
-                      (conj rows frame)))))
         (update-in [:latest-state :frames]
                    (fn [frames]
                      (let [rows (vec (or frames []))]
@@ -301,7 +292,7 @@
 
 (defn remove-frames [db frame-ids]
   (let [frame-id-set (set frame-ids)
-        remaining-frames (->> (or (:gallery-items db) [])
+        remaining-frames (->> (model/gallery-frames (:entities db))
                               (remove (fn [frame] (contains? frame-id-set (:frameId frame))))
                               vec)
         current-active-id (:active-frame-id db)
@@ -315,8 +306,7 @@
        (let [owner-id (or (get-in (model/entity-by-id (:entities db*) frame-id) [:payload :parentId])
                           (some-> (frame-by-id db* frame-id) :chapterId))]
          (cond-> (-> db*
-                     (assoc :gallery-items remaining-frames
-                            :active-frame-id next-active-id)
+                     (assoc :active-frame-id next-active-id)
                      (update :frame-drafts dissoc-ids)
                      (update :open-frame-actions dissoc-ids)
                      (update :hidden-frame-images dissoc-ids)
@@ -335,7 +325,6 @@
                         (assoc frame :imageUrl nil)
                         frame))]
     (-> db
-        (update :gallery-items (fn [frames] (mapv clear-image (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv clear-image (or frames []))))
         (assoc-in [:hidden-frame-images frame-id] true)
@@ -352,7 +341,6 @@
                               (assoc :error nil))
                           frame))]
     (-> db
-        (update :gallery-items (fn [frames] (mapv replace-image (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv replace-image (or frames []))))
         (update :hidden-frame-images dissoc frame-id)
@@ -371,7 +359,6 @@
                             frame))]
     (-> db
         (update :frame-drafts dissoc frame-id)
-        (update :gallery-items (fn [frames] (mapv set-description (or frames []))))
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-description (or frames []))))
         (update-entity-in-pool frame-id #(assoc % :description normalized)))))
@@ -387,7 +374,6 @@
 (defn merge-frame-response [db frame]
   (if (seq (or (:frameId frame) ""))
     (-> db
-        (update :gallery-items merge-frame-row frame)
         (update-in [:latest-state :frames] merge-frame-row frame)
         (cond-> (and (= "ready" (:imageStatus frame))
                      (not (str/blank? (or (:imageUrl frame) ""))))
@@ -601,16 +587,14 @@
         remaining-entities (->> (or (list-key db) [])
                                 (remove (fn [entity] (= (id-key entity) entity-id)))
                                 vec)
-        removed-frame-ids (->> (or (:gallery-items db) [])
+        removed-frame-ids (->> (model/frames-for-owner (:entities db) owner-type entity-id)
                                (filter (fn [frame]
-                                         (and (= (:chapterId frame) entity-id)
-                                              (= (or (:ownerType frame) "saga") owner-type))))
+                                         (= (or (:ownerType frame) "saga") owner-type)))
                                (map :frameId)
                                set)
-        remaining-frames (->> (or (:gallery-items db) [])
+        remaining-frames (->> (model/gallery-frames (:entities db))
                               (remove (fn [frame]
-                                        (and (= (:chapterId frame) entity-id)
-                                             (= (or (:ownerType frame) "saga") owner-type))))
+                                        (contains? removed-frame-ids (:frameId frame))))
                               vec)
         current-active-id (:active-frame-id db)
         next-active-id (if (contains? removed-frame-ids current-active-id)
@@ -620,7 +604,6 @@
                      (apply dissoc (or m {}) removed-frame-ids))]
     (-> db
         (assoc list-key remaining-entities
-               :gallery-items remaining-frames
                :active-frame-id next-active-id)
         (update-in name-inputs-key dissoc entity-id)
         (update-in description-inputs-key dissoc entity-id)
@@ -648,7 +631,7 @@
   (let [chapter-ids (->> (model/children-by-role (:entities db) saga-id :chapter)
                          (map :id)
                          set)
-        frame-ids (->> (or (:gallery-items db) [])
+        frame-ids (->> (model/gallery-frames (:entities db))
                        (filter (fn [frame] (contains? chapter-ids (:chapterId frame))))
                        (map :frameId)
                        vec)]
@@ -658,11 +641,6 @@
                         (->> (or rows [])
                              (remove (fn [row] (= (:sagaId row) saga-id)))
                              vec)))
-        (update :gallery-items (fn [rows]
-                                 (->> (or rows [])
-                                      (remove (fn [frame]
-                                                (contains? chapter-ids (:chapterId frame))))
-                                      vec)))
         (update-in [:latest-state :sagas] remove-saga-row saga-id)
         (update-in [:latest-state :saga] (fn [rows]
                                            (->> (or rows [])
@@ -769,8 +747,6 @@
                           temp-hidden?
                           (assoc-in [:hidden-frame-images created-frame-id] true)))]
       (cond-> (-> migrated-db
-                  (update :gallery-items replace-row-by-id :frameId temp-frame-id
-                          (or merged-frame {:frameId temp-frame-id}))
                   (update-in [:latest-state :frames] replace-row-by-id :frameId temp-frame-id
                              (or merged-frame {:frameId temp-frame-id}))
                   (dissoc-entity temp-frame-id)

@@ -1,7 +1,6 @@
 (ns webapp.pages.gallery-page
   "Gallery page: render a sequence of sequences (e.g., saga → chapters, roster → characters)."
-  (:require [clojure.set :as set]
-            [re-frame.core :as rf]
+  (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.sequence :as sequence]
             [webapp.shared.controls :as controls]
@@ -73,25 +72,25 @@
         preview-url (model/preview-image-url entities chapter-id)
         title (model/primary-label chapter)]
     [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
-     [:div {:className (str "chapter-separator-row sequence-box-row" (when collapsed? " is-collapsed"))}
-      [:button.chapter-separator-toggle.sequence-box-toggle
+     [:div {:className (str "sequence-box-row" (when collapsed? " is-collapsed"))}
+      [:button.sequence-box-toggle
        {:type "button"
         :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
         :onClick on-toggle}
-       [:span {:className (str "chapter-separator-toggle-triangle sequence-box-toggle-triangle"
+       [:span {:className (str "sequence-box-toggle-triangle"
                                (when collapsed? " is-collapsed"))}]]
       [:button {:type "button"
-                :className (str "chapter-separator sequence-box" (when collapsed? " is-collapsed"))
+                :className (str "sequence-box" (when collapsed? " is-collapsed"))
                 :onClick on-toggle}
        (when collapsed?
-         [:div.chapter-separator-preview.sequence-box-preview
+         [:div.sequence-box-preview
           (if (seq preview-url)
-            [:img {:className "chapter-separator-preview-image sequence-box-preview-image"
+            [:img {:className "sequence-box-preview-image"
                    :src preview-url
                    :alt (str title " preview")}]
-            [:div.chapter-separator-preview-placeholder.sequence-box-preview-placeholder])])
+            [:div.sequence-box-preview-placeholder])])
        (when collapsed?
-         [:span.chapter-separator-title.sequence-box-title title])]]
+         [:span.sequence-box-title title])]]
      (when-not collapsed?
        [:div.chapter-content
         [sequence/sequence

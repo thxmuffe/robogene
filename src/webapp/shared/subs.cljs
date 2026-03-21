@@ -22,11 +22,6 @@
 (rf/reg-sub :editing-saga-id (fn [db _] (get-in db [:view-state :index :editing-id])))
 (rf/reg-sub :editing-chapter-id (fn [db _] (get-in db [:view-state :saga :editing-id])))
 (rf/reg-sub :editing-character-id (fn [db _] (get-in db [:view-state :roster :editing-id])))
-(rf/reg-sub :gallery-chapter-collapsed?
-            (fn [db [_ chapter-id]]
-              (let [chapter-id* (some-> chapter-id str)
-                    collapsed-ids (into #{} (map str) (get-in db [:view-state :gallery :collapsed-chapter-ids] #{}))]
-                (contains? collapsed-ids chapter-id*))))
 (rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
 (rf/reg-sub :frame-image-ui
             (fn [db [_ frame-id]]
@@ -96,10 +91,6 @@
               (get-in db [:derived-state :children-by-parent-id] {})))
 
 ;; Compatibility selectors derived from entities
-
-(rf/reg-sub :gallery-items
-            (fn [db _]
-              (model/gallery-frames (:entities db))))
 
 (rf/reg-sub :sagas
             (fn [db _]

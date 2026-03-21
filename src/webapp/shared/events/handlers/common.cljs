@@ -8,7 +8,6 @@
             [webapp.shared.events.effects]
             [webapp.shared.events.transport]
             [webapp.shared.store :as store]
-            [webapp.shared.events.handlers.gallery]
             [webapp.shared.events.handlers.frame-page]
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.frames]
@@ -107,10 +106,6 @@
                                    (:image-ui-by-frame-id db)
                                    previous-frames
                                    frames)
-            chapter-ids (->> (vals entities)
-                             (filter #(= "chapter" (model/entity-role %)))
-                             (map :id)
-                             set)
             db* (-> db
                     (assoc :latest-state {:processing (:processing state)
                                           :pendingCount (:pendingCount state)}
@@ -131,11 +126,6 @@
                                     (for [[frame-id draft] (or drafts {})
                                           :when (true? (get open-frame-actions frame-id))]
                                       [frame-id draft]))))
-                    (update-in [:view-state :gallery :collapsed-chapter-ids]
-                               (fn [ids]
-                                (if (nil? ids)
-                                  chapter-ids
-                                  (set (filter chapter-ids ids)))))
                      (store/reapply-pending-commands))]
         {:db (store/refresh-entities-from-flat db* entities)}))))) 
 

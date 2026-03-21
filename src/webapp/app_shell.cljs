@@ -32,7 +32,6 @@
 
 (defn main-view []
   (let [entities @(rf/subscribe [:entities])
-        gallery-items @(rf/subscribe [:gallery-items])
         status @(rf/subscribe [:status])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
@@ -94,5 +93,5 @@
          {:pending-api-requests pending-api-requests
           :wait-lights-visible? wait-lights-visible?
           :status status
-          :frames gallery-items
+          :frames (model/gallery-frames entities)
           :events wait-lights-events}]]]]]))
