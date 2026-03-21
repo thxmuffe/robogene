@@ -132,49 +132,50 @@
             (reset! collapsed-sequence-ids* filtered-collapsed))))
       (reset! key-context* {:entities entities})
       (let [effective-collapsed-ids (or @collapsed-sequence-ids* child-sequence-ids #{})]
-      (cond
-        (nil? entity)
-        [:div.gallery-page [:p "Loading gallery..."]]
+        (cond
+          (nil? entity)
+          [:div.gallery-page [:p "Loading gallery..."]]
 
-        (empty? children-ids)
-        [:div.gallery-page [:p "No sequences found."]]
+          (= "saga" (:vanityRole entity))
+          [:div.gallery-page.saga-page
+           [sequence/sequence-description-editor
+            entity
+            {:on-save-title #(save-entity-title! entity %)
+             :on-save-description #(save-entity-description! entity %)
+             :actions-renderer sequence-actions/sequence-actions}
+            title-editing-atom
+            description-editing-atom]
+           (if (seq children-ids)
+             (for [child children
+                   :when child]
+               ^{:key (:id child)}
+               [child-sequence-block child
+                entities
+                (contains? effective-collapsed-ids (model/entity-id child))
+                #(toggle-collapsed! collapsed-sequence-ids* effective-collapsed-ids (model/entity-id child))])
+             [:p.gallery-empty-message "No sequences found."])]
 
-        (= "saga" (:vanityRole entity))
-        [:div.gallery-page.saga-page
-         [sequence/sequence-description-editor
-         entity
-         {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)
-           :actions-renderer sequence-actions/sequence-actions}
-         title-editing-atom
-         description-editing-atom]
-         (for [child children
-               :when child]
-           ^{:key (:id child)}
-            [child-sequence-block child
-             entities
-             (contains? effective-collapsed-ids (model/entity-id child))
-             #(toggle-collapsed! collapsed-sequence-ids* effective-collapsed-ids (model/entity-id child))])]
-
-        :else
-        [:div.gallery-page.roster-page
-         [sequence/sequence-description-editor
-         entity
-         {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)
-           :actions-renderer sequence-actions/sequence-actions}
-          title-editing-atom
-          description-editing-atom]
-         (for [child children
-               :when child]
-           ^{:key (:id child)}
-           [sequence/sequence child
-            {:children-fetcher fetch-entity
-             :actions-renderer sequence-actions/sequence-actions
-             :add-child-label "Add Item"
-             :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
-             :on-save-title #(save-entity-title! child %)
-             :on-save-description #(save-entity-description! child %)}])])))
+          :else
+          [:div.gallery-page.roster-page
+           [sequence/sequence-description-editor
+            entity
+            {:on-save-title #(save-entity-title! entity %)
+             :on-save-description #(save-entity-description! entity %)
+             :actions-renderer sequence-actions/sequence-actions}
+            title-editing-atom
+            description-editing-atom]
+           (if (seq children-ids)
+             (for [child children
+                   :when child]
+               ^{:key (:id child)}
+               [sequence/sequence child
+                {:children-fetcher fetch-entity
+                 :actions-renderer sequence-actions/sequence-actions
+                 :add-child-label "Add Item"
+                 :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
+                 :on-save-title #(save-entity-title! child %)
+                 :on-save-description #(save-entity-description! child %)}])
+             [:p.gallery-empty-message "No sequences found."])])))
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 
