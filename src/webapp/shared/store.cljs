@@ -253,7 +253,7 @@
 
 (declare merge-frame-row)
 
-(defn set-frame-image-status [db frame-id image-status]
+(defn set-frame-image-status [db frame-id image-status generator]
   (let [set-status (fn [frame]
                      (if (= (:frameId frame) frame-id)
                        (assoc frame :imageStatus image-status)
@@ -262,7 +262,9 @@
         (update-in [:latest-state :frames]
                    (fn [frames] (mapv set-status (or frames []))))
         (update-entity-in-pool frame-id
-                               #(assoc-in % [:payload :imageStatus] image-status)))))
+                               #(cond-> (assoc-in % [:payload :imageStatus] image-status)
+                                  (some? generator)
+                                  (assoc-in [:payload :generator] generator))))))
 
 (defn add-frame-row [db frame]
   (let [frame-id (:frameId frame)]
@@ -450,143 +452,70 @@
             row))
         (or rows [])))
 
-(defn update-saga-row [rows saga-id f]
-  (mapv (fn [row]
-          (if (= (:sagaId row) saga-id)
-            (f row)
-            row))
-        (or rows [])))
-
 (defn entity-meta [entity-label]
   (case (str entity-label)
     "saga"
-    {:list-key :sagas
-     :id-key :sagaId
-     :latest-list-key :sagas
-     :name-inputs-key [:view-state :index :name-inputs]
+    {:name-inputs-key [:view-state :index :name-inputs]
      :description-inputs-key [:view-state :index :description-inputs]
      :editing-key [:view-state :index :editing-id]}
 
     "character"
-    {:list-key :roster
-     :id-key :characterId
-     :latest-list-key :roster
-     :name-inputs-key [:view-state :roster :name-inputs]
+    {:name-inputs-key [:view-state :roster :name-inputs]
      :description-inputs-key [:view-state :roster :description-inputs]
      :editing-key [:view-state :roster :editing-id]}
 
-    {:list-key :saga
-     :id-key :chapterId
-     :latest-list-key :saga
-     :name-inputs-key [:view-state :saga :name-inputs]
+    {:name-inputs-key [:view-state :saga :name-inputs]
      :description-inputs-key [:view-state :saga :description-inputs]
      :editing-key [:view-state :saga :editing-id]}))
 
 (defn add-saga-row [db saga]
-  (-> db
-      (update :sagas (fn [rows] (conj (vec (or rows [])) saga)))
-      (update-in [:latest-state :sagas] (fn [rows] (conj (vec (or rows [])) saga)))
-      (assoc-entity (entity-label->entity "saga" saga))))
+  (assoc-entity db (entity-label->entity "saga" saga)))
 
 (defn add-roster-row [db roster]
-  (-> db
-      (update :rosters (fn [rows] (conj (vec (or rows [])) roster)))
-      (update-in [:latest-state :rosters] (fn [rows] (conj (vec (or rows [])) roster)))
-      (assoc-entity (entity-label->entity "roster" roster))))
+  (assoc-entity db (entity-label->entity "roster" roster)))
 
 (defn add-entity-row [db entity-label entity]
-  (let [{:keys [list-key latest-list-key]} (entity-meta entity-label)
-        parent-id (or (:sagaId entity) (:rosterId entity))
+  (let [parent-id (or (:sagaId entity) (:rosterId entity))
         child-id (case (str entity-label)
                    "chapter" (:chapterId entity)
                    "character" (:characterId entity)
                    nil)]
-    (cond-> (-> db
-                (update list-key (fn [rows] (conj (vec (or rows [])) entity)))
-                (update-in [:latest-state latest-list-key] (fn [rows] (conj (vec (or rows [])) entity)))
-                (assoc-entity (entity-label->entity entity-label entity)))
+    (cond-> (assoc-entity db (entity-label->entity entity-label entity))
       (and parent-id child-id)
       (append-child-id parent-id child-id))))
 
-(defn replace-entity-row [db entity-label temp-id entity]
-  (let [{:keys [list-key id-key latest-list-key]} (entity-meta entity-label)
-        parent-id (or (:sagaId entity) (:rosterId entity))
-        entity-id (id-key entity)]
-    (cond-> (-> db
-                (update list-key replace-row-by-id id-key temp-id entity)
-                (update-in [:latest-state latest-list-key] replace-row-by-id id-key temp-id entity)
-                (dissoc-entity temp-id)
-                (assoc-entity (entity-label->entity entity-label entity)))
-      (and parent-id entity-id)
-      (replace-child-id parent-id temp-id entity-id))))
-
 (defn update-chapter-roster [db chapter-id roster-id]
-  (let [update-roster* (fn [chapter]
-                         (if (= (:chapterId chapter) chapter-id)
-                           (let [existing-roster-ids (vec (remove str/blank? (or (:rosterIds chapter) [])))
-                                 remaining-roster-ids (->> existing-roster-ids
-                                                           (remove #(= % roster-id))
-                                                           vec)
-                                 next-roster-ids (vec (cons roster-id remaining-roster-ids))]
-                             (assoc chapter
-                                    :rosterId roster-id
-                                    :rosterIds next-roster-ids))
-                           chapter))]
-    (-> db
-        (update :saga (fn [rows] (mapv update-roster* (or rows []))))
-        (update-in [:latest-state :saga]
-                   (fn [rows] (mapv update-roster* (or rows []))))
-        (update-entity-in-pool
-         chapter-id
-         (fn [entity]
-           (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
-                 remaining (->> existing
-                                (remove (fn [existing-id]
-                                          (= existing-id roster-id)))
-                                vec)]
-             (-> entity
-                 (assoc-in [:payload :rosterId] roster-id)
-                 (assoc-in [:payload :rosterIds] (vec (cons roster-id remaining))))))))))
+  (-> db
+      (update-entity-in-pool
+       chapter-id
+       (fn [entity]
+         (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
+               remaining (->> existing
+                              (remove (fn [existing-id]
+                                        (= existing-id roster-id)))
+                              vec)]
+           (-> entity
+               (assoc-in [:payload :rosterId] roster-id)
+               (assoc-in [:payload :rosterIds] (vec (cons roster-id remaining)))))))))
 
 (defn add-chapter-roster [db chapter-id roster-id]
-  (let [update-roster* (fn [chapter]
-                         (if (= (:chapterId chapter) chapter-id)
-                           (let [existing-roster-ids (vec (remove str/blank? (or (:rosterIds chapter) [])))
-                                 next-roster-ids (if (some #(= % roster-id) existing-roster-ids)
-                                                   existing-roster-ids
-                                                   (conj existing-roster-ids roster-id))]
-                             (assoc chapter
-                                    :rosterId (or (:rosterId chapter) roster-id)
-                                    :rosterIds next-roster-ids))
-                           chapter))]
-    (-> db
-        (update :saga (fn [rows] (mapv update-roster* (or rows []))))
-        (update-in [:latest-state :saga]
-                   (fn [rows] (mapv update-roster* (or rows []))))
-        (update-entity-in-pool
-         chapter-id
-         (fn [entity]
-           (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
-                 next-roster-ids (if (some (fn [existing-id]
-                                             (= existing-id roster-id))
-                                           existing)
-                                   existing
-                                   (conj existing roster-id))]
-             (-> entity
-                 (update :payload assoc :rosterId (or (get-in entity [:payload :rosterId]) roster-id))
-                 (assoc-in [:payload :rosterIds] next-roster-ids))))))))
-
-(defn remove-saga-row [rows saga-id]
-  (->> (or rows [])
-       (remove (fn [row] (= (:sagaId row) saga-id)))
-       vec))
+  (-> db
+      (update-entity-in-pool
+       chapter-id
+       (fn [entity]
+         (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
+               next-roster-ids (if (some (fn [existing-id]
+                                           (= existing-id roster-id))
+                                         existing)
+                                 existing
+                                 (conj existing roster-id))]
+           (-> entity
+               (update :payload assoc :rosterId (or (get-in entity [:payload :rosterId]) roster-id))
+               (assoc-in [:payload :rosterIds] next-roster-ids)))))))
 
 (defn remove-entity [db entity-label entity-id]
-  (let [{:keys [list-key id-key latest-list-key name-inputs-key description-inputs-key editing-key]} (entity-meta entity-label)
+  (let [{:keys [name-inputs-key description-inputs-key editing-key]} (entity-meta entity-label)
         owner-type (if (= "character" (str entity-label)) "character" "saga")
-        remaining-entities (->> (or (list-key db) [])
-                                (remove (fn [entity] (= (id-key entity) entity-id)))
-                                vec)
         removed-frame-ids (->> (model/frames-for-owner (:entities db) owner-type entity-id)
                                (filter (fn [frame]
                                          (= (or (:ownerType frame) "saga") owner-type)))
@@ -603,8 +532,7 @@
         dissoc-ids (fn [m]
                      (apply dissoc (or m {}) removed-frame-ids))]
     (-> db
-        (assoc list-key remaining-entities
-               :active-frame-id next-active-id)
+        (assoc :active-frame-id next-active-id)
         (update-in name-inputs-key dissoc entity-id)
         (update-in description-inputs-key dissoc entity-id)
         (cond-> (= (get-in db editing-key) entity-id)
@@ -613,7 +541,6 @@
         (update :open-frame-actions dissoc-ids)
         (update :hidden-frame-images dissoc-ids)
         (update :image-ui-by-frame-id dissoc-ids)
-        (update-in [:latest-state latest-list-key] (fn [_] remaining-entities))
         (update-in [:latest-state :frames] (fn [_] remaining-frames))
         (dissoc-entity entity-id)
         (cond-> (#{"chapter" "character"} (str entity-label))
@@ -636,16 +563,6 @@
                        (map :frameId)
                        vec)]
     (-> db
-        (update :sagas remove-saga-row saga-id)
-        (update :saga (fn [rows]
-                        (->> (or rows [])
-                             (remove (fn [row] (= (:sagaId row) saga-id)))
-                             vec)))
-        (update-in [:latest-state :sagas] remove-saga-row saga-id)
-        (update-in [:latest-state :saga] (fn [rows]
-                                           (->> (or rows [])
-                                                (remove (fn [row] (= (:sagaId row) saga-id)))
-                                                vec)))
         (update-in [:latest-state :frames] (fn [rows]
                                              (->> (or rows [])
                                                   (remove (fn [frame]
@@ -844,8 +761,6 @@
 (defn remove-temp-saga [db command]
   (let [temp-id (get-in command [:payload :optimistic-saga :sagaId])]
     (-> db
-        (update :sagas remove-saga-row temp-id)
-        (update-in [:latest-state :sagas] remove-saga-row temp-id)
         (dissoc-entity temp-id))))
 
 (defn remove-temp-entity [db entity-label temp-id]
@@ -856,7 +771,7 @@
     :generate-frame
     {:transport-fx :post-generate-frame
      :optimistic (fn [db payload]
-                   (set-frame-image-status db (:frame-id payload) "queued"))
+                   (set-frame-image-status db (:frame-id payload) "queued" (:generator payload)))
      :success (fn [db command]
                 (let [response-frame (get-in command [:response :frame])]
                   {:db (cond-> (merge-command-revision db command)
@@ -976,17 +891,7 @@
                    (add-roster-row db (:optimistic-roster payload)))
      :success create-roster-success
      :failure (fn [db command]
-                (let [temp-id (get-in command [:payload :optimistic-roster :rosterId])]
-                  (-> db
-                      (update :rosters (fn [rows]
-                                         (->> (or rows [])
-                                              (remove (fn [row] (= (:rosterId row) temp-id)))
-                                              vec)))
-                      (update-in [:latest-state :rosters] (fn [rows]
-                                                            (->> (or rows [])
-                                                                 (remove (fn [row] (= (:rosterId row) temp-id)))
-                                                                 vec)))
-                      (dissoc-entity temp-id))))}
+                (dissoc-entity db (get-in command [:payload :optimistic-roster :rosterId])))}
 
     :add-chapter
     {:transport-fx :post-add-chapter

@@ -77,6 +77,11 @@
  (fn [db [_ kind message]]
    (push-wait-lights-event db kind message)))
 
+(rf/reg-event-db
+ :set-selected-image-generator
+ (fn [db [_ generator]]
+   (assoc db :selected-image-generator (some-> generator str not-empty))))
+
 (rf/reg-event-fx
  :state-loaded
  (fn [{:keys [db]} [_ state]]
@@ -85,6 +90,10 @@
     (if (< incoming-revision current-revision)
       {:db db}
        (let [entities (or (:entities state) {})
+             available-image-generators (vec (or (:availableImageGenerators state) []))
+             default-image-generator (let [candidate (:defaultImageGenerator state)]
+                                       (when (some #(= % candidate) available-image-generators)
+                                         candidate))
              previous-frames (model/gallery-frames (:entities db))
              frames (model/gallery-frames entities)
              existing-active-id (:active-frame-id db)
@@ -111,6 +120,12 @@
                                           :pendingCount (:pendingCount state)}
                             :status (model/status-line state entities)
                             :last-rendered-revision incoming-revision
+                            :available-image-generators available-image-generators
+                            :default-image-generator default-image-generator
+                            :selected-image-generator (let [selected (:selected-image-generator db)]
+                                                        (or (when (some #(= % selected) available-image-generators)
+                                                              selected)
+                                                            default-image-generator))
                             :entities entities
                             :derived-state (store/compute-derived-state entities)
                             :image-ui-by-frame-id image-ui-by-frame-id

@@ -29,9 +29,18 @@
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
   },
-  "OPENAI_IMAGE_OPTIONS_JSON": {
-    "model": "gpt-image-1-mini",
-    "quality": "low",
-    "size": "1024x1024"
-  }
+  "ROBOGENE_IMAGE_GENERATOR": "openai",
+  "IMAGE_GENERATORS": [
+    {
+      "name": "openai",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-image-1-mini",
+      "quality": "low",
+      "size": "1024x1024"
+    },
+    {
+      "name": "mock",
+      "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII="
+    }
+  ]
 }

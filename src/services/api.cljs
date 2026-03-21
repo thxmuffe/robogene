@@ -49,6 +49,14 @@
         (.then (fn [_]
                  (json-response 200 {:deleted true :id id} request))))))
 
+(defn handle-generate-frame [request]
+  (-> (.json request)
+      (.then (fn [body]
+               (let [payload (js->clj body :keywordize-keys true)]
+                 (-> (entity/queue-frame-generation! payload)
+                     (.then (fn [frame]
+                              (json-response 200 {:frame frame} request)))))))))
+
 (defn handle-signalr-negotiate [request]
   (json-response 200 (or (realtime/create-client-connection-info) {:disabled true}) request))
 
@@ -81,6 +89,12 @@
             :authLevel "anonymous"
             :route "entity/{id}"
             :handler handle-delete-entity})
+
+(.http app "post-generate-frame"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "generate-frame"
+            :handler handle-generate-frame})
 
 (.http app "signalr-negotiate"
        #js {:methods #js ["POST"]

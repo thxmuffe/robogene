@@ -17,8 +17,6 @@ const startupTimeoutMs = 90000;
 const actionTimeoutMs = 15000;
 const shouldRunHeadless = process.env.ROBOGENE_E2E_HEADLESS !== '0';
 const shouldUsePrebuilt = process.env.ROBOGENE_E2E_USE_PREBUILT === '1';
-const mockSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#1496ff'/></svg>";
-const mockSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(mockSvg, 'utf8').toString('base64')}`;
 
 function logStep(scope, message) {
   console.log(`[e2e][${scope}] ${message}`);
@@ -158,8 +156,6 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     WEBAPI_PORT: String(apiPort),
     ROBOGENE_BUILD_PROFILE: 'release',
     FUNCTIONS_WORKER_RUNTIME: 'node',
-    ROBOGENE_IMAGE_GENERATOR: 'mock',
-    ROBOGENE_IMAGE_GENERATOR_MOCK_DATA_URL: mockSvgDataUrl,
     ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS: '10',
     ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
   };

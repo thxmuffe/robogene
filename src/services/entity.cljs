@@ -17,7 +17,8 @@
          :entities {} ;; Map of id -> entity
          :processing false
          :revision 0
-         :openaiOptions (settings/image-settings)}))
+         :defaultImageGenerator (settings/default-image-generator)
+         :availableImageGenerators (image-generator/configured-generators)}))
 
 (defn entity-by-id [id]
   (get-in @state [:entities (str id)]))
@@ -88,6 +89,8 @@
                  true)))))
 
 ;; Image Generation
+(declare process-queue!)
+
 (defn build-prompt-for-entity [entity]
   (let [title (:title entity)
         desc (:description entity)
@@ -102,9 +105,34 @@
                        "Avoid text overlays."]))))
 
 (defn generate-image! [entity]
-  (image-generator/generate-image! {:prompt (build-prompt-for-entity entity)
-                                    :refs []
-                                    :options (:openaiOptions @state)}))
+  (image-generator/generate-image! {:generator (get-in entity [:payload :generator])
+                                    :prompt (build-prompt-for-entity entity)
+                                    :refs []}))
+
+(defn queue-frame-generation! [{:keys [frameId direction generator withoutRoster]}]
+  (let [frame-id (str frameId)
+        generator-id (some-> generator str str/lower-case str/trim)
+        frame (entity-by-id frame-id)]
+    (when-not frame
+      (throw (js/Error. "Frame not found.")))
+    (when-not (= "frame" (:vanityRole frame))
+      (throw (js/Error. "Only frame entities can be generated.")))
+    (when-not (some #(= % generator-id) (:availableImageGenerators @state))
+      (throw (js/Error. (str "Unsupported image generator: " generator-id))))
+    (let [next-frame (cond-> (-> frame
+                                 (assoc :description (or (some-> direction str) (:description frame) ""))
+                                 (assoc-in [:payload :generator] generator-id)
+                                 (assoc-in [:payload :imageStatus] "queued")
+                                 (assoc-in [:payload :error] nil))
+                       (true? withoutRoster)
+                       (assoc-in [:payload :withoutRoster] true)
+
+                       (false? withoutRoster)
+                       (update :payload dissoc :withoutRoster))]
+      (-> (save-entity! next-frame)
+          (.then (fn [saved]
+                   (process-queue!)
+                   saved))))))
 
 (defn process-step! []
   (let [snapshot @state
@@ -143,6 +171,9 @@
   (when-not (:workspaceId @state)
     ;; Use stable workspace if provided, else generate once and keep in memory.
     (swap! state assoc :workspaceId (or (settings/workspace-id) (new-uuid))))
+  (swap! state assoc
+         :availableImageGenerators (image-generator/configured-generators)
+         :defaultImageGenerator (settings/default-image-generator))
   (sync-state!))
 
 (init!)

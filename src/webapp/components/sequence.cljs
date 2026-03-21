@@ -212,8 +212,8 @@
                           @(rf/subscribe [:active-frame-id]))
         add-tile-title (or add-child-label
                            (if (= role "character")
-                             "Add image"
-                             "Add New Frame"))
+                             "Add"
+                             "Add"))
         add-tile-subtitle (if (= role "character")
                             "Create the next image for this character"
                             "Create the next frame in this sequence")]
@@ -233,7 +233,7 @@
        children-data)
      
      (when add-child-fn
-       [:div.gallery-motion-item
+       [:div.gallery-motion-item.add-frame-slot
         {:style (gallery-motion-style (str entity-id "-add-tile"))}
         [:article.add-frame-tile
          {:className "frame frame-clickable add-frame-tile"

@@ -32,6 +32,8 @@
 
 (defn main-view []
   (let [entities @(rf/subscribe [:entities])
+        available-image-generators @(rf/subscribe [:available-image-generators])
+        selected-image-generator @(rf/subscribe [:selected-image-generator])
         status @(rf/subscribe [:status])
         wait-lights-visible? @(rf/subscribe [:wait-lights-visible?])
         pending-api-requests @(rf/subscribe [:pending-api-requests])
@@ -55,7 +57,7 @@
               :style (when frame-view?
                        {:padding-left 0
                         :padding-right 0})}
-       [:> Stack {:gap "md"
+        [:> Stack {:gap "md"
                   :style (when frame-view? {:width "100%"})
                   :className (when frame-view? "app-stack-frame")}
         [:> Box {:component "header"
@@ -63,10 +65,22 @@
                                  (when frame-view? " hero-frame")
                                  (when (not frame-view?) " hero-collection")
                                  (when index-view? " hero-index"))}
-         [:h1
-          [:a {:href (model/index-hash)
-               :className "hero-home-link"}
-           app-name]]]
+         [:div.hero-bar
+          [:h1
+           [:a {:href (model/index-hash)
+                :className "hero-home-link"}
+            app-name]]
+          (when (and (not index-view?)
+                     (seq available-image-generators))
+            [:label.generator-picker
+             [:span.generator-picker-label "Generator"]
+             [:select.generator-picker-select
+              {:value (or selected-image-generator "")
+               :onChange #(rf/dispatch [:set-selected-image-generator (.. % -target -value)])}
+              [:option {:value ""} "Select"]
+              (for [generator-id available-image-generators]
+                ^{:key generator-id}
+                [:option {:value generator-id} generator-id])]])]]
         (case (:view route)
           :frame
           [frame-page/frame-page route nil]

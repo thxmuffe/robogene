@@ -19,8 +19,7 @@ Copy-paste:
 cp robogen.env.example robogen.env
 
 # Fill real secrets in robogen.env:
-# - ROBOGENE_IMAGE_GENERATOR=openai (or mock)
-# - ROBOGENE_IMAGE_GENERATOR_KEY
+# - OPENAI_API_KEY (or whatever env names your IMAGE_GENERATORS entries reference)
 # - AzureWebJobsStorage (or ROBOGENE_STORAGE_CONNECTION_STRING)
 # - AzureSignalRConnectionString
 
@@ -68,7 +67,7 @@ You need:
 - Function App (Node 22 / Functions v4)
 - Storage account
 - SignalR Service
-- App settings with required secrets (`ROBOGENE_IMAGE_GENERATOR_KEY`, storage, SignalR)
+- App settings with required secrets (provider API keys referenced by `src/host/host.json`, storage, SignalR)
 
 Full hosting + CLI deploy guide:
 - [Azure hosting guide](scripts/azure/HOSTING.md)

@@ -275,10 +275,11 @@
 
 (rf/reg-fx
  :post-generate-frame
- (fn [{:keys [frame-id direction without-roster on-success on-failure]}]
+ (fn [{:keys [frame-id direction generator without-roster on-success on-failure]}]
    (post-json "/api/generate-frame"
               {:frameId frame-id
                :direction direction
+               :generator generator
                :withoutRoster (true? without-roster)}
               on-success
               on-failure

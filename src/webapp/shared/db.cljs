@@ -44,6 +44,9 @@
                          :new-panel-open? false}}
    :image-ui-by-frame-id {}
    :hidden-frame-images {}
+   :available-image-generators []
+   :default-image-generator nil
+   :selected-image-generator nil
    :last-rendered-revision nil
    :active-frame-id nil
    :sync-outbox []

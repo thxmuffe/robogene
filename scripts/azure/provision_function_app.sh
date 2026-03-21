@@ -12,8 +12,6 @@ robogene_require_env AZ_STORAGE_ACCOUNT
 robogene_require_env AZ_FUNCTION_APP
 robogene_require_env AZ_APPINSIGHTS_NAME
 robogene_require_env AZ_SIGNALR_NAME
-robogene_require_env ROBOGENE_IMAGE_GENERATOR_KEY
-
 AZ_STORAGE_ACCOUNT="$(robogene_sanitize_storage_name "$AZ_STORAGE_ACCOUNT")"
 ROBOGENE_ALLOWED_ORIGIN="${ROBOGENE_ALLOWED_ORIGIN:-$(robogene_default_allowed_origins)}"
 
@@ -29,9 +27,7 @@ robogene_deploy_template \
   storageAccountName="$AZ_STORAGE_ACCOUNT" \
   appInsightsName="$AZ_APPINSIGHTS_NAME" \
   signalrName="$AZ_SIGNALR_NAME" \
-  imageGeneratorKey="$ROBOGENE_IMAGE_GENERATOR_KEY" \
   allowedOrigin="$ROBOGENE_ALLOWED_ORIGIN" \
-  imageGenerator="${ROBOGENE_IMAGE_GENERATOR:-openai}" \
   signalrHub="${ROBOGENE_SIGNALR_HUB:-robogene}"
 
 HOSTNAME="$(az functionapp show -g "$AZ_RESOURCE_GROUP" -n "$AZ_FUNCTION_APP" --query defaultHostName -o tsv)"

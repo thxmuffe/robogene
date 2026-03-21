@@ -20,36 +20,46 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id provided-direction]]
-   (let [direction (or provided-direction
-                       (get-in db [:frame-drafts frame-id])
-                       (:description (store/frame-by-id db frame-id))
-                       "")
-         command {:id (sync/next-command-id)
-                  :kind :generate-frame
-                  :payload {:frame-id frame-id
-                            :direction direction
-                            :without-roster false}
-                  :success-status "Frame request queued."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Queueing frame..."
-                         command))))
+   (let [generator (or (:selected-image-generator db)
+                       (:default-image-generator db))]
+     (if (str/blank? (or generator ""))
+       {:db (assoc db :status "Select an image generator first.")}
+       (let [direction (or provided-direction
+                           (get-in db [:frame-drafts frame-id])
+                           (:description (store/frame-by-id db frame-id))
+                           "")
+             command {:id (sync/next-command-id)
+                      :kind :generate-frame
+                      :payload {:frame-id frame-id
+                                :direction direction
+                                :generator generator
+                                :without-roster false}
+                      :success-status "Frame request queued."}]
+         (sync/queue-command (store/apply-command-optimistically db command)
+                             "Queueing frame..."
+                             command))))))
 
 (rf/reg-event-fx
  :generate-frame-without-roster
  (fn [{:keys [db]} [_ frame-id provided-direction]]
-   (let [direction (or provided-direction
-                       (get-in db [:frame-drafts frame-id])
-                       (:description (store/frame-by-id db frame-id))
-                       "")
-         command {:id (sync/next-command-id)
-                  :kind :generate-frame
-                  :payload {:frame-id frame-id
-                            :direction direction
-                            :without-roster true}
-                  :success-status "Frame request queued."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Queueing frame..."
-                         command))))
+   (let [generator (or (:selected-image-generator db)
+                       (:default-image-generator db))]
+     (if (str/blank? (or generator ""))
+       {:db (assoc db :status "Select an image generator first.")}
+       (let [direction (or provided-direction
+                           (get-in db [:frame-drafts frame-id])
+                           (:description (store/frame-by-id db frame-id))
+                           "")
+             command {:id (sync/next-command-id)
+                      :kind :generate-frame
+                      :payload {:frame-id frame-id
+                                :direction direction
+                                :generator generator
+                                :without-roster true}
+                      :success-status "Frame request queued."}]
+         (sync/queue-command (store/apply-command-optimistically db command)
+                             "Queueing frame..."
+                             command))))))
 
 (rf/reg-event-fx
  :add-frame
