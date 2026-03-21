@@ -2,6 +2,7 @@
   "Generic sequence page (collection with children)."
   (:require [re-frame.core :as rf]
             [webapp.components.sequence :as sequence]
+            [webapp.components.sequence-actions :as sequence-actions]
             [webapp.shared.controls :as controls]
             [webapp.shared.model :as model]))
 
@@ -22,6 +23,7 @@
       [sequence/sequence
        entity
        {:children-fetcher fetch-child-entity
+        :actions-renderer sequence-actions/sequence-actions
         :child-options-fn (fn [child-entity]
                             {:on-click (fn []
                                         (when (empty? (:children child-entity))

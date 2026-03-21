@@ -3,6 +3,7 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.sequence :as sequence]
+            [webapp.components.sequence-actions :as sequence-actions]
             [webapp.shared.controls :as controls]
             [webapp.shared.model :as model]
             [webapp.shared.ui.frame-nav :as frame-nav]
@@ -92,6 +93,7 @@
         [sequence/sequence
          chapter
          {:children-fetcher fetch-entity
+          :actions-renderer sequence-actions/sequence-actions
           :on-save-title #(save-entity-title! chapter %)
           :on-save-description #(save-entity-description! chapter %)
           :add-child-label "Add New Frame"
@@ -140,9 +142,10 @@
         (= "saga" (:vanityRole entity))
         [:div.gallery-page.saga-page
          [sequence/sequence-description-editor
-          entity
-          {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)}
+         entity
+         {:on-save-title #(save-entity-title! entity %)
+           :on-save-description #(save-entity-description! entity %)
+           :actions-renderer sequence-actions/sequence-actions}
          title-editing-atom
          description-editing-atom]
          (for [child children
@@ -156,9 +159,10 @@
         :else
         [:div.gallery-page.roster-page
          [sequence/sequence-description-editor
-          entity
-          {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)}
+         entity
+         {:on-save-title #(save-entity-title! entity %)
+           :on-save-description #(save-entity-description! entity %)
+           :actions-renderer sequence-actions/sequence-actions}
           title-editing-atom
           description-editing-atom]
          (for [child children
@@ -166,6 +170,7 @@
            ^{:key (:id child)}
            [sequence/sequence child
             {:children-fetcher fetch-entity
+             :actions-renderer sequence-actions/sequence-actions
              :add-child-label "Add Item"
              :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
              :on-save-title #(save-entity-title! child %)
