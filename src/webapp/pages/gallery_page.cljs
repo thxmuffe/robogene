@@ -3,7 +3,7 @@
   (:require [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.sequence :as sequence]
-            [webapp.components.sequence-actions :as sequence-actions]
+            [webapp.shared.sequence-action-renderer :as sequence-action-renderer]
             [webapp.shared.controls :as controls]
             [webapp.shared.model :as model]
             [webapp.shared.ui.frame-nav :as frame-nav]
@@ -93,7 +93,7 @@
         [sequence/sequence
          child-sequence
          {:children-fetcher fetch-entity
-          :actions-renderer sequence-actions/sequence-actions
+          :actions-renderer sequence-action-renderer/render-sequence-actions
           :on-save-title #(save-entity-title! child-sequence %)
           :on-save-description #(save-entity-description! child-sequence %)
           :add-child-label "Add New Frame"
@@ -142,7 +142,7 @@
             entity
             {:on-save-title #(save-entity-title! entity %)
              :on-save-description #(save-entity-description! entity %)
-             :actions-renderer sequence-actions/sequence-actions}
+             :actions-renderer sequence-action-renderer/render-sequence-actions}
             title-editing-atom
             description-editing-atom]
            (if (seq children-ids)
@@ -161,7 +161,7 @@
             entity
             {:on-save-title #(save-entity-title! entity %)
              :on-save-description #(save-entity-description! entity %)
-             :actions-renderer sequence-actions/sequence-actions}
+             :actions-renderer sequence-action-renderer/render-sequence-actions}
             title-editing-atom
             description-editing-atom]
            (if (seq children-ids)
@@ -170,7 +170,7 @@
                ^{:key (:id child)}
                [sequence/sequence child
                 {:children-fetcher fetch-entity
-                 :actions-renderer sequence-actions/sequence-actions
+                 :actions-renderer sequence-action-renderer/render-sequence-actions
                  :add-child-label "Add Item"
                  :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
                  :on-save-title #(save-entity-title! child %)

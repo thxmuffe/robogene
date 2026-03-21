@@ -1,7 +1,6 @@
 (ns webapp.components.sequence-actions
   (:require [clojure.string :as str]
             [reagent.core :as r]
-            [re-frame.core :as rf]
             [webapp.components.confirm-dialog :as confirm-dialog]
             [webapp.components.roster-button :as roster-button]
             [webapp.components.roster-select-dialog :as roster-select-dialog]
@@ -10,26 +9,32 @@
             [webapp.shared.model :as model]
             ["react-icons/fa6" :refer [FaBroom FaDownload FaImages FaPlus FaTrashCan]]))
 
-(defn- confirm-item [id title text confirm-label dispatch-event]
+(defn- confirm-item [id title text confirm-label on-confirm]
   {:id id
    :confirm {:title title
              :text text
              :confirm-label confirm-label
              :confirm-color "error"}
-   :dispatch-event dispatch-event})
+   :on-confirm on-confirm})
 
-(defn sequence-actions [entity]
+(defn sequence-actions [entity {:keys [cancel-ui-token
+                                       roster-link-state
+                                       rosters
+                                       frames
+                                       on-delete
+                                       on-open-roster-link
+                                       on-select-roster
+                                       on-roster-search
+                                       on-close-roster-dialog
+                                       on-create-roster
+                                       on-upload-images
+                                       on-delete-empty-frames]}]
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)
                upload-open?* (r/atom false)]
     (let [entity-id (:id entity)
           role (some-> (:vanityRole entity) str str/lower-case)
-          cancel-ui-token @(rf/subscribe [:cancel-ui-token])
-          roster-link-state @(rf/subscribe [:roster-link-state])
-          rosters @(rf/subscribe [:rosters])
           owner-type (if (= role "character") "character" "saga")
-          frames (when (not= role "saga")
-                   @(rf/subscribe [:frames-for-owner owner-type entity-id]))
           empty-frames (filterv (fn [frame]
                                   (str/blank? (or (:imageUrl frame) "")))
                                 (or frames []))
@@ -60,7 +65,8 @@
                                 {:label (model/primary-label roster)
                                  :description (some-> (:description roster) str/trim not-empty)
                                  :class-name "roster-select-option"
-                                 :on-click #(rf/dispatch [:select-roster-link (:id roster)])}])
+                                 :on-click #(when on-select-roster
+                                              (on-select-roster (:id roster)))}])
                              filtered-rosters)
           items [{:id :download-sequence
                   :label (str "Download " label)
@@ -79,26 +85,22 @@
                                                    "This deletes all child sequences and frames in this saga."
                                                    (str "This deletes all frames in this " label "."))
                                                  (str "Delete " label)
-                                                 [(case role
-                                                    "saga" :delete-saga
-                                                    "character" :delete-character
-                                                    :delete-chapter)
-                                                  entity-id])))}
+                                                 on-delete)))}
                  {:id :link-sequence
                   :label "Link"
                   :icon FaPlus
                   :color "grape"
                   :disabled? (not= role "chapter")
                   :on-select (fn [_]
-                               (when (= role "chapter")
-                                 (rf/dispatch [:add-linked-chapter-roster entity-id])))}
+                               (when (and (= role "chapter") on-open-roster-link)
+                                 (on-open-roster-link entity-id)))}
                  {:id :upload-images
                   :label "Upload images"
                   :icon FaImages
                   :color "blue"
                   :disabled? (not= role "chapter")
                   :on-select (fn [_]
-                               (when (= role "chapter")
+                               (when (and (= role "chapter") on-upload-images)
                                  (reset! upload-open?* true)))}
                  {:id :delete-empty-frames
                   :label "Delete empty frames"
@@ -115,7 +117,7 @@
                                                         " frame" (when (not= 1 empty-frame-count) "s")
                                                         " without an image in this " label ".")
                                                    "Delete empty frames"
-                                                   [:delete-empty-frames entity-id owner-type]))))}]
+                                                   #(on-delete-empty-frames entity-id owner-type)))))}]
           selected-item @confirm*]
       (when (not= cancel-ui-token @seen-cancel-token*)
         (reset! seen-cancel-token* cancel-ui-token)
@@ -133,22 +135,23 @@
         {:item selected-item
          :on-cancel #(reset! confirm* nil)
          :on-confirm (fn []
-                       (when-let [event (:dispatch-event selected-item)]
-                         (rf/dispatch event))
+                       (when-let [on-confirm (:on-confirm selected-item)]
+                         (on-confirm))
                        (reset! confirm* nil))}]
        (when (= role "chapter")
          [upload-dialog/upload-dialog
           {:open @upload-open?*
            :on-close #(reset! upload-open?* false)
-           :on-submit-many #(rf/dispatch [:upload-chapter-images entity-id %])
+           :on-submit-many #(when on-upload-images
+                              (on-upload-images entity-id %))
            :multiple? true
            :title "Upload images"}])
        [roster-select-dialog/roster-select-dialog
         {:open roster-dialog-open?
          :title "Select roster"
          :search (:search roster-link-state)
-         :on-search #(rf/dispatch [:roster-link-search-changed %])
-         :on-close #(rf/dispatch [:close-roster-link-dialog])
-         :on-create #(rf/dispatch [:create-roster-link])
+         :on-search #(when on-roster-search (on-roster-search %))
+         :on-close #(when on-close-roster-dialog (on-close-roster-dialog))
+         :on-create #(when on-create-roster (on-create-roster))
          :items roster-items
          :empty-label "No rosters match this search."}]])))
