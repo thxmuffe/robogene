@@ -16,12 +16,11 @@
          frame-entity (get entities frame-id)
          payload (:payload frame-entity)
          owner-id (or chapter-id
-                      (:parentId payload)
-                      (:chapterId payload)
-                      (:characterId payload))
+                      (model/frame-owner-id frame-entity))
          from-page* (or from-page (:from-page route))
-         owner-type (or (:ownerType payload)
-                        (if (= :roster from-page*) "character" "saga"))
+         owner-type (model/frame-owner-type frame-entity
+                                            (when (= :roster from-page*)
+                                              "character"))
          roster-id (or (get-in route [:roster-id])
                        (when (= owner-type "character")
                          (model/chapter-parent-id entities owner-id))
@@ -78,12 +77,10 @@
    (let [route (:route db)]
      (if (= :frame (:view route))
        (let [frame-entity (get-in db [:entities (:frame-id route)])
-             payload (:payload frame-entity)
-             chapter-id (or (:parentId payload)
-                            (:chapterId payload)
-                            (:characterId payload))
-             owner-type (or (:ownerType payload)
-                            (if (= :roster (:from-page route)) "character" "saga"))
+             chapter-id (model/frame-owner-id frame-entity)
+             owner-type (model/frame-owner-type frame-entity
+                                                (when (= :roster (:from-page route))
+                                                  "character"))
              ordered (model/frames-for-owner (:entities db) owner-type chapter-id)
              active-frame-id (:frame-id route)
              target-frame (model/relative-frame-by-id ordered active-frame-id delta)]

@@ -57,7 +57,7 @@
 (defn emit-state-changed! [reason extra]
   (let [snapshot @state
         payload (clj->js (merge {:reason reason
-                                  :chapterId (:workspaceId snapshot) ;; Legacy back-compat
+                                  :workspaceId (:workspaceId snapshot)
                                   :revision (:revision snapshot)
                                   :processing (:processing snapshot)
                                   :pendingCount (active-queue-count)
@@ -72,9 +72,10 @@
                        (assoc-in [:entities id] entity)
                        (update :revision inc))))
     (-> (persist-entity! entity)
-        (.then (fn [_]
-                 (emit-state-changed! "entity-updated" {:entity entity})
-                 entity)))))
+        (.then (fn [persisted-entity]
+                 (swap! state assoc-in [:entities id] persisted-entity)
+                 (emit-state-changed! "entity-updated" {:entity persisted-entity})
+                 persisted-entity)))))
 
 (defn delete-entity! [id]
   (let [workspace-id (or (:workspaceId @state) "default")

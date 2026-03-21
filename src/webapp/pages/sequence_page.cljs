@@ -2,7 +2,8 @@
   "Generic sequence page (collection with children)."
   (:require [re-frame.core :as rf]
             [webapp.components.sequence :as sequence]
-            [webapp.shared.controls :as controls]))
+            [webapp.shared.controls :as controls]
+            [webapp.shared.model :as model]))
 
 (defn fetch-child-entity [child-id]
   @(rf/subscribe [:entity child-id]))
@@ -23,11 +24,9 @@
        {:children-fetcher fetch-child-entity
         :child-options-fn (fn [child-entity]
                             {:on-click (fn []
-                                         (when (empty? (:children child-entity))
-                                           (controls/navigate-frame!
-                                            (or (get-in child-entity [:payload :parentId])
-                                                (get-in child-entity [:payload :chapterId])
-                                                (get-in child-entity [:payload :characterId]))
+                                        (when (empty? (:children child-entity))
+                                          (controls/navigate-frame!
+                                            (model/frame-owner-id child-entity)
                                             (:id child-entity)
                                             (case (:vanityRole entity)
                                               "character" :roster

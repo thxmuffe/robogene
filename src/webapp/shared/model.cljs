@@ -50,6 +50,27 @@
             str/trim
             not-empty)))
 
+(defn entity-parent-id [entity]
+  (some-> (or (get-in entity [:payload :parentId])
+              (get-in entity [:payload :chapterId])
+              (get-in entity [:payload :characterId])
+              (get-in entity [:payload :sagaId])
+              (get-in entity [:payload :rosterId]))
+          str
+          not-empty))
+
+(defn frame-owner-id [entity]
+  (some-> (or (get-in entity [:payload :parentId])
+              (get-in entity [:payload :chapterId])
+              (get-in entity [:payload :characterId]))
+          str
+          not-empty))
+
+(defn frame-owner-type [entity fallback]
+  (or (some-> (get-in entity [:payload :ownerType]) str not-empty)
+      fallback
+      "saga"))
+
 (defn primary-label [entity]
   (or (some-> (:title entity) str/trim not-empty)
       (some-> (:description entity) str/trim not-empty)
@@ -308,11 +329,10 @@
    :imageUrl (get-in entity [:payload :imageUrl])
    :imageStatus (get-in entity [:payload :imageStatus])
    :frameNumber (or (get-in entity [:payload :frameNumber]) js/Number.MAX_SAFE_INTEGER)
-   :chapterId (or (get-in entity [:payload :parentId])
-                  (get-in entity [:payload :chapterId])
-                  (get-in entity [:payload :characterId]))
-   :ownerType (or (get-in entity [:payload :ownerType])
-                  (if (= "character" (entity-role entity)) "character" "saga"))
+   :chapterId (frame-owner-id entity)
+   :ownerType (frame-owner-type entity
+                                (when (= "character" (entity-role entity))
+                                  "character"))
    :createdAt (get-in entity [:payload :createdAt])
    :error (get-in entity [:payload :error])})
 

@@ -55,7 +55,6 @@
        :onError (when-let [on-error (:on-image-error options)]
                   #(on-error))}]
       [:> Box {:className "placeholder-img"}
-       [:div {:className "spinner"}]
        [:div.placeholder-text "No image"]])))
 
 (defn item-status-note

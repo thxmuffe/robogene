@@ -41,13 +41,9 @@
   (when-let [frame-id @(rf/subscribe [:active-frame-id])]
     (when-let [frame-entity (get entities frame-id)]
       (controls/navigate-frame!
-       (or (get-in frame-entity [:payload :parentId])
-           (get-in frame-entity [:payload :chapterId])
-           (get-in frame-entity [:payload :characterId]))
+       (model/frame-owner-id frame-entity)
        frame-id
-       (case (model/entity-role (get entities (or (get-in frame-entity [:payload :parentId])
-                                                  (get-in frame-entity [:payload :chapterId])
-                                                  (get-in frame-entity [:payload :characterId]))))
+       (case (model/entity-role (get entities (model/frame-owner-id frame-entity)))
          "character" :roster
          :saga)))))
 

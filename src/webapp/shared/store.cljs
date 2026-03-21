@@ -7,8 +7,8 @@
             [webapp.shared.model :as model]))
 
 ; Entity conversion helpers for new generic API
-(defn payload->entity 
-  "Convert domain-specific payload to unified entity structure"
+(defn payload->entity
+  "Convert domain-specific payload to unified entity structure."
   [kind payload]
   (case kind
     :add-saga
@@ -41,7 +41,7 @@
     
     :update-entity
     nil
-    
+
     nil))
 
 ;; --- Entity normalization helpers ------------------------------------------
@@ -225,32 +225,49 @@
                     (mapv str)))))))
 
 (defn command->generic-entity-payload
-  "Convert command payload to generic entity structure with id"
+  "Convert a queued command into the canonical entity payload for /api/entity."
   [kind payload]
-  (let [base-entity (payload->entity kind payload)
-        optimistic (or (:optimistic-saga payload)
-                      (:optimistic-roster payload)
-                      (:optimistic-chapter payload)
-                      (:optimistic-character payload)
-                      (:optimistic-frame payload))]
+  (let [optimistic (or (:optimistic-entity payload)
+                       (:optimistic-saga payload)
+                       (:optimistic-roster payload)
+                       (:optimistic-chapter payload)
+                       (:optimistic-character payload)
+                       (:optimistic-frame payload))
+        entity-label (case kind
+                       :add-saga "saga"
+                       :add-roster "roster"
+                       :add-chapter "chapter"
+                       :add-character "character"
+                       :add-frame "frame"
+                       nil)
+        base-entity (cond
+                      (:optimistic-entity payload)
+                      (normalize-entity (:optimistic-entity payload))
+
+                      (and optimistic entity-label)
+                      (entity-label->entity entity-label optimistic)
+
+                      :else
+                      (payload->entity kind payload))]
     (if base-entity
-      (let [entity-id (if optimistic
-                       (case kind
-                         :add-saga (:sagaId optimistic)
-                         :add-roster (:rosterId optimistic)
-                         :add-chapter (:chapterId optimistic)
-                         :add-character (:characterId optimistic)
-                         :add-frame (:frameId optimistic)
-                         :update-entity (:id payload)
-                         (str (random-uuid)))
-                       (str (random-uuid)))]
-        (assoc base-entity :id entity-id))
+      (assoc base-entity :id (or (:id base-entity)
+                                 (some-> (:id optimistic) str)
+                                 (str (random-uuid))))
       nil)))
+
+(defn optimistic-temp-id [command]
+  (or (get-in command [:payload :optimistic-entity :id])
+      (get-in command [:payload :optimistic-saga :sagaId])
+      (get-in command [:payload :optimistic-roster :rosterId])
+      (get-in command [:payload :optimistic-chapter :chapterId])
+      (get-in command [:payload :optimistic-character :characterId])
+      (get-in command [:payload :optimistic-frame :frameId])))
 
 (defn frame-by-id [db frame-id]
   (some-> (model/entity-by-id (:entities db) frame-id)
           model/frame-row))
 
+(declare entity-label->entity)
 (declare merge-frame-row)
 
 (defn set-frame-image-status [db frame-id image-status generator]
@@ -321,50 +338,6 @@
      db
      frame-ids)))
 
-(defn clear-frame-image [db frame-id]
-  (let [clear-image (fn [frame]
-                      (if (= (:frameId frame) frame-id)
-                        (assoc frame :imageUrl nil)
-                        frame))]
-    (-> db
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv clear-image (or frames []))))
-        (assoc-in [:hidden-frame-images frame-id] true)
-        (update :image-ui-by-frame-id image-ui/mark-image-idle frame-id)
-        (update-entity-in-pool frame-id
-                               #(assoc-in % [:payload :imageUrl] nil)))))
-
-(defn replace-frame-image [db frame-id image-data-url]
-  (let [replace-image (fn [frame]
-                        (if (= (:frameId frame) frame-id)
-                          (-> frame
-                              (assoc :imageUrl image-data-url)
-                              (assoc :imageStatus "uploading")
-                              (assoc :error nil))
-                          frame))]
-    (-> db
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv replace-image (or frames []))))
-        (update :hidden-frame-images dissoc frame-id)
-        (assoc-in [:image-ui-by-frame-id frame-id] :loading)
-        (update-entity-in-pool frame-id
-                               #(-> %
-                                    (assoc-in [:payload :imageUrl] image-data-url)
-                                    (assoc-in [:payload :imageStatus] "uploading")
-                                    (update :payload dissoc :error))))))
-
-(defn update-frame-description [db frame-id description]
-  (let [normalized (or (some-> (or description "") str str/trim) "")
-        set-description (fn [frame]
-                          (if (= (:frameId frame) frame-id)
-                            (assoc frame :description normalized)
-                            frame))]
-    (-> db
-        (update :frame-drafts dissoc frame-id)
-        (update-in [:latest-state :frames]
-                   (fn [frames] (mapv set-description (or frames []))))
-        (update-entity-in-pool frame-id #(assoc % :description normalized)))))
-
 (defn merge-frame-row [rows frame]
   (let [target-id (:frameId frame)]
     (mapv (fn [row]
@@ -411,12 +384,27 @@
                               (assoc :title (:title patch)))
                             (cond-> (contains? patch :description)
                               (assoc :description (:description patch)))
+                            (cond-> (contains? patch :payload)
+                              (update :payload merge (or (:payload patch) {})))
                             (update :payload #(or % {}))
                             (update :children #(vec (or % []))))
-            entities* (assoc entities entity-id next-entity)]
-        (-> db
-            (assoc :entities entities*)
-            (assoc :derived-state (compute-derived-state entities*))))
+            entities* (assoc entities entity-id next-entity)
+            image-url-patch (get-in patch [:payload :imageUrl])
+            image-url-updated? (contains? (or (:payload patch) {}) :imageUrl)]
+        (cond-> (-> db
+                    (assoc :entities entities*)
+                    (assoc :derived-state (compute-derived-state entities*)))
+          (contains? patch :description)
+          (update :frame-drafts dissoc entity-id)
+
+          (and image-url-updated? (str/blank? (or image-url-patch "")))
+          (-> (assoc-in [:hidden-frame-images entity-id] true)
+              (update :image-ui-by-frame-id image-ui/mark-image-idle entity-id))
+
+          (and image-url-updated? (seq (or image-url-patch "")))
+          (-> (update :hidden-frame-images dissoc entity-id)
+              (assoc-in [:image-ui-by-frame-id entity-id]
+                        (image-ui/image-ui-state-for-url image-url-patch)))))
       db)))
 
 (defn update-command-entity [db payload]
@@ -431,7 +419,8 @@
         description (if (contains? patch :description)
                       (:description patch)
                       (:description existing))
-        payload-map (or (:payload existing) {})
+        payload-map (merge (or (:payload existing) {})
+                           (or (:payload patch) {}))
         children (vec (or (:children existing) []))]
     {:id entity-id
      :vanityRole role
@@ -483,35 +472,6 @@
     (cond-> (assoc-entity db (entity-label->entity entity-label entity))
       (and parent-id child-id)
       (append-child-id parent-id child-id))))
-
-(defn update-chapter-roster [db chapter-id roster-id]
-  (-> db
-      (update-entity-in-pool
-       chapter-id
-       (fn [entity]
-         (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
-               remaining (->> existing
-                              (remove (fn [existing-id]
-                                        (= existing-id roster-id)))
-                              vec)]
-           (-> entity
-               (assoc-in [:payload :rosterId] roster-id)
-               (assoc-in [:payload :rosterIds] (vec (cons roster-id remaining)))))))))
-
-(defn add-chapter-roster [db chapter-id roster-id]
-  (-> db
-      (update-entity-in-pool
-       chapter-id
-       (fn [entity]
-         (let [existing (vec (remove str/blank? (or (get-in entity [:payload :rosterIds]) [])))
-               next-roster-ids (if (some (fn [existing-id]
-                                           (= existing-id roster-id))
-                                         existing)
-                                 existing
-                                 (conj existing roster-id))]
-           (-> entity
-               (update :payload assoc :rosterId (or (get-in entity [:payload :rosterId]) roster-id))
-               (assoc-in [:payload :rosterIds] next-roster-ids)))))))
 
 (defn remove-entity [db entity-label entity-id]
   (let [{:keys [name-inputs-key description-inputs-key editing-key]} (entity-meta entity-label)
@@ -682,23 +642,11 @@
                   (image-ui/image-ui-state-for-url (:imageUrl merged-frame)))))
     db))
 
-(defn replace-temp-frames [db temp-frame-ids created-frames]
-  (reduce (fn [acc [temp-id created-frame]]
-            (replace-temp-frame acc temp-id created-frame))
-          db
-          (map vector (or temp-frame-ids []) (or created-frames []))))
-
 (defn generic-entity-success [db command]
   "Generic success handler for POST/PATCH to /api/entity endpoint"
   (let [response (:response command)
         kind (:kind command)
-        temp-id (case kind
-                  :add-saga (get-in command [:payload :optimistic-saga :sagaId])
-                  :add-roster (get-in command [:payload :optimistic-roster :rosterId])
-                  :add-chapter (get-in command [:payload :optimistic-chapter :chapterId])
-                  :add-character (get-in command [:payload :optimistic-character :characterId])
-                  :add-frame (get-in command [:payload :optimistic-frame :frameId])
-                  nil)
+        temp-id (optimistic-temp-id command)
         entity-label (case kind
                        :add-saga "saga"
                        :add-roster "roster"
@@ -779,11 +727,11 @@
                          (merge-frame-response response-frame))}))}
 
     :add-frame
-    {:transport-fx :post-add-frame
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
                    (add-frame-row db (:optimistic-frame payload)))
      :success (fn [db command]
-                (let [temp-id (get-in command [:payload :optimistic-frame :frameId])
+                (let [temp-id (optimistic-temp-id command)
                       response (:response command)
                       created-frame (or (:frame response)
                                         (some-> response normalize-entity model/frame-row))]
@@ -795,68 +743,14 @@
                            (cond-> created-frame
                              (replace-temp-frame temp-id created-frame)))}))
      :failure (fn [db command]
-                (remove-frames db [(get-in command [:payload :optimistic-frame :frameId])]))
+                (remove-frames db [(optimistic-temp-id command)]))
      :fetch-after-success? false}
 
     :delete-frame
-    {:transport-fx :post-delete-frame
+    {:transport-fx :post-delete-entity
      :optimistic (fn [db payload]
                    (remove-frames db [(:frame-id payload)]))
      :fetch-after-success? false}
-
-    :delete-empty-frames
-    {:transport-fx :post-delete-empty-frames
-     :optimistic (fn [db payload]
-                   (remove-frames db (or (:frame-ids payload) [])))
-     :fetch-after-success? false}
-
-    :clear-frame-image
-    {:transport-fx :post-clear-frame-image
-     :optimistic (fn [db payload]
-                   (clear-frame-image db (:frame-id payload)))
-     :success (fn [db command]
-                {:db (-> db
-                         (merge-command-revision command)
-                         (merge-frame-response (get-in command [:response :frame])))})
-     :fetch-after-success? false}
-
-    :replace-frame-image
-    {:transport-fx :post-replace-frame-image
-     :optimistic (fn [db payload]
-                   (replace-frame-image db (:frame-id payload)
-                                        (:image-data-url payload)))
-     :success (fn [db command]
-                {:db (-> db
-                         (merge-command-revision command)
-                         (merge-frame-response (get-in command [:response :frame])))})
-     :fetch-after-success? false}
-
-    :add-uploaded-frames
-    {:transport-fx :post-add-uploaded-frames
-     :optimistic (fn [db payload]
-                   (reduce add-frame-row db (or (:optimistic-frames payload) [])))
-     :success (fn [db command]
-                (let [response-frames (or (get-in command [:response :frames]) [])
-                      temp-frame-ids (mapv :frameId (or (get-in command [:payload :optimistic-frames]) []))
-                      first-frame-id (some-> response-frames first :frameId)]
-                  {:db (cond-> (-> db
-                                   (merge-command-revision command)
-                                   (replace-temp-frames temp-frame-ids response-frames))
-                         first-frame-id
-                         (assoc :active-frame-id first-frame-id))}))
-     :failure (fn [db command]
-                (remove-frames db (mapv :frameId (or (get-in command [:payload :optimistic-frames]) []))))
-     :fetch-after-success? false}
-
-    :update-frame-description
-    {:transport-fx :post-update-frame-description
-     :optimistic (fn [db payload]
-                   (update-frame-description db (:frame-id payload)
-                                             (:description payload)))
-     :success (fn [db command]
-                {:db (-> db
-                         (merge-command-revision command)
-                         (merge-frame-response (get-in command [:response :frame])))} )}
 
     :update-entity
     {:transport-fx :post-save-entity
@@ -879,14 +773,14 @@
                          (merge-command-revision db command))}))}
 
     :add-saga
-    {:transport-fx :post-add-saga
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
                    (add-saga-row db (:optimistic-saga payload)))
      :success generic-entity-success
      :failure remove-temp-saga}
 
     :add-roster
-    {:transport-fx :post-add-roster
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
                    (add-roster-row db (:optimistic-roster payload)))
      :success create-roster-success
@@ -894,7 +788,7 @@
                 (dissoc-entity db (get-in command [:payload :optimistic-roster :rosterId])))}
 
     :add-chapter
-    {:transport-fx :post-add-chapter
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
                    (-> db
                        (add-entity-row "chapter" (:optimistic-chapter payload))
@@ -906,7 +800,7 @@
                                     (get-in command [:payload :optimistic-chapter :chapterId])))}
 
     :add-character
-    {:transport-fx :post-add-character
+    {:transport-fx :post-save-entity
      :optimistic (fn [db payload]
                    (-> db
                        (add-entity-row "character" (:optimistic-character payload))
@@ -917,32 +811,20 @@
                 (remove-temp-entity db "character"
                                     (get-in command [:payload :optimistic-character :characterId])))}
 
-    :update-chapter-roster
-    {:transport-fx :post-update-chapter-roster
-     :optimistic (fn [db payload]
-                   (update-chapter-roster db (:chapter-id payload)
-                                          (:roster-id payload)))}
-
-    :add-chapter-roster
-    {:transport-fx :post-add-chapter-roster
-     :optimistic (fn [db payload]
-                   (add-chapter-roster db (:chapter-id payload)
-                                       (:roster-id payload)))}
-
     :delete-saga
-    {:transport-fx :post-delete-saga
+    {:transport-fx :post-delete-entity
      :optimistic (fn [db payload]
                    (remove-saga db (:saga-id payload)))
      :fetch-after-success? false}
 
     :delete-chapter
-    {:transport-fx :post-delete-chapter
+    {:transport-fx :post-delete-entity
      :optimistic (fn [db payload]
                    (remove-entity db "chapter" (:chapter-id payload)))
      :fetch-after-success? false}
 
     :delete-character
-    {:transport-fx :post-delete-character
+    {:transport-fx :post-delete-entity
      :optimistic (fn [db payload]
                    (remove-entity db "character" (:character-id payload)))
      :fetch-after-success? false}
@@ -977,15 +859,16 @@
                                      :is-update is-update}
                                     (sync/callback-events (:id command)))})
         
-        (:delete-saga :delete-chapter :delete-character)
+        (:delete-saga :delete-chapter :delete-character :delete-frame)
         (let [entity-id (case kind
                           :delete-saga (get-in command [:payload :saga-id])
                           :delete-chapter (get-in command [:payload :chapter-id])
-                          :delete-character (get-in command [:payload :character-id]))]
+                          :delete-character (get-in command [:payload :character-id])
+                          :delete-frame (get-in command [:payload :frame-id]))]
           {:post-delete-entity (merge {:id entity-id}
                                       (sync/callback-events (:id command)))})
         
-        ; Keep other operations on old transport for now
+        ; Non-CRUD operations keep their dedicated transport.
         {transport-fx (merge (:payload command)
                             (sync/callback-events (:id command)))}))))
 

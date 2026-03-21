@@ -84,7 +84,6 @@
                   :loading "lazy"
                   :decoding "async"}]
            [:> Box {:className "placeholder-img entity-card-placeholder"}
-            [:div {:className "spinner"}]
             [:div.placeholder-text "No image"]])]
         [:> Box {:className "entity-card-copy"}
          [:> Text {:fw 700 :size "sm" :className "entity-card-title"} title]

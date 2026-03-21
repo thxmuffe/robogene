@@ -249,8 +249,7 @@
          chapter-entity (some->> chapter-id
                                  (model/entity-by-id (:entities db)))
          saga-id (or (:saga-id target)
-                     (get-in chapter-entity [:payload :parentId])
-                     (get-in chapter-entity [:payload :sagaId])
+                     (model/entity-parent-id chapter-entity)
                      (some->> chapter-id (model/chapter-parent-id (:entities db))))
          after-create (case (:mode target)
                         :add-chapter {:mode :add-chapter

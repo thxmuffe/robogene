@@ -33,7 +33,6 @@
 (def image-container (.getContainerClient blob-service container-name))
 
 (defonce ensured? (atom false))
-(defonce smoke-state* (atom nil))
 (defonce image-url-cache* (atom {}))
 
 (defn parse-json [value fallback]
@@ -161,31 +160,35 @@
     (js/Promise.resolve nil)))
 
 (defn save-entity! [workspace-id entity]
-  (let [id (or (:id entity) (:entityId entity) (:frameId entity) (:chapterId entity) (:sagaId entity) (:rosterId entity) (:characterId entity))
-        vanity-role (or (:vanityRole entity)
-                        (cond
-                          (:frameId entity) "frame"
-                          (:chapterId entity) "chapter"
-                          (:sagaId entity) "saga"
-                          (:rosterId entity) "roster"
-                          (:characterId entity) "character"
-                          :else "item"))
-        image-data (or (:imageUrl entity) (:imageDataUrl entity))
+  (let [id (some-> (:id entity) str not-empty)
+        vanity-role (some-> (:vanityRole entity) str not-empty)
+        image-data (or (:imageUrl entity)
+                       (:imageDataUrl entity)
+                       (get-in entity [:payload :imageUrl])
+                       (get-in entity [:payload :imageDataUrl]))
         entity* (assoc entity :vanityRole vanity-role :id id)]
+    (when-not id
+      (throw (js/Error. "Entity save requires :id.")))
+    (when-not vanity-role
+      (throw (js/Error. "Entity save requires :vanityRole.")))
     (-> (if (and (= vanity-role "frame") (seq image-data) (str/starts-with? image-data "data:"))
           (-> (upload-image-if-needed workspace-id id image-data)
               (.then (fn [image-info]
                        (if image-info
-                         (merge entity* image-info)
+                         (-> entity*
+                             (merge image-info)
+                             (assoc-in [:payload :imagePath] (:imagePath image-info))
+                             (assoc-in [:payload :imageUrl] (:imageUrl image-info)))
                          entity*))))
           (js/Promise.resolve entity*))
         (.then (fn [final-entity]
-                 (.upsertEntity entities-client
-                                #js {:partitionKey workspace-id
-                                     :rowKey (str id)
-                                     :vanityRole vanity-role
-                                     :payloadJson (.stringify js/JSON (clj->js final-entity))}
-                                "Replace"))))))
+                 (-> (.upsertEntity entities-client
+                                    #js {:partitionKey workspace-id
+                                         :rowKey (str id)
+                                         :vanityRole vanity-role
+                                         :payloadJson (.stringify js/JSON (clj->js final-entity))}
+                                    "Replace")
+                     (.then (fn [_] final-entity))))))))
 
 (defn delete-entity! [workspace-id entity-id]
   (.catch (.deleteEntity entities-client workspace-id (str entity-id))
@@ -214,55 +217,3 @@
                                                                 (assoc-in [:payload :imageUrl] url))))))
                                      (js/Promise.resolve (conj acc payload)))))
                                []))))) 
-
-;; Legacy adapters for load-or-init-state and save-state
-(defn load-or-init-state [initial-state]
-  (let [workspace-id (or (gobj/get initial-state "chapterId") "default")]
-    (if smoke-dev-storage?
-      (let [current @smoke-state*]
-        (if current
-          (js/Promise.resolve current)
-          (do (reset! smoke-state* initial-state) (js/Promise.resolve initial-state))))
-      (-> (ensure!)
-          (.then (fn [_] (load-entities workspace-id)))
-          (.then (fn [entities]
-                   (if (empty? entities)
-                     ;; Initialize from initial-state
-                     (let [all-entities (concat (js->clj (or (gobj/get initial-state "sagas") #js []) :keywordize-keys true)
-                                                (js->clj (or (gobj/get initial-state "rosters") #js []) :keywordize-keys true)
-                                                (js->clj (or (gobj/get initial-state "saga") #js []) :keywordize-keys true)
-                                                (js->clj (or (gobj/get initial-state "roster") #js []) :keywordize-keys true)
-                                                (js->clj (or (gobj/get initial-state "frames") #js []) :keywordize-keys true))]
-                       (-> (reduce-promise all-entities
-                                           (fn [_ e] (save-entity! workspace-id e))
-                                           nil)
-                           (.then (fn [_] initial-state))))
-                     (let [sagas (filter #(= (:vanityRole %) "saga") entities)
-                           rosters (filter #(= (:vanityRole %) "roster") entities)
-                           chapters (filter #(= (:vanityRole %) "chapter") entities)
-                           characters (filter #(= (:vanityRole %) "character") entities)
-                           frames (filter #(= (:vanityRole %) "frame") entities)]
-                       (doto (js-obj)
-                         (gobj/set "chapterId" workspace-id)
-                         (gobj/set "revision" 1)
-                         (gobj/set "sagas" (clj->js sagas))
-                         (gobj/set "rosters" (clj->js rosters))
-                         (gobj/set "saga" (clj->js chapters))
-                         (gobj/set "roster" (clj->js characters))
-                         (gobj/set "frames" (clj->js frames)))))))))))
-
-(defn save-state [state]
-  (let [workspace-id (or (gobj/get state "chapterId") "default")]
-    (if smoke-dev-storage?
-      (do (reset! smoke-state* state) (js/Promise.resolve state))
-      (let [all-entities (concat (js->clj (or (gobj/get state "sagas") #js []) :keywordize-keys true)
-                                 (js->clj (or (gobj/get state "rosters") #js []) :keywordize-keys true)
-                                 (js->clj (or (gobj/get state "saga") #js []) :keywordize-keys true)
-                                 (js->clj (or (gobj/get state "roster") #js []) :keywordize-keys true)
-                                 (js->clj (or (gobj/get state "frames") #js []) :keywordize-keys true))]
-        (-> (ensure!)
-            (.then (fn [_]
-                     (reduce-promise all-entities
-                                     (fn [_ e] (save-entity! workspace-id e))
-                                     nil)))
-            (.then (fn [_] state)))))))

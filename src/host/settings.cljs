@@ -2,9 +2,6 @@
   (:require [clojure.string :as str]
             [host.config :as config]))
 
-(def default-mock-data-url
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Jc8AAAAASUVORK5CYII=")
-
 (defn- normalize-generator-entry [entry]
   (let [name (some-> (or (:name entry) (get entry "name")) str str/lower-case str/trim not-empty)
         api-key-env (some-> (or (:apiKeyEnv entry) (get entry "apiKeyEnv")) str str/trim not-empty)
@@ -49,7 +46,7 @@
 
 (defn mock-data-url []
   (or (some-> (image-generator-config "mock") :dataUrl)
-      default-mock-data-url))
+      (throw (js/Error. "Mock image generator requires IMAGE_GENERATORS[].dataUrl."))))
 
 (defn mock-delay-ms []
   (config/parse-int (config/setting "ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS") 0))
