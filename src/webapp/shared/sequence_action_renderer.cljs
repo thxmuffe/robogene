@@ -1,5 +1,6 @@
 (ns webapp.shared.sequence-action-renderer
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [webapp.components.sequence-actions :as sequence-actions]))
 
 (defn render-sequence-actions [entity]

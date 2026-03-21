@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [reagent.core :as r]
-            [webapp.components.frame :as frame]
+            [webapp.shared.frame-renderer :as frame-renderer]
             [webapp.components.social-media-buttons :as social-media-buttons]
             [webapp.shared.model :as model]
             [webapp.shared.ui.back-button :as back-button]
@@ -163,7 +163,7 @@
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
           (when-not fullscreen?
             [top-controls from-page roster-id saga-id])
-          [frame/frame active-frame
+          [frame-renderer/render-frame active-frame
            {:clickable? false
             :media-nav? true
             :image-fit "contain"}]

@@ -26,14 +26,14 @@
     (interaction/halt! e)
     (rf/dispatch [:navigate-relative-frame delta])))
 
-(defn frame-image [{:keys [imageUrl frameId]} image-fit]
+(defn frame-image [{:keys [imageUrl frameId]} image-fit on-load on-error]
   [:> Image
    {:key (str frameId "|" (or imageUrl ""))
     :src (or imageUrl "")
     :alt (str "Frame " frameId)
     :fit image-fit
-    :onLoad #(rf/dispatch [:frame-image-loaded frameId imageUrl])
-    :onError #(rf/dispatch [:frame-image-error frameId imageUrl])}])
+    :onLoad (or on-load (fn [] nil))
+    :onError (or on-error (fn [] nil))}])
 
 (defn frame-placeholder [{:keys [imageStatus]}]
   (let [label (case imageStatus
@@ -116,8 +116,14 @@
 (defn frame
   ([frame]
    [frame frame {:clickable? true}])
-  ([frame {:keys [clickable? active? media-nav? image-fit on-click]
-           :or {clickable? true active? false media-nav? false image-fit "contain"}}]
+  ([frame {:keys [clickable? active? media-nav? image-fit on-click
+                  editable? current-input
+                  on-image-load on-image-error
+                  on-open-edit on-close-edit on-description-change on-save-description on-focus
+                  on-generate on-generate-without-roster on-replace-image
+                  on-delete-frame on-clear-image]
+           :or {clickable? true active? false media-nav? false image-fit "contain"
+                editable? false current-input ""}}]
    (r/with-let [action-pointer-down?* (r/atom false)
                 upload-submit-blur?* (r/atom false)
                 confirm* (r/atom nil)
@@ -133,8 +139,7 @@
            image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
            image-loading? (= :loading image-ui)
            image-error? (= :error image-ui)
-           editable? @(rf/subscribe [:frame-edit-open? (:frameId frame)])
-           current-input (clamp-subtitle @(rf/subscribe [:frame-draft (:frameId frame)]))
+           current-input (clamp-subtitle current-input)
            cancel-ui-token @(rf/subscribe [:cancel-ui-token])
            frame* (assoc frame
                          :actionsOpen editable?
@@ -145,14 +150,14 @@
                                         :text "The frame and its description will stay."
                                         :confirm-label "Remove image"
                                         :confirm-color "primary"}
-                              :dispatch-event [:clear-frame-image (:frameId frame)]}
+                              :on-confirm on-clear-image}
            delete-frame-item {:id :delete-frame
                               :label "Delete this frame"
                               :confirm {:title "Delete this frame?"
                                         :text "This cannot be undone."
                                         :confirm-label "Delete"
                                         :confirm-color "error"}
-                              :dispatch-event [:delete-frame (:frameId frame)]}
+                              :on-confirm on-delete-frame}
            selected-item @confirm*
            actions [{:id :generate
                      :label "Generate image"
@@ -163,7 +168,8 @@
                                   (blur-subtitle-input! (:frameId frame))
                                   (js/setTimeout
                                    (fn []
-                                     (rf/dispatch [:generate-frame (:frameId frame) current-input]))
+                                     (when on-generate
+                                       (on-generate)))
                                    0))}
                     {:id :upload-image
                      :label "Upload or take picture"
@@ -190,7 +196,8 @@
                                   (blur-subtitle-input! (:frameId frame))
                                   (js/setTimeout
                                    (fn []
-                                     (rf/dispatch [:generate-frame-without-roster (:frameId frame) current-input]))
+                                     (when on-generate-without-roster
+                                       (on-generate-without-roster)))
                                    0))}
                     {:id :delete-frame
                      :label "Delete frame"
@@ -227,10 +234,10 @@
                 :radius "md"})
         [:> Box {:className "frame-main"}
          [:> Box {:className "media-shell"}
-          [:> Box nav-attrs
+           [:> Box nav-attrs
            (if has-image?
              [:<>
-              [frame-image frame* image-fit]
+              [frame-image frame* image-fit on-image-load on-image-error]
               (when image-status-overlay?
                 [:div {:className (str "frame-image-status-overlay"
                                        (when busy? " is-busy")
@@ -269,13 +276,11 @@
             :max-chars max-subtitle-chars
             :min-rows 2
             :max-rows 16
-            :on-open-edit #(do
-                             (rf/dispatch [:set-frame-actions-open (:frameId frame) true])
-                             (rf/dispatch [:set-active-frame (:frameId frame)]))
-            :on-close-edit #(rf/dispatch [:set-frame-actions-open (:frameId frame) false])
-            :on-change #(rf/dispatch [:frame-direction-changed (:frameId frame) %])
-            :on-save #(rf/dispatch [:save-frame-description (:frameId frame) %])
-            :on-focus #(rf/dispatch [:set-active-frame (:frameId frame)])
+            :on-open-edit #(when on-open-edit (on-open-edit))
+            :on-close-edit #(when on-close-edit (on-close-edit))
+            :on-change #(when on-description-change (on-description-change %))
+            :on-save #(when on-save-description (on-save-description %))
+            :on-focus #(when on-focus (on-focus))
             :keep-editing-on-blur? #(or @action-pointer-down?*
                                         @upload-submit-blur?*
                                         (keep-frame-editing-open? (:frameId frame)))}]
@@ -296,8 +301,8 @@
               {:item selected-item
                :on-cancel #(reset! confirm* nil)
                :on-confirm (fn []
-                             (when-let [event (:dispatch-event selected-item)]
-                               (rf/dispatch event))
+                             (when-let [on-confirm (:on-confirm selected-item)]
+                               (on-confirm))
                              (reset! confirm* nil))}]
              [upload-dialog/upload-dialog
               {:open @upload-open?*
@@ -311,5 +316,6 @@
                                                        (blur-subtitle-input! (:frameId frame))))))
                :on-submit (fn [image-data-url]
                             (reset! upload-submit-blur?* true)
-                            (rf/dispatch [:replace-frame-image (:frameId frame) image-data-url]))}]])]]
+                            (when on-replace-image
+                              (on-replace-image image-data-url)))}]])]]
         ]))))

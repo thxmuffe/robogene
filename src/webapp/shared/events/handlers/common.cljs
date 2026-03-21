@@ -5,11 +5,12 @@
             [webapp.shared.events.browser]
             [webapp.shared.controls :as controls]
             [webapp.shared.events.image-ui :as image-ui]
-            [webapp.shared.events.effects]
             [webapp.shared.events.transport]
             [webapp.shared.store :as store]
+            [webapp.shared.visual-effects]
             [webapp.shared.events.handlers.frame-page]
             [webapp.shared.events.handlers.saga]
+            [webapp.shared.events.handlers.visual-effects]
             [webapp.shared.events.handlers.frames]
             [webapp.shared.events.handlers.entity]
             [webapp.shared.model :as model]))
