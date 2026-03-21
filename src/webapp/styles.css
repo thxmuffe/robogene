@@ -549,14 +549,16 @@ h2 { margin: 24px 0 10px; }
 
 
 /* ==========================================================================
-   8. Chapter Components (Blocks, Separators, Headers)
+   8. Sequence Group Components (Blocks, Separators, Headers)
    ========================================================================== */
 
+.sequence-group,
 .chapter-block {
   margin: 10px 0 18px;
   width: min(100%, calc(var(--cols) * var(--card-width) + (var(--cols) - 1) * var(--card-gap)));
 }
 
+.sequence-group.is-collapsed,
 .chapter-block.is-collapsed {
   margin: 6px 0 10px;
 }
@@ -735,6 +737,7 @@ button.sequence-box.is-collapsed {
   box-shadow: 0 3px 10px rgba(9, 20, 32, 0.26);
 }
 
+.sequence-group-content,
 .chapter-content { display: grid; }
 
 .chapter-header-actions {
