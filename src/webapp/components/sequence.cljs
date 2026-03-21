@@ -257,46 +257,46 @@
         title (or (:title entity) "")
         description (or (:description entity) "")]
     [:div.chapter-header
-     [db-text/db-text
-      {:id (str (:id entity) "-title")
-       :value title
-       :editing? @title-editing-atom
-       :multiline? false
-       :class-name "chapter-header-body"
-       :display-class-name "chapter-name"
-       :editing-class-name "chapter-db-item"
-       :input-class-name "chapter-name-input"
-       :placeholder "Sequence title..."
-       :on-open-edit #(reset! title-editing-atom true)
-       :on-close-edit #(reset! title-editing-atom false)
-       :on-save (when on-save-title
-                  (fn [text]
-                    (reset! title-editing-atom false)
-                    (on-save-title text)))}]
-     
-     [db-text/db-text
-      {:id (str (:id entity) "-description")
-       :value description
-       :editing? @description-editing-atom
-       :multiline? true
-       :class-name "chapter-header-body"
-       :display-class-name "chapter-description"
-       :editing-class-name "chapter-db-item"
-       :input-class-name "chapter-description-input"
-       :placeholder "Add description..."
-       :max-chars 500
-       :min-rows 2
-       :max-rows 8
-       :on-open-edit #(reset! description-editing-atom true)
-       :on-close-edit #(reset! description-editing-atom false)
-       :on-save (when on-save-description
-                  (fn [text]
-                    (reset! description-editing-atom false)
-                    (on-save-description text)))}]
-     
-     (when show-actions?
-       [:div.chapter-header-controls
-        [sequence-actions entity]])]))
+     [:div.chapter-header-main
+      [:div.chapter-header-copy
+       [db-text/db-text
+        {:id (str (:id entity) "-title")
+         :value title
+         :editing? @title-editing-atom
+         :multiline? false
+         :class-name "chapter-header-body"
+         :display-class-name "chapter-name"
+         :editing-class-name "chapter-db-item"
+         :input-class-name "chapter-name-input"
+         :placeholder "Sequence title..."
+         :on-open-edit #(reset! title-editing-atom true)
+         :on-close-edit #(reset! title-editing-atom false)
+         :on-save (when on-save-title
+                    (fn [text]
+                      (reset! title-editing-atom false)
+                      (on-save-title text)))}]
+       [db-text/db-text
+        {:id (str (:id entity) "-description")
+         :value description
+         :editing? @description-editing-atom
+         :multiline? true
+         :class-name "chapter-header-body"
+         :display-class-name "chapter-description"
+         :editing-class-name "chapter-db-item"
+         :input-class-name "chapter-description-input"
+         :placeholder "Add description..."
+         :max-chars 500
+         :min-rows 2
+         :max-rows 8
+         :on-open-edit #(reset! description-editing-atom true)
+         :on-close-edit #(reset! description-editing-atom false)
+         :on-save (when on-save-description
+                    (fn [text]
+                      (reset! description-editing-atom false)
+                      (on-save-description text)))}]]
+      (when show-actions?
+        [:div.chapter-header-controls
+         [sequence-actions entity]])]]))
 
 (defn sequence
   "Generic sequence component for rendering a collection entity.

@@ -24,8 +24,9 @@
 (rf/reg-sub :editing-character-id (fn [db _] (get-in db [:view-state :roster :editing-id])))
 (rf/reg-sub :gallery-chapter-collapsed?
             (fn [db [_ chapter-id]]
-              (contains? (get-in db [:view-state :gallery :collapsed-chapter-ids] #{})
-                         chapter-id)))
+              (let [chapter-id* (some-> chapter-id str)
+                    collapsed-ids (into #{} (map str) (get-in db [:view-state :gallery :collapsed-chapter-ids] #{}))]
+                (contains? collapsed-ids chapter-id*))))
 (rf/reg-sub :image-ui-by-frame-id (fn [db _] (:image-ui-by-frame-id db)))
 (rf/reg-sub :frame-image-ui
             (fn [db [_ frame-id]]

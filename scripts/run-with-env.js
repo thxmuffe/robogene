@@ -42,7 +42,7 @@ function main() {
   const command = args.slice(separator + 1);
 
   const root = process.cwd();
-  const baseEnvPath = path.join(root, "robogen.debug.env");
+  const baseEnvPath = path.join(root, "robogen.env");
   const overlayEnvPath = path.resolve(root, overlayEnv);
 
   if (!fs.existsSync(overlayEnvPath)) {

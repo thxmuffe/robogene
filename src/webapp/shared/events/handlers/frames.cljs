@@ -287,16 +287,16 @@
 
 (rf/reg-event-fx
  :update-entity
- (fn [{:keys [db]} [_ type id name description]]
-   (let [command {:id (sync/next-command-id)
+ (fn [{:keys [db]} [_ entity-id patch]]
+   (let [entity (store/normalize-entity (get-in db [:entities (str entity-id)]))
+         role (or (:vanityRole entity) "entity")
+         command {:id (sync/next-command-id)
                   :kind :update-entity
-                  :payload {:type (str type)
-                            :id id
-                            :name name
-                            :description description}
-                  :success-status (str (str/capitalize (str type)) " updated.")}]
+                  :payload {:id entity-id
+                            :patch patch}
+                  :success-status (str (str/capitalize (str role)) " updated.")}]
      (sync/queue-command (store/apply-command-optimistically db command)
-                         (str "Updating " (str type) "...")
+                         (str "Updating " role "...")
                          command))))
 
 (rf/reg-event-fx

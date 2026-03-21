@@ -16,9 +16,9 @@ Use one env mechanism for everything (app + tests): shell env files.
 Copy-paste:
 
 ```bash
-cp robogen.debug.env.example robogen.debug.env
+cp robogen.env.example robogen.env
 
-# Fill real secrets in robogen.debug.env:
+# Fill real secrets in robogen.env:
 # - ROBOGENE_IMAGE_GENERATOR=openai (or mock)
 # - ROBOGENE_IMAGE_GENERATOR_KEY
 # - AzureWebJobsStorage (or ROBOGENE_STORAGE_CONNECTION_STRING)
@@ -49,8 +49,8 @@ npm run test:e2e:ui:env
 ```
 
 Notes:
-- `robogen.debug.env` holds real secrets.
-- `robogen.test.env` is tracked in the repo and provides the test overlay (ports/timeouts/mock generator).
+- `robogen.env` holds real secrets.
+- `robogen-test.env` is tracked in the repo and provides the test overlay (ports/timeouts/mock generator).
 - `local.settings.json` is not the source of truth in this project.
 
 ## CI/CD

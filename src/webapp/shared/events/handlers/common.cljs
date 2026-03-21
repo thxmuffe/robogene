@@ -160,14 +160,15 @@
                        (assoc-in [:latest-state :pendingCount] pendingCount))
              next-db (cond
                        (map? entity)
-                       (let [entities (assoc (:entities next-db) (:id entity) entity)]
+                       (let [entity* (store/normalize-entity entity)
+                             entities (assoc (:entities next-db) (:id entity*) entity*)]
                          (-> next-db
                              (assoc :entities entities)
                              (assoc :derived-state (store/compute-derived-state entities))
                              refresh-derived-status))
 
                        (seq (or id ""))
-                       (let [entities (dissoc (:entities next-db) id)]
+                       (let [entities (dissoc (:entities next-db) (str id))]
                          (-> next-db
                              (assoc :entities entities)
                              (assoc :derived-state (store/compute-derived-state entities))

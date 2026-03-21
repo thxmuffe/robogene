@@ -8,16 +8,10 @@
   @(rf/subscribe [:entity child-id]))
 
 (defn save-entity-title! [entity text]
-  (rf/dispatch [:save-entity (:vanityRole entity)
-                (:id entity)
-                text
-                nil]))
+  (rf/dispatch [:save-entity (:id entity) {:title text}]))
 
 (defn save-entity-description! [entity text]
-  (rf/dispatch [:save-entity (:vanityRole entity)
-                (:id entity)
-                nil
-                text]))
+  (rf/dispatch [:save-entity (:id entity) {:description text}]))
 
 (defn sequence-page [{:keys [entity-id]}]
   (let [entity @(rf/subscribe [:entity entity-id])]

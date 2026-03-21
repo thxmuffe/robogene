@@ -1,6 +1,7 @@
 (ns webapp.pages.gallery-page
   "Gallery page: render a sequence of sequences (e.g., saga → chapters, roster → characters)."
-  (:require [re-frame.core :as rf]
+  (:require [clojure.set :as set]
+            [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.sequence :as sequence]
             [webapp.shared.controls :as controls]
@@ -12,16 +13,19 @@
   @(rf/subscribe [:entity id]))
 
 (defn save-entity-title! [entity text]
-  (rf/dispatch [:save-entity (model/entity-role entity)
-                (:id entity)
-                text
-                nil]))
+  (rf/dispatch [:save-entity (:id entity) {:title text}]))
 
 (defn save-entity-description! [entity text]
-  (rf/dispatch [:save-entity (model/entity-role entity)
-                (:id entity)
-                nil
-                text]))
+  (rf/dispatch [:save-entity (:id entity) {:description text}]))
+
+(defn toggle-collapsed! [collapsed-chapter-ids* chapter-id]
+  (swap! collapsed-chapter-ids*
+         (fn [collapsed-ids]
+           (let [collapsed-ids (or collapsed-ids #{})
+                 chapter-id (model/entity-id {:id chapter-id})]
+             (if (contains? collapsed-ids chapter-id)
+               (disj collapsed-ids chapter-id)
+               (conj collapsed-ids chapter-id))))))
 
 (defn navigate-active-frame! [direction]
   (when-let [active-id @(rf/subscribe [:active-frame-id])]
@@ -63,35 +67,32 @@
                         (navigate-active-frame-vertical! :down))
         "Enter" (do (interaction/halt! e)
                     (open-active-frame! entities))
-        "Escape" (do (interaction/halt! e)
-                     (rf/dispatch [:collapse-current-gallery-chapter]))
         nil))))
 
-(defn chapter-block [chapter entities]
-  (let [chapter-id (:id chapter)
-        collapsed? @(rf/subscribe [:gallery-chapter-collapsed? chapter-id])
+(defn chapter-block [chapter entities collapsed? on-toggle]
+  (let [chapter-id (model/entity-id chapter)
         preview-url (model/preview-image-url entities chapter-id)
         title (model/primary-label chapter)]
     [:section {:className (str "chapter-block" (when collapsed? " is-collapsed"))}
-     [:div {:className (str "chapter-separator-row" (when collapsed? " is-collapsed"))}
-      [:button.chapter-separator-toggle
+     [:div {:className (str "chapter-separator-row sequence-box-row" (when collapsed? " is-collapsed"))}
+      [:button.chapter-separator-toggle.sequence-box-toggle
        {:type "button"
         :aria-label (if collapsed? "Expand chapter" "Collapse chapter")
-        :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
-       [:span {:className (str "chapter-separator-toggle-triangle"
+        :onClick on-toggle}
+       [:span {:className (str "chapter-separator-toggle-triangle sequence-box-toggle-triangle"
                                (when collapsed? " is-collapsed"))}]]
       [:button {:type "button"
-                :className (str "chapter-separator" (when collapsed? " is-collapsed"))
-                :onClick #(rf/dispatch [:toggle-gallery-chapter-collapsed chapter-id])}
+                :className (str "chapter-separator sequence-box" (when collapsed? " is-collapsed"))
+                :onClick on-toggle}
        (when collapsed?
-         [:div.chapter-separator-preview
+         [:div.chapter-separator-preview.sequence-box-preview
           (if (seq preview-url)
-            [:img {:className "chapter-separator-preview-image"
+            [:img {:className "chapter-separator-preview-image sequence-box-preview-image"
                    :src preview-url
                    :alt (str title " preview")}]
-            [:div.chapter-separator-preview-placeholder])])
+            [:div.chapter-separator-preview-placeholder.sequence-box-preview-placeholder])])
        (when collapsed?
-         [:span.chapter-separator-title title])]]
+         [:span.chapter-separator-title.sequence-box-title title])]]
      (when-not collapsed?
        [:div.chapter-content
         [sequence/sequence
@@ -104,6 +105,8 @@
 
 (defn gallery-page [{:keys [entity-id]}]
   (r/with-let [key-context* (r/atom nil)
+               collapsed-chapter-ids* (r/atom nil)
+               collapse-owner-id* (r/atom nil)
                title-editing-atom (r/atom false)
                description-editing-atom (r/atom false)
                key-handler (fn [e]
@@ -113,7 +116,24 @@
     (let [entity @(rf/subscribe [:entity entity-id])
           entities @(rf/subscribe [:entities])
           children-ids (:children entity)
-          children (map fetch-entity children-ids)]
+          children (map fetch-entity children-ids)
+          chapter-ids (->> children
+                           (keep model/entity-id)
+                           set)]
+      (cond
+        (not= @collapse-owner-id* entity-id)
+        (do
+          (reset! collapse-owner-id* entity-id)
+          (when (seq chapter-ids)
+            (reset! collapsed-chapter-ids* chapter-ids)))
+
+        (and (nil? @collapsed-chapter-ids*) (seq chapter-ids))
+        (reset! collapsed-chapter-ids* chapter-ids)
+
+        :else
+        (let [filtered-collapsed (set (filter chapter-ids (or @collapsed-chapter-ids* #{})))]
+          (when (not= filtered-collapsed @collapsed-chapter-ids*)
+            (reset! collapsed-chapter-ids* filtered-collapsed))))
       (reset! key-context* {:entities entities})
       (cond
         (nil? entity)
@@ -127,22 +147,23 @@
          [sequence/sequence-description-editor
           entity
           {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)
-           :show-actions? false}
-          title-editing-atom
-          description-editing-atom]
+           :on-save-description #(save-entity-description! entity %)}
+         title-editing-atom
+         description-editing-atom]
          (for [child children
                :when child]
            ^{:key (:id child)}
-           [chapter-block child entities])]
+            [chapter-block child
+            entities
+            (contains? (or @collapsed-chapter-ids* chapter-ids) (model/entity-id child))
+            #(toggle-collapsed! collapsed-chapter-ids* (model/entity-id child))])]
 
         :else
         [:div.gallery-page.roster-page
          [sequence/sequence-description-editor
           entity
           {:on-save-title #(save-entity-title! entity %)
-           :on-save-description #(save-entity-description! entity %)
-           :show-actions? false}
+           :on-save-description #(save-entity-description! entity %)}
           title-editing-atom
           description-editing-atom]
          (for [child children

@@ -16,18 +16,19 @@
 (rf/reg-event-fx
  :toggle-gallery-chapter-collapsed
  (fn [{:keys [db]} [_ chapter-id]]
-   (let [collapsed-ids (or (get-in db [:view-state :gallery :collapsed-chapter-ids]) #{})
-         collapsing? (not (contains? collapsed-ids chapter-id))
+   (let [chapter-id* (some-> chapter-id str)
+         collapsed-ids (into #{} (map str) (or (get-in db [:view-state :gallery :collapsed-chapter-ids]) #{}))
+         collapsing? (not (contains? collapsed-ids chapter-id*))
          next-collapsed-ids (if collapsing?
-                              (conj collapsed-ids chapter-id)
-                              (disj collapsed-ids chapter-id))
+                              (conj collapsed-ids chapter-id*)
+                              (disj collapsed-ids chapter-id*))
          active-chapter-id (active-gallery-chapter-id db)
          next-active-frame-id (cond
-                                (and collapsing? (= active-chapter-id chapter-id))
+                                (and collapsing? (= (some-> active-chapter-id str) chapter-id*))
                                 nil
 
                                 (not collapsing?)
-                                (first-frame-id-for-chapter db chapter-id)
+                                (first-frame-id-for-chapter db chapter-id*)
 
                                 :else
                                 (:active-frame-id db))]
@@ -39,8 +40,9 @@
  :collapse-current-gallery-chapter
  (fn [{:keys [db]} _]
    (if-let [chapter-id (active-gallery-chapter-id db)]
-     (let [collapsed-ids (or (get-in db [:view-state :gallery :collapsed-chapter-ids]) #{})]
-       (if (contains? collapsed-ids chapter-id)
+     (let [chapter-id* (some-> chapter-id str)
+           collapsed-ids (into #{} (map str) (or (get-in db [:view-state :gallery :collapsed-chapter-ids]) #{}))]
+       (if (contains? collapsed-ids chapter-id*)
          {:db db}
-         {:dispatch [:toggle-gallery-chapter-collapsed chapter-id]}))
+         {:dispatch [:toggle-gallery-chapter-collapsed chapter-id*]}))
      {:db db})))

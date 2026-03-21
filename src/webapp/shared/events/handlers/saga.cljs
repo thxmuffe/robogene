@@ -100,25 +100,21 @@
 
 (rf/reg-event-fx
  :save-entity
- (fn [{:keys [db]} [_ entity-label entity-id provided-name provided-description]]
-   (let [{:keys [editing-key name-inputs-key description-inputs-key]} (entity-label->keys entity-label)
-         entity (model/entity-by-id (:entities db) entity-id)
-         name-source (if (some? provided-name)
-                       provided-name
-                       (or (get-in db (conj name-inputs-key entity-id))
-                           (:title entity)))
-         description-source (if (some? provided-description)
-                              provided-description
-                              (or (get-in db (conj description-inputs-key entity-id))
-                                  (:description entity)))
-         name (some-> name-source str str/trim)
-         description (some-> description-source str)
-         role (or (model/entity-role entity)
-                  (some-> entity-label str str/lower-case))]
-     (if (str/blank? (or name ""))
+ (fn [{:keys [db]} [_ entity-id patch]]
+   (let [entity (model/entity-by-id (:entities db) entity-id)
+         role (model/entity-role entity)
+         {:keys [editing-key]} (entity-label->keys role)
+         title (cond
+                 (contains? patch :title) (some-> (:title patch) str str/trim)
+                 :else (:title entity))
+         next-patch (cond-> {}
+                      (contains? patch :title) (assoc :title title)
+                      (contains? patch :description) (assoc :description (some-> (:description patch) str)))]
+     (if (or (nil? entity)
+             (str/blank? (or title "")))
        {:db db}
        {:db (assoc-in db editing-key nil)
-        :dispatch [:update-entity role entity-id name description]}))))
+        :dispatch [:update-entity entity-id next-patch]}))))
 
 (rf/reg-event-db
  :set-new-saga-panel-open
