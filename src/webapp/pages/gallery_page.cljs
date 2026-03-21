@@ -18,14 +18,13 @@
 (defn save-entity-description! [entity text]
   (rf/dispatch [:save-entity (:id entity) {:description text}]))
 
-(defn toggle-collapsed! [collapsed-chapter-ids* chapter-id]
-  (swap! collapsed-chapter-ids*
-         (fn [collapsed-ids]
-           (let [collapsed-ids (or collapsed-ids #{})
-                 chapter-id (model/entity-id {:id chapter-id})]
-             (if (contains? collapsed-ids chapter-id)
-               (disj collapsed-ids chapter-id)
-               (conj collapsed-ids chapter-id))))))
+(defn toggle-collapsed! [collapsed-chapter-ids* effective-collapsed-ids chapter-id]
+  (let [chapter-id (model/entity-id {:id chapter-id})
+        collapsed-ids (or effective-collapsed-ids #{})]
+    (reset! collapsed-chapter-ids*
+            (if (contains? collapsed-ids chapter-id)
+              (disj collapsed-ids chapter-id)
+              (conj collapsed-ids chapter-id)))))
 
 (defn navigate-active-frame! [direction]
   (when-let [active-id @(rf/subscribe [:active-frame-id])]
@@ -135,6 +134,7 @@
           (when (not= filtered-collapsed @collapsed-chapter-ids*)
             (reset! collapsed-chapter-ids* filtered-collapsed))))
       (reset! key-context* {:entities entities})
+      (let [effective-collapsed-ids (or @collapsed-chapter-ids* chapter-ids #{})]
       (cond
         (nil? entity)
         [:div.gallery-page [:p "Loading gallery..."]]
@@ -155,8 +155,8 @@
            ^{:key (:id child)}
             [chapter-block child
             entities
-            (contains? (or @collapsed-chapter-ids* chapter-ids) (model/entity-id child))
-            #(toggle-collapsed! collapsed-chapter-ids* (model/entity-id child))])]
+            (contains? effective-collapsed-ids (model/entity-id child))
+            #(toggle-collapsed! collapsed-chapter-ids* effective-collapsed-ids (model/entity-id child))])]
 
         :else
         [:div.gallery-page.roster-page
@@ -174,7 +174,7 @@
              :add-child-label "Add Item"
              :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
              :on-save-title #(save-entity-title! child %)
-             :on-save-description #(save-entity-description! child %)}])]))
+             :on-save-description #(save-entity-description! child %)}])])))
     (finally
       (.removeEventListener js/window "keydown" key-handler))))
 

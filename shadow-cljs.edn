@@ -8,6 +8,7 @@
                  :modules {:main {:init-fn webapp.shared.bootstrap/init!}}
                  :devtools {:after-load webapp.shared.bootstrap/after-load!}
                  :compiler-options {:warnings-as-errors false
+                                    :warnings {:unreachable-code false}
                                     :optimizations :none
                                     :source-map true
                                     :pseudo-names true}}
@@ -15,11 +16,13 @@
                    :output-dir "dist/release/webapp/js"
                    :asset-path "./js"
                    :modules {:main {:init-fn webapp.shared.bootstrap/init!}}
-                   :compiler-options {:warnings-as-errors false}}
+                   :compiler-options {:warnings-as-errors false
+                                      :warnings {:unreachable-code false}}}
   :webapi-debug {:target :node-script
                  :main services.api/init!
                  :output-to "dist/debug/webapi/webapi_compiled.js"
                  :compiler-options {:warnings-as-errors false
+                                    :warnings {:unreachable-code false}
                                     :optimizations :none
                                     :source-map true
                                     :pseudo-names true}}
@@ -27,13 +30,16 @@
                    :main services.api/init!
                    :output-to "dist/release/webapi/webapi_compiled.js"
                    :compiler-options {:warnings-as-errors false
+                                      :warnings {:unreachable-code false}
                                       :optimizations :simple}}
   :host-debug {:target :node-script
                       :main host.main/init!
                       :output-to "src/host/dist/main.js"
-                      :compiler-options {:warnings-as-errors false}}
+                      :compiler-options {:warnings-as-errors false
+                                         :warnings {:unreachable-code false}}}
   :host-release {:target :node-script
                         :main host.main/init!
                         :output-to "src/host/dist/main.js"
                         :compiler-options {:warnings-as-errors false
+                                           :warnings {:unreachable-code false}
                                            :optimizations :simple}}}}
