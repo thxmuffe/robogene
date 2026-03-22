@@ -109,6 +109,18 @@
   (some-> (.querySelector js/document (str "[data-db-text-id=\"" frame-id "-subtitle\"] .subtitle-display-input"))
           (.blur)))
 
+(defn- commit-subtitle-before-action! [frame-id commit-blur?* action]
+  (reset! commit-blur?* true)
+  (blur-subtitle-input! frame-id)
+  (js/setTimeout
+   (fn []
+     (when action
+       (action))
+     (.requestAnimationFrame js/window
+                             (fn []
+                               (reset! commit-blur?* false))))
+   0))
+
 (defn- keep-frame-editing-open? [frame-id]
   (let [active-el (.-activeElement js/document)
         selector (str ".frame[data-frame-id=\"" frame-id "\"]")]
@@ -127,7 +139,8 @@
                   on-delete-frame on-clear-image]
            :or {clickable? true active? false media-nav? false image-fit "contain"
                 editable? false current-input ""}}]
-   (r/with-let [action-pointer-down?* (r/atom false)
+  (r/with-let [action-pointer-down?* (r/atom false)
+               commit-blur?* (r/atom false)
                 upload-submit-blur?* (r/atom false)
                 confirm* (r/atom nil)
                 upload-open?* (r/atom false)
@@ -170,19 +183,18 @@
                      :color "indigo"
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (blur-subtitle-input! (:frameId frame))
-                                  (js/setTimeout
-                                   (fn []
-                                     (when on-generate
-                                       (on-generate)))
-                                   0))}
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  on-generate))}
                     {:id :upload-image
                      :label "Upload or take picture"
                      :icon FaCamera
                      :color "blue"
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (reset! upload-open?* true))}
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  #(reset! upload-open?* true)))}
                     {:id :download-image
                      :label "Download image"
                      :icon FaDownload
@@ -190,7 +202,11 @@
                      :disabled? (not has-image?)
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (download-image! (:frameId frame) (:frameNumber frame) visible-image-url))}
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  #(download-image! (:frameId frame)
+                                                                                    (:frameNumber frame)
+                                                                                    visible-image-url)))}
                     {:id :generate-without-roster
                      :label "Generate without roster"
                      :icon FaWandMagic
@@ -198,19 +214,18 @@
                      :disabled? (not has-image?)
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (blur-subtitle-input! (:frameId frame))
-                                  (js/setTimeout
-                                   (fn []
-                                     (when on-generate-without-roster
-                                       (on-generate-without-roster)))
-                                   0))}
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  on-generate-without-roster))}
                     {:id :delete-frame
                      :label "Delete frame"
                      :icon FaTrashCan
                      :color "red"
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (reset! confirm* delete-frame-item))}
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  #(reset! confirm* delete-frame-item)))}
                     {:id :remove-image
                      :label "Remove image"
                      :icon FaEraser
@@ -218,7 +233,9 @@
                      :disabled? (not has-image?)
                      :on-select (fn [e]
                                   (interaction/halt! e)
-                                  (reset! confirm* remove-image-item))}]
+                                  (commit-subtitle-before-action! (:frameId frame)
+                                                                  commit-blur?*
+                                                                  #(reset! confirm* remove-image-item)))}]
            attrs {:data-frame-id (:frameId frame)
                   :className (str "frame frame-panel"
                                   (when clickable? " frame-clickable")
@@ -287,7 +304,7 @@
             :on-change #(when on-description-change (on-description-change %))
             :on-save #(when on-save-description (on-save-description %))
             :on-focus #(when on-focus (on-focus))
-            :keep-editing-on-blur? #(or @action-pointer-down?*
+            :keep-editing-on-blur? #(or (and @action-pointer-down?* (not @commit-blur?*))
                                         @upload-submit-blur?*
                                         (keep-frame-editing-open? (:frameId frame)))}]
           (when editable?

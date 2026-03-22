@@ -15,6 +15,7 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
 
     logStep('roster-persist', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.sequence-box-toggle').first().click();
 
     const characterBlock = page.locator('.sequence', { hasText: characterName }).first();
     await characterBlock.waitFor({ timeout: actionTimeoutMs });
@@ -36,6 +37,7 @@ export async function runRosterPersistScenario({ openPage, actionTimeoutMs, logS
     logStep('roster-persist', 'reloading page to verify persistence');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.sequence-box-toggle').first().click();
 
     const reloadedBlock = page.locator('.sequence', { hasText: characterName }).first();
     await reloadedBlock.waitFor({ timeout: actionTimeoutMs });

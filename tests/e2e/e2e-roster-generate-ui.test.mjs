@@ -17,6 +17,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
 
     logStep('roster-generate', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
+    await page.locator('.sequence-box-toggle').first().click();
 
     const sequence = page.locator('.sequence', { hasText: characterName }).first();
     await sequence.waitFor({ timeout: actionTimeoutMs });
