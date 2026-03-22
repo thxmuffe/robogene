@@ -4,7 +4,7 @@
 # Environment and secrets
 .env
 *.env
-!robogen.test.env
+!robogen-test.env
 
 # Node
 node_modules/
@@ -28,6 +28,7 @@ tmp/
 .azure/
 src/host/local.settings.json
 dist/
+build/
 
 # Generated assets
 ai/robot emperor/generated/

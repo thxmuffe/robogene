@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [webapp.shared.events.image-ui :as image-ui]
+            [webapp.shared.model :as model]
             [webapp.shared.store :as store]
             [webapp.shared.events.sync :as sync]))
 
@@ -11,6 +12,36 @@
       (seq description) (str "\"" description "\"")
       :else (or (:frameId frame) "frame"))))
 
+(defn queue-command! [db status-message command]
+  (sync/queue-command (store/apply-command-optimistically db command)
+                      status-message
+                      command))
+
+(defn queue-entity-patch! [db entity-id patch success-status status-message]
+  (let [entity (store/normalize-entity (get-in db [:entities (str entity-id)]))
+        role (or (:vanityRole entity) "entity")
+        command {:id (sync/next-command-id)
+                 :kind :update-entity
+                 :payload {:id entity-id
+                           :patch patch}
+                 :success-status (or success-status
+                                     (str (str/capitalize (str role)) " updated."))}]
+    (queue-command! db (or status-message (str "Updating " role "...")) command)))
+
+(defn frame-entity [frame-id owner-id owner-type frame-number image-url image-status]
+  {:id frame-id
+   :vanityRole "frame"
+   :title ""
+   :description ""
+   :children []
+   :payload {:parentId owner-id
+             :ownerType (or owner-type "saga")
+             :frameNumber frame-number
+             :imageUrl image-url
+             :imageStatus image-status
+             :error nil
+             :createdAt (.toISOString (js/Date.))}})
+
 (rf/reg-event-db
  :frame-direction-changed
  (fn [db [_ frame-id value]]
@@ -19,36 +50,46 @@
 (rf/reg-event-fx
  :generate-frame
  (fn [{:keys [db]} [_ frame-id provided-direction]]
-   (let [direction (or provided-direction
-                       (get-in db [:frame-drafts frame-id])
-                       (:description (store/frame-by-id db frame-id))
-                       "")
-         command {:id (sync/next-command-id)
-                  :kind :generate-frame
-                  :payload {:frame-id frame-id
-                            :direction direction
-                            :without-roster false}
-                  :success-status "Frame request queued."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Queueing frame..."
-                         command))))
+   (let [generator (or (:selected-image-generator db)
+                       (:default-image-generator db))]
+     (if (str/blank? (or generator ""))
+       {:db (assoc db :status "Select an image generator first.")}
+       (let [direction (or provided-direction
+                           (get-in db [:frame-drafts frame-id])
+                           (:description (store/frame-by-id db frame-id))
+                           "")
+             command {:id (sync/next-command-id)
+                      :kind :generate-frame
+                      :payload {:frame-id frame-id
+                                :direction direction
+                                :generator generator
+                                :without-roster false}
+                      :success-status "Frame request queued."}]
+         (sync/queue-command (store/apply-command-optimistically db command)
+                             "Queueing frame..."
+                             command))))))
 
 (rf/reg-event-fx
  :generate-frame-without-roster
  (fn [{:keys [db]} [_ frame-id provided-direction]]
-   (let [direction (or provided-direction
-                       (get-in db [:frame-drafts frame-id])
-                       (:description (store/frame-by-id db frame-id))
-                       "")
-         command {:id (sync/next-command-id)
-                  :kind :generate-frame
-                  :payload {:frame-id frame-id
-                            :direction direction
-                            :without-roster true}
-                  :success-status "Frame request queued."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Queueing frame..."
-                         command))))
+   (let [generator (or (:selected-image-generator db)
+                       (:default-image-generator db))]
+     (if (str/blank? (or generator ""))
+       {:db (assoc db :status "Select an image generator first.")}
+       (let [direction (or provided-direction
+                           (get-in db [:frame-drafts frame-id])
+                           (:description (store/frame-by-id db frame-id))
+                           "")
+             command {:id (sync/next-command-id)
+                      :kind :generate-frame
+                      :payload {:frame-id frame-id
+                                :direction direction
+                                :generator generator
+                                :without-roster true}
+                      :success-status "Frame request queued."}]
+         (sync/queue-command (store/apply-command-optimistically db command)
+                             "Queueing frame..."
+                             command))))))
 
 (rf/reg-event-fx
  :add-frame
@@ -58,16 +99,21 @@
          optimistic-frame-id (str "frame-" command-id)
          optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id owner-id owner-type)
                                  :frameNumber (store/next-frame-number db owner-id owner-type))
+         optimistic-entity (frame-entity optimistic-frame-id
+                                         owner-id
+                                         owner-type
+                                         (:frameNumber optimistic-frame)
+                                         nil
+                                         "draft")
          command {:id command-id
                   :kind :add-frame
                   :payload {:owner-id owner-id
                             :owner-type owner-type
                             :frame-id optimistic-frame-id
+                            :optimistic-entity optimistic-entity
                             :optimistic-frame optimistic-frame}
                   :success-status "Frame added."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Adding frame..."
-                         command))))
+     (queue-command! db "Adding frame..." command))))
 
 (rf/reg-event-fx
  :upload-chapter-images
@@ -77,25 +123,33 @@
      (if (or (str/blank? (or chapter-id ""))
              (zero? image-count))
        {:db db}
-       (let [command-id (sync/next-command-id)
-             start-frame-number (store/next-frame-number db chapter-id "saga")
-             optimistic-frames (mapv (fn [idx image-data-url]
-                                       (assoc (store/optimistic-upload-frame db
-                                                                             (str "temp-upload-frame-" command-id "-" idx)
-                                                                             chapter-id
-                                                                             image-data-url)
-                                              :frameNumber (+ start-frame-number idx)))
-                                     (range image-count)
-                                     images)
-             command {:id command-id
-                      :kind :add-uploaded-frames
-                      :payload {:chapter-id chapter-id
-                                :image-data-urls images
-                                :optimistic-frames optimistic-frames}
-                      :success-status (str "Uploaded " image-count " image" (when (not= 1 image-count) "s") ".")}]
-         (sync/queue-command (store/apply-command-optimistically db command)
-                             (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "...")
-                             command))))))
+       {:db db
+        :dispatch-n
+        (mapv (fn [idx image-data-url]
+                (let [frame-id (str "temp-upload-frame-" (.now js/Date) "-" idx)
+                      frame-number (+ (store/next-frame-number db chapter-id "saga") idx)
+                      optimistic-frame (assoc (store/optimistic-upload-frame db
+                                                                            frame-id
+                                                                            chapter-id
+                                                                            image-data-url)
+                                             :frameNumber frame-number)
+                      command {:id (sync/next-command-id)
+                               :kind :add-frame
+                               :payload {:owner-id chapter-id
+                                         :owner-type "saga"
+                                         :frame-id frame-id
+                                         :optimistic-frame optimistic-frame
+                                         :optimistic-entity (frame-entity frame-id
+                                                                          chapter-id
+                                                                          "saga"
+                                                                          frame-number
+                                                                          image-data-url
+                                                                          "uploading")}
+                               :success-status "Uploaded image."}]
+                  [:queue-command-direct command
+                   (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "...")]))
+              (range image-count)
+              images)}))))
 
 (rf/reg-event-fx
  :delete-frame
@@ -105,64 +159,46 @@
                   :kind :delete-frame
                   :payload {:frame-id frame-id}
                   :success-status (str "Deleted " (deleted-frame-label frame) ".")}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Deleting frame..."
-                         command))))
+     (queue-command! db "Deleting frame..." command))))
 
 (rf/reg-event-fx
  :delete-empty-frames
  (fn [{:keys [db]} [_ owner-id owner-type]]
-   (let [empty-frame-ids (->> (or (:gallery-items db) [])
+   (let [empty-frame-ids (->> (model/frames-for-owner (:entities db) owner-type owner-id)
                               (filter (fn [frame]
                                         (and (= (or (:ownerType frame) "saga") (str owner-type))
                                              (= (:chapterId frame) owner-id)
                                              (str/blank? (or (:imageUrl frame) "")))))
                               (mapv :frameId))
-         frame-count (count empty-frame-ids)
-         command {:id (sync/next-command-id)
-                  :kind :delete-empty-frames
-                  :payload {:owner-id owner-id
-                            :owner-type owner-type
-                            :frame-ids empty-frame-ids}
-                  :success-status (str "Deleted " frame-count " empty frame" (when (not= 1 frame-count) "s") ".")}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Deleting empty frames..."
-                         command))))
+         frame-count (count empty-frame-ids)]
+     {:db db
+      :dispatch-n (mapv (fn [frame-id] [:delete-frame frame-id]) empty-frame-ids)
+      :status (if (pos? frame-count)
+                (str "Deleting " frame-count " empty frame" (when (not= 1 frame-count) "s") "...")
+                (:status db))})))
 
 (rf/reg-event-fx
  :clear-frame-image
  (fn [{:keys [db]} [_ frame-id]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :clear-frame-image
-                  :payload {:frame-id frame-id}
-                  :success-status "Frame image removed."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Removing frame image..."
-                         command))))
+   (queue-entity-patch! db frame-id {:payload {:imageUrl nil}}
+                        "Frame image removed."
+                        "Removing frame image...")))
 
 (rf/reg-event-fx
  :replace-frame-image
  (fn [{:keys [db]} [_ frame-id image-data-url]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :replace-frame-image
-                  :payload {:frame-id frame-id
-                            :image-data-url image-data-url}
-                  :success-status "Frame image replaced."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Replacing frame image..."
-                         command))))
+   (queue-entity-patch! db frame-id {:payload {:imageUrl image-data-url
+                                               :imageStatus "uploading"
+                                               :error nil}}
+                        "Frame image replaced."
+                        "Replacing frame image...")))
 
 (rf/reg-event-fx
  :save-frame-description
  (fn [{:keys [db]} [_ frame-id description]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :update-frame-description
-                  :payload {:frame-id frame-id
-                            :description description}
-                  :success-status "Description saved."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Saving description..."
-                         command))))
+   (queue-entity-patch! db frame-id {:description description}
+                        "Description saved."
+                        "Saving description...")))
 
 (rf/reg-event-fx
  :enqueue-add-saga
@@ -174,15 +210,20 @@
                           :name name
                           :description (or description "")
                           :createdAt (.toISOString (js/Date.))}
+         optimistic-entity {:id optimistic-saga-id
+                            :vanityRole "saga"
+                            :title name
+                            :description (or description "")
+                            :children []
+                            :payload {:createdAt (:createdAt optimistic-saga)}}
          command {:id command-id
                   :kind :add-saga
                   :payload {:name name
                             :description description
+                            :optimistic-entity optimistic-entity
                             :optimistic-saga optimistic-saga}
                   :success-status "Saga created."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Creating saga..."
-                         command))))
+     (queue-command! db "Creating saga..." command))))
 
 (rf/reg-event-fx
  :enqueue-add-roster
@@ -194,16 +235,21 @@
                             :name (str "Roster " (store/next-roster-number db))
                             :description ""
                             :createdAt (.toISOString (js/Date.))}
+         optimistic-entity {:id optimistic-roster-id
+                            :vanityRole "roster"
+                            :title (or (:name after-create) (:name optimistic-roster))
+                            :description (or (:description after-create) "")
+                            :children []
+                            :payload {:createdAt (:createdAt optimistic-roster)}}
          command {:id command-id
                   :kind :add-roster
                   :payload {:name (:name after-create)
                             :description (:description after-create)
                             :after-create after-create
+                            :optimistic-entity optimistic-entity
                             :optimistic-roster optimistic-roster}
                   :success-status "Roster created."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Creating roster..."
-                         command))))
+     (queue-command! db "Creating roster..." command))))
 
 (rf/reg-event-fx
  :enqueue-add-chapter
@@ -221,18 +267,27 @@
                              :createdAt (.toISOString (js/Date.))}
          optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-chapter-id "saga")
                                  :frameNumber (store/next-frame-number db optimistic-chapter-id "saga"))
+         optimistic-entity {:id optimistic-chapter-id
+                            :vanityRole "chapter"
+                            :title name
+                            :description (or description "")
+                            :children [optimistic-frame-id]
+                            :payload {:parentId saga-id
+                                      :sagaId saga-id
+                                      :rosterId roster-id
+                                      :rosterIds [roster-id]
+                                      :createdAt (:createdAt optimistic-chapter)}}
          command {:id command-id
                   :kind :add-chapter
                   :payload {:saga-id saga-id
                             :roster-id roster-id
                             :name name
                             :description description
+                            :optimistic-entity optimistic-entity
                             :optimistic-chapter optimistic-chapter
                             :optimistic-frame optimistic-frame}
                   :success-status "Chapter created."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Creating chapter..."
-                         command))))
+     (queue-command! db "Creating chapter..." command))))
 
 (rf/reg-event-fx
  :enqueue-add-character
@@ -248,56 +303,54 @@
                                :createdAt (.toISOString (js/Date.))}
          optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-character-id "character")
                                  :frameNumber (store/next-frame-number db optimistic-character-id "character"))
+         optimistic-entity {:id optimistic-character-id
+                            :vanityRole "character"
+                            :title name
+                            :description (or description "")
+                            :children [optimistic-frame-id]
+                            :payload {:parentId roster-id
+                                      :rosterId roster-id
+                                      :createdAt (:createdAt optimistic-character)}}
          command {:id command-id
                   :kind :add-character
                   :payload {:roster-id roster-id
                             :name name
                             :description description
+                            :optimistic-entity optimistic-entity
                             :optimistic-character optimistic-character
                             :optimistic-frame optimistic-frame}
                   :success-status "Character created."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Creating character..."
-                         command))))
+     (queue-command! db "Creating character..." command))))
 
 (rf/reg-event-fx
  :update-chapter-roster
  (fn [{:keys [db]} [_ chapter-id roster-id]]
-
-   (let [command {:id (sync/next-command-id)
-                  :kind :update-chapter-roster
-                  :payload {:chapter-id chapter-id
-                            :roster-id roster-id}
-                  :success-status "Chapter roster updated."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Updating chapter roster..."
-                         command))))
+   (let [chapter (get-in db [:entities (str chapter-id)])
+         existing (vec (remove str/blank? (or (get-in chapter [:payload :rosterIds]) [])))
+         next-roster-ids (vec (cons roster-id (remove #(= % roster-id) existing)))]
+     (queue-entity-patch! db chapter-id {:payload {:rosterId roster-id
+                                                   :rosterIds next-roster-ids}}
+                          "Chapter roster updated."
+                          "Updating chapter roster..."))))
 
 (rf/reg-event-fx
  :add-chapter-roster
  (fn [{:keys [db]} [_ chapter-id roster-id]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :add-chapter-roster
-                  :payload {:chapter-id chapter-id
-                            :roster-id roster-id}
-                  :success-status "Chapter roster added."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         "Adding chapter roster..."
-                         command))))
+   (let [chapter (get-in db [:entities (str chapter-id)])
+         existing (vec (remove str/blank? (or (get-in chapter [:payload :rosterIds]) [])))
+         next-roster-ids (if (some #(= % roster-id) existing)
+                           existing
+                           (conj existing roster-id))]
+     (queue-entity-patch! db chapter-id {:payload {:rosterId (or (get-in chapter [:payload :rosterId])
+                                                                 roster-id)
+                                                   :rosterIds next-roster-ids}}
+                          "Chapter roster added."
+                          "Adding chapter roster..."))))
 
 (rf/reg-event-fx
  :update-entity
- (fn [{:keys [db]} [_ type id name description]]
-   (let [command {:id (sync/next-command-id)
-                  :kind :update-entity
-                  :payload {:type (str type)
-                            :id id
-                            :name name
-                            :description description}
-                  :success-status (str (str/capitalize (str type)) " updated.")}]
-     (sync/queue-command (store/apply-command-optimistically db command)
-                         (str "Updating " (str type) "...")
-                         command))))
+ (fn [{:keys [db]} [_ entity-id patch]]
+   (queue-entity-patch! db entity-id patch nil nil)))
 
 (rf/reg-event-fx
  :delete-saga
@@ -344,11 +397,13 @@
                          "Deleting character..."
                          command))))
 
+(rf/reg-event-fx
+ :queue-command-direct
+ (fn [{:keys [db]} [_ command status-message]]
+   (queue-command! db status-message command)))
+
 (defn current-image-url [db frame-id]
-  (or (some (fn [frame]
-              (when (= (:frameId frame) frame-id)
-                (:imageUrl frame)))
-            (or (:gallery-items db) []))
+  (or (some-> (store/frame-by-id db frame-id) :imageUrl)
       ""))
 
 (rf/reg-event-db

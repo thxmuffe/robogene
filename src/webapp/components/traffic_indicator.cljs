@@ -1,27 +1,10 @@
 (ns webapp.components.traffic-indicator
-  (:require [reagent.core :as r]))
+  (:require [clojure.string :as str]
+            [reagent.core :as r]))
 
-(defn red-signal-debug-info [state]
-  (let [frames (or (:frames state) [])
-        failed-frames (->> frames
-                           (filter (fn [frame]
-                                     (= "failed" (:imageStatus frame))))
-                           (map (fn [frame]
-                                  {:frameId (:frameId frame)
-                                   :ownerType (or (:ownerType frame) "saga")
-                                   :ownerId (:chapterId frame)
-                                   :imageStatus (:imageStatus frame)
-                                   :error (:error frame)}))
-                           vec)
-        recent-error-events (->> (or (:events state) [])
-                                 (filter (fn [e] (= :error (:kind e))))
-                                 (take-last 5)
-                                 vec)]
-    {:pending-api-requests (or (:pending-api-requests state) 0)
-     :wait-lights-visible? (true? (:wait-lights-visible? state))
-     :failed-frame-count (count failed-frames)
-     :failed-frames failed-frames
-     :recent-error-events recent-error-events}))
+(defn frame-failed? [frame]
+  (and (= "failed" (:imageStatus frame))
+       (not (str/blank? (or (:error frame) "")))))
 
 (defn frame-status-stats [frames]
   (reduce
@@ -32,7 +15,9 @@
                    (inc pending)
                    pending)
         :errors (if (= "failed" status)
-                  (inc errors)
+                  (if (frame-failed? frame)
+                    (inc errors)
+                    errors)
                   errors)}))
    {:pending 0 :errors 0}
    (or frames [])))
@@ -105,9 +90,6 @@
         (schedule-dim-hide!))
       (when changed?
         (reset! prev-phase* phase)
-        (when (= phase :red)
-          (js/console.warn "[robogene] traffic-indicator entered red state"
-                           (clj->js (red-signal-debug-info state))))
         (when-let [id @hide-timeout-id*]
           (js/clearTimeout id)
           (reset! hide-timeout-id* nil))

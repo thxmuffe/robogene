@@ -32,11 +32,10 @@ Monitoring summary:
 - `AZ_FUNCTION_APP`
 - `AZ_APPINSIGHTS_NAME`
 - `AZ_SIGNALR_NAME`
-- `ROBOGENE_IMAGE_GENERATOR_KEY`
+- API key env vars referenced by `src/host/host.json` `IMAGE_GENERATORS`
 
 Common optional:
 - `ROBOGENE_ALLOWED_ORIGIN`
-- `ROBOGENE_IMAGE_GENERATOR` (default `openai`)
 - `ROBOGENE_SIGNALR_HUB` (default `robogene`)
 - `AZ_SIGNALR_SKU` (default `Standard_S1`)
 

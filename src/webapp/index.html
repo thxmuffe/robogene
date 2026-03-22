@@ -15,6 +15,18 @@
 
   <script>
     (function () {
+      var persisted = null;
+      try {
+        persisted = window.localStorage.getItem("ROBOGENE_API_BASE");
+      } catch (e) {
+        persisted = null;
+      }
+
+      if (persisted && String(persisted).trim() !== "") {
+        window.ROBOGENE_API_BASE = String(persisted).trim();
+        return;
+      }
+
       if (window.ROBOGENE_API_BASE && String(window.ROBOGENE_API_BASE).trim() !== "") {
         return;
       }

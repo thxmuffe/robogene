@@ -16,11 +16,10 @@ Use one env mechanism for everything (app + tests): shell env files.
 Copy-paste:
 
 ```bash
-cp robogen.debug.env.example robogen.debug.env
+cp robogen.env.example robogen.env
 
-# Fill real secrets in robogen.debug.env:
-# - ROBOGENE_IMAGE_GENERATOR=openai (or mock)
-# - ROBOGENE_IMAGE_GENERATOR_KEY
+# Fill real secrets in robogen.env:
+# - ROBOGENE_IMAGE_GENERATOR_KEY (or whatever env names your IMAGE_GENERATORS entries reference)
 # - AzureWebJobsStorage (or ROBOGENE_STORAGE_CONNECTION_STRING)
 # - AzureSignalRConnectionString
 
@@ -49,8 +48,8 @@ npm run test:e2e:ui:env
 ```
 
 Notes:
-- `robogen.debug.env` holds real secrets.
-- `robogen.test.env` is tracked in the repo and provides the test overlay (ports/timeouts/mock generator).
+- `robogen.env` holds real secrets.
+- `robogen-test.env` is tracked in the repo and provides the test overlay (ports/timeouts/mock generator).
 - `local.settings.json` is not the source of truth in this project.
 
 ## CI/CD
@@ -68,7 +67,7 @@ You need:
 - Function App (Node 22 / Functions v4)
 - Storage account
 - SignalR Service
-- App settings with required secrets (`ROBOGENE_IMAGE_GENERATOR_KEY`, storage, SignalR)
+- App settings with required secrets (provider API keys referenced by `src/host/host.json`, storage, SignalR)
 
 Full hosting + CLI deploy guide:
 - [Azure hosting guide](scripts/azure/HOSTING.md)

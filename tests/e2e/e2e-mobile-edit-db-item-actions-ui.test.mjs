@@ -16,11 +16,11 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
     logStep('mobile-actions', 'opening saga page on mobile viewport');
     if (!seedIds?.sagaId) throw new Error('Saga ID not found');
     await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
-    await page.locator('.sequence-separator-toggle').first().click();
+    await page.locator('.sequence-box-toggle').first().click();
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();
-    await page.getByRole('button', { name: 'Add new' }).first().click();
+    await page.getByRole('button', { name: 'Add New Frame' }).first().click();
     logStep('mobile-actions', 'waiting for new frame');
     await page.waitForFunction(
       (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,

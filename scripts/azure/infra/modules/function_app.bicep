@@ -5,11 +5,7 @@ param appInsightsName string
 param signalrName string
 param appServicePlanName string = '${functionAppName}-plan'
 
-@secure()
-param imageGeneratorKey string
-
 param allowedOrigin string
-param imageGenerator string = 'openai'
 param signalrHub string = 'robogene'
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
@@ -92,14 +88,6 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'ROBOGENE_ALLOWED_ORIGIN'
           value: allowedOrigin
-        }
-        {
-          name: 'ROBOGENE_IMAGE_GENERATOR'
-          value: imageGenerator
-        }
-        {
-          name: 'ROBOGENE_IMAGE_GENERATOR_KEY'
-          value: imageGeneratorKey
         }
         {
           name: 'AzureWebJobsFeatureFlags'

@@ -17,7 +17,6 @@ Required env vars:
   AZ_FUNCTION_APP
   AZ_APPINSIGHTS_NAME
   AZ_SIGNALR_NAME
-  ROBOGENE_IMAGE_GENERATOR_KEY
 USAGE
 }
 
@@ -58,7 +57,6 @@ required=(
   AZ_FUNCTION_APP
   AZ_APPINSIGHTS_NAME
   AZ_SIGNALR_NAME
-  ROBOGENE_IMAGE_GENERATOR_KEY
 )
 for v in "${required[@]}"; do
   if [[ -z "${!v:-}" ]]; then

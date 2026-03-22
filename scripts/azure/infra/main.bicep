@@ -4,11 +4,7 @@ param functionAppName string
 param appInsightsName string
 param signalrName string
 
-@secure()
-param imageGeneratorKey string
-
 param allowedOrigin string
-param imageGenerator string = 'openai'
 param signalrHub string = 'robogene'
 
 module appInsights 'modules/app_insights.bicep' = {
@@ -43,9 +39,7 @@ module fn 'modules/function_app.bicep' = {
     storageAccountName: storageAccountName
     appInsightsName: appInsightsName
     signalrName: signalrName
-    imageGeneratorKey: imageGeneratorKey
     allowedOrigin: allowedOrigin
-    imageGenerator: imageGenerator
     signalrHub: signalrHub
   }
 }

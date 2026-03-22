@@ -9,7 +9,7 @@
 (defonce realtime-starting?* (atom false))
 (defonce realtime-epoch* (atom 0))
 (defonce coalesced-fetch-state!* (atom nil))
- (defonce realtime-disabled?* (atom false))
+(defonce realtime-disabled?* (atom false))
 
 (defn create-coalesced-runner [task]
   (let [inflight?* (atom false)
@@ -31,9 +31,12 @@
                            (run))))))))]
       run)))
 
+(def ^:const default-api-base "http://localhost:7071")
+
 (defn api-base []
-  (-> (or (.-ROBOGENE_API_BASE js/window) "")
-      (str/replace #"/+$" "")))
+  (let [base (-> (or (.-ROBOGENE_API_BASE js/window) "")
+                 (str/replace #"/+$" ""))]
+    (if (str/blank? base) default-api-base base)))
 
 (defn api-url [path]
   (let [base (api-base)]
@@ -130,6 +133,7 @@
 
 (defn build-connection [url access-token]
   (-> (signalr/HubConnectionBuilder.)
+      (.configureLogging (.-Warning signalr/LogLevel))
       (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
       (.build)))
 
@@ -145,7 +149,6 @@
        (fn [payload]
          (when (epoch-current? epoch)
            (let [payload* (js->clj payload :keywordize-keys true)]
-           (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
            (rf/dispatch [:realtime-state-changed payload*])
            (when-not (= false (:requiresFetch payload*))
@@ -157,7 +160,6 @@
                (when (epoch-current? epoch)
                  (reset! realtime-conn* conn)
                  (reset! realtime-connected?* true)
-                 (js/console.log "[robogene] SignalR connected.")
                  (rf/dispatch [:fetch-state]))))
       (.catch (fn [err]
                 (when (epoch-current? epoch)
@@ -183,7 +185,6 @@
   (when (and (nil? @realtime-conn*)
              (not @realtime-starting?*))
     (reset! realtime-starting?* true)
-    (js/console.log "[robogene] SignalR connect attempt...")
     (let [epoch (swap! realtime-epoch* inc)]
       (-> (negotiate-realtime!)
           (.then (fn [info]
@@ -200,6 +201,54 @@
 
 (defn realtime-disabled? []
   (true? @realtime-disabled?*))
+
+(defn patch-json
+  ([path payload success-event fail-event ok?]
+   (patch-json path payload success-event fail-event ok? nil))
+  ([path payload success-event fail-event ok? request-options]
+   (request-json (api-url path)
+                 (merge {:method "PATCH"
+                         :cache "no-store"
+                         :headers {"Content-Type" "application/json"}
+                         :body (.stringify js/JSON (clj->js payload))}
+                        (or request-options {}))
+                 success-event
+                 fail-event
+                 ok?)))
+
+(defn delete-json
+  [path success-event fail-event ok?]
+  (request-json (api-url path)
+                {:method "DELETE"
+                 :cache "no-store"
+                 :headers {"Content-Type" "application/json"}}
+                success-event
+                fail-event
+                ok?))
+
+; Generic entity transport handlers for new unified API
+(rf/reg-fx
+ :post-save-entity
+ (fn [{:keys [entity is-update on-success on-failure]}]
+   (if is-update
+     (patch-json (str "/api/entity/" (:id entity))
+                 entity
+                 on-success
+                 on-failure
+                 (fn [ok _] ok))
+     (post-json "/api/entity"
+                entity
+                on-success
+                on-failure
+                (fn [ok _] ok)))))
+
+(rf/reg-fx
+ :post-delete-entity
+ (fn [{:keys [id on-success on-failure]}]
+   (delete-json (str "/api/entity/" id)
+                on-success
+                on-failure
+                (fn [ok _] ok))))
 
 (rf/reg-fx
  :realtime-connect
@@ -222,234 +271,12 @@
 
 (rf/reg-fx
  :post-generate-frame
- (fn [{:keys [frame-id direction without-roster on-success on-failure]}]
+ (fn [{:keys [frame-id direction generator without-roster on-success on-failure]}]
    (post-json "/api/generate-frame"
               {:frameId frame-id
                :direction direction
+               :generator generator
                :withoutRoster (true? without-roster)}
               on-success
               on-failure
               (fn [ok status] (or ok (= 409 status))))))
-
-(rf/reg-fx
- :post-add-saga
- (fn [{:keys [name description on-success on-failure]}]
-   (post-json "/api/add-saga"
-              {:name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-add-roster
- (fn [{:keys [name description on-success on-failure]}]
-   (post-json "/api/add-roster"
-              {:name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-add-chapter
- (fn [{:keys [saga-id roster-id name description on-success on-failure]}]
-   (post-json "/api/add-chapter"
-              {:sagaId saga-id
-               :rosterId roster-id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-add-character
- (fn [{:keys [roster-id name description on-success on-failure]}]
-   (post-json "/api/add-character"
-              {:rosterId roster-id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-update-chapter-roster
- (fn [{:keys [chapter-id roster-id on-success on-failure]}]
-   (post-json "/api/update-chapter-roster"
-              {:chapterId chapter-id
-               :rosterId roster-id}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-add-chapter-roster
- (fn [{:keys [chapter-id roster-id on-success on-failure]}]
-   (post-json "/api/add-chapter-roster"
-              {:chapterId chapter-id
-               :rosterId roster-id}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-add-frame
- (fn [{:keys [owner-id owner-type frame-id on-success on-failure]}]
-   (post-json "/api/add-frame"
-              {:ownerType (or owner-type "saga")
-               :frameId frame-id
-               :chapterId (when (not= "character" (str owner-type)) owner-id)
-               :characterId (when (= "character" (str owner-type)) owner-id)}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-add-uploaded-frames
- (fn [{:keys [chapter-id image-data-urls on-success on-failure]}]
-   (post-json "/api/add-uploaded-frames"
-              {:chapterId chapter-id
-               :imageDataUrls image-data-urls}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-delete-frame
- (fn [{:keys [frame-id on-success on-failure]}]
-  (post-json "/api/delete-frame"
-             {:frameId frame-id}
-             on-success
-             on-failure
-             (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-delete-empty-frames
- (fn [{:keys [owner-id owner-type on-success on-failure]}]
-   (post-json "/api/delete-empty-frames"
-              {:ownerType (or owner-type "saga")
-               :chapterId (when (not= "character" (str owner-type)) owner-id)
-               :characterId (when (= "character" (str owner-type)) owner-id)}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-clear-frame-image
- (fn [{:keys [frame-id on-success on-failure]}]
-   (post-json "/api/clear-frame-image"
-              {:frameId frame-id}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-replace-frame-image
- (fn [{:keys [frame-id image-data-url on-success on-failure]}]
-   (post-json "/api/replace-frame-image"
-              {:frameId frame-id
-               :imageDataUrl image-data-url}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-update-entity
- (fn [{:keys [type id name description on-success on-failure]}]
-   (post-json "/api/update-entity"
-              {:type type
-               :id id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-update-frame-description
- (fn [{:keys [frame-id description on-success on-failure]}]
-   (post-json "/api/update-frame-description"
-              {:frameId frame-id
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-update-chapter
- (fn [{:keys [chapter-id name description on-success on-failure]}]
-   (post-json "/api/update-chapter"
-              {:chapterId chapter-id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-update-character
- (fn [{:keys [character-id name description on-success on-failure]}]
-   (post-json "/api/update-character"
-              {:characterId character-id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-update-saga
- (fn [{:keys [saga-id name description on-success on-failure]}]
-   (post-json "/api/update-saga"
-              {:sagaId saga-id
-               :name name
-               :description description}
-              on-success
-              on-failure
-              (fn [ok _] ok)
-              {:keepalive true})))
-
-(rf/reg-fx
- :post-delete-saga
- (fn [{:keys [saga-id on-success on-failure]}]
-   (post-json "/api/delete-saga"
-              {:sagaId saga-id}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-delete-roster
- (fn [{:keys [roster-id on-success on-failure]}]
-   (post-json "/api/delete-roster"
-              {:rosterId roster-id}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-
-(rf/reg-fx
- :post-delete-chapter
- (fn [{:keys [chapter-id on-success on-failure]}]
-   (post-json "/api/delete-chapter"
-              {:chapterId chapter-id}
-              on-success
-              on-failure
-              (fn [ok _] ok))))
-
-(rf/reg-fx
- :post-delete-character
- (fn [{:keys [character-id on-success on-failure]}]
-   (post-json "/api/delete-character"
-              {:characterId character-id}
-              on-success
-              on-failure
-              (fn [ok _] ok))))

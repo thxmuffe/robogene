@@ -1,41 +1,108 @@
 @base = {{$processEnv ROBOGENE_API_BASE}}
 
-### Create a test saga
-# @name createSaga
-POST {{base}}/api/add-saga
+@sagaId = e2e-saga
+@rosterId = e2e-roster
+@chapterId = e2e-chapter
+@chapterFrameId = e2e-chapter-frame-1
+@characterId = e2e-character
+@characterFrameId = e2e-character-frame-1
+
+### Seed saga board
+POST {{base}}/api/entity
 Content-Type: application/json
 
 {
-  "name": "Smoke Test Saga",
-  "description": "A test saga for E2E runs"
+  "id": "{{sagaId}}",
+  "vanityRole": "saga",
+  "title": "Smoke Test Saga",
+  "description": "A test saga for E2E runs",
+  "children": ["{{chapterId}}"],
+  "payload": {}
 }
 
-### Create a roster for the saga
-# @name createRoster
-POST {{base}}/api/add-roster
+### Seed roster board
+POST {{base}}/api/entity
 Content-Type: application/json
 
 {
-  "name": "Test Roster",
-  "description": "A roster for E2E runs"
+  "id": "{{rosterId}}",
+  "vanityRole": "roster",
+  "title": "Test Roster",
+  "description": "A roster for E2E runs",
+  "children": ["{{characterId}}"],
+  "payload": {}
 }
 
-### Seed one chapter for the created saga and roster
-# @name createChapter
-POST {{base}}/api/add-chapter
+### Seed saga child sequence
+POST {{base}}/api/entity
 Content-Type: application/json
 
 {
-  "sagaId": "{{createSaga.saga.sagaId}}",
-  "rosterId": "{{createRoster.roster.rosterId}}",
-  "name": "Smoke Chapter",
-  "description": "A deterministic chapter for local E2E runs."
+  "id": "{{chapterId}}",
+  "vanityRole": "chapter",
+  "title": "Smoke Chapter",
+  "description": "A deterministic chapter for local E2E runs.",
+  "children": ["{{chapterFrameId}}"],
+  "payload": {
+    "parentId": "{{sagaId}}",
+    "sagaId": "{{sagaId}}",
+    "rosterId": "{{rosterId}}",
+    "rosterIds": ["{{rosterId}}"]
+  }
 }
 
-### Seed a second frame for the created chapter
-POST {{base}}/api/add-frame
+### Seed roster child sequence
+POST {{base}}/api/entity
 Content-Type: application/json
 
 {
-  "chapterId": "{{createChapter.chapter.chapterId}}"
+  "id": "{{characterId}}",
+  "vanityRole": "character",
+  "title": "Seed Character",
+  "description": "Initial alias text",
+  "children": ["{{characterFrameId}}"],
+  "payload": {
+    "parentId": "{{rosterId}}",
+    "rosterId": "{{rosterId}}"
+  }
+}
+
+### Seed chapter frame
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{chapterFrameId}}",
+  "vanityRole": "frame",
+  "title": "Frame 1",
+  "description": "Seed frame",
+  "children": [],
+  "payload": {
+    "parentId": "{{chapterId}}",
+    "ownerId": "{{chapterId}}",
+    "ownerType": "saga",
+    "frameNumber": 1,
+    "imageStatus": "draft",
+    "imageUrl": null
+  }
+}
+
+### Seed character frame
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{characterFrameId}}",
+  "vanityRole": "frame",
+  "title": "Frame 1",
+  "description": "Seed character frame",
+  "children": [],
+  "payload": {
+    "parentId": "{{characterId}}",
+    "ownerId": "{{characterId}}",
+    "ownerType": "character",
+    "frameNumber": 1,
+    "imageStatus": "draft",
+    "imageUrl": null
+  }
 }

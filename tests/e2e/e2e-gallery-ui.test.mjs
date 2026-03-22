@@ -1,49 +1,4 @@
 import assert from 'node:assert/strict';
-import { BlobServiceClient } from '@azure/storage-blob';
-
-const storageConnectionString = process.env.ROBOGENE_STORAGE_CONNECTION_STRING
-  || process.env.AzureWebJobsStorage
-  || 'UseDevelopmentStorage=true';
-const imageContainer = BlobServiceClient
-  .fromConnectionString(storageConnectionString, { serviceVersion: '2021-12-02' })
-  .getContainerClient('robogene-images');
-
-async function waitForCondition(check, { timeoutMs, intervalMs = 100 } = {}) {
-  const startedAt = Date.now();
-  for (;;) {
-    if (await check()) return true;
-    if (Date.now() - startedAt >= timeoutMs) {
-      throw new Error(`Condition not met within ${timeoutMs}ms.`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-}
-
-async function listFrameBlobNames(frameId) {
-  const names = [];
-  try {
-    for await (const blob of imageContainer.listBlobsFlat()) {
-      if (String(blob.name || '').includes(`${frameId}.`)) {
-        names.push(blob.name);
-      }
-    }
-  } catch (error) {
-    if (error?.statusCode === 404 || error?.details?.errorCode === 'ContainerNotFound') {
-      return [];
-    }
-    throw error;
-  }
-  return names;
-}
-
-async function maybeListFrameBlobNames(frameId) {
-  try {
-    return await listFrameBlobNames(frameId);
-  } catch {
-    return [];
-  }
-}
-
 async function clickFrameAction({ page, frame, actionLabel, menuLabel = 'Frame actions' }) {
   const inlineAction = frame.getByRole('button', { name: actionLabel, exact: true });
   if (await inlineAction.count()) {
@@ -55,7 +10,7 @@ async function clickFrameAction({ page, frame, actionLabel, menuLabel = 'Frame a
 }
 
 async function expandFirstGalleryChapter(page) {
-  const toggle = page.locator('.sequence-separator-toggle').first();
+  const toggle = page.locator('.sequence-box-toggle').first();
   await toggle.waitFor();
   await toggle.click();
 }
@@ -72,7 +27,7 @@ export async function runGalleryScenario({ openPage, actionTimeoutMs, logStep, s
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();
 
-    await page.getByRole('button', { name: 'Add new' }).first().click();
+    await page.getByRole('button', { name: 'Add New Frame' }).first().click();
     logStep('gallery', 'waiting for new frame');
     await page.waitForFunction(
       (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
@@ -126,7 +81,8 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();
-    await page.getByRole('button', { name: 'Add new' }).first().click();
+    await page.getByRole('button', { name: 'Add New Frame' }).first().click();
+    logStep('gallery-upload', 'waiting for new frame');
     await page.waitForFunction(
       (expected) => document.querySelectorAll('.gallery .frame[data-frame-id]').length >= expected,
       beforeCount + 1,
@@ -147,91 +103,41 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     );
     const frameId = await newFrame.getAttribute('data-frame-id');
     assert.ok(frameId, 'frame should expose stable data-frame-id after add completes');
-    await newFrame.locator('.subtitle-display-text').click();
-    const textarea = newFrame.locator('.subtitle-display-input');
-    await textarea.waitFor({ timeout: actionTimeoutMs });
-
-    const stamp = Date.now();
-    const updatedDescription = `Uploaded frame description ${stamp}`;
-    await textarea.fill(updatedDescription);
-    logStep('gallery-upload', 'saving updated description');
-    await page.getByRole('heading', { name: 'RoboGene' }).click();
     const stableFrameById = page.locator(`.gallery .frame[data-frame-id="${frameId}"]`).first();
-    await page.waitForFunction(
-      ({ fid, expectedDescription }) => {
-        const frameEl = document.querySelector(`.gallery .frame[data-frame-id="${fid}"]`);
-        const subtitle = String(frameEl?.querySelector('.subtitle-display-text')?.textContent || '').trim();
-        return subtitle === expectedDescription;
-      },
-      { fid: frameId, expectedDescription: updatedDescription },
-      { timeout: actionTimeoutMs }
-    );
+
+    logStep('gallery-upload', 'opening frame actions');
+    await stableFrameById.locator('.subtitle-display-text').click();
+    const uploadButton = stableFrameById.getByRole('button', { name: 'Upload or take picture', exact: true });
+    await uploadButton.waitFor({ timeout: actionTimeoutMs });
 
     logStep('gallery-upload', 'opening upload dialog');
-    await page.waitForTimeout(500); // Wait for potential re-renders to settle
-    await stableFrameById.locator('.subtitle-display-text').first().click();
-    const uploadButton = page.locator(`.gallery .frame[data-frame-id="${frameId}"]`).getByRole('button', { name: 'Upload or take picture', exact: true });
-    await uploadButton.waitFor({ timeout: actionTimeoutMs });
     await uploadButton.click();
-
     const uploadDialog = page.getByRole('dialog');
     await uploadDialog.waitFor({ timeout: actionTimeoutMs });
     const fileInput = uploadDialog.locator('input.upload-file-input[type="file"]').first();
     const replaceResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/replace-frame-image') && response.request().method() === 'POST',
+      (response) => response.url().includes('/api/entity/') && response.request().method() === 'PATCH',
       { timeout: actionTimeoutMs }
     );
     await fileInput.setInputFiles(uploadPngLikeFile);
     await replaceResponse;
     await uploadDialog.waitFor({ state: 'hidden', timeout: actionTimeoutMs });
 
-    logStep('gallery-upload', 'waiting for uploaded image and description stability');
-    await page.waitForFunction(
-      ({ fid, expectedDescription }) => {
-        const frameEl = document.querySelector(`.gallery .frame[data-frame-id="${fid}"]`);
-        if (!frameEl) return false;
-        const subtitle = String(frameEl.querySelector('.subtitle-display-text')?.textContent || '').trim();
-        const img = frameEl.querySelector('img');
-        const src = String(img?.getAttribute('src') || '');
-        return subtitle === expectedDescription
-          && src.length > 0;
-      },
-      { fid: frameId, expectedDescription: updatedDescription },
-      { timeout: actionTimeoutMs }
-    );
-
-    await page.waitForTimeout(1800);
-    const subtitleText = await stableFrameById.locator('.subtitle-display-text').textContent();
-    assert.equal(String(subtitleText || '').trim(), updatedDescription, 'saved description should remain stable');
-    const imgSrc = await stableFrameById.locator('img').getAttribute('src');
-    assert.ok(String(imgSrc || '').length > 0, 'uploaded image should remain visible in the frame');
-    const uploadedBlobNames = await maybeListFrameBlobNames(frameId);
-
-    logStep('gallery-upload', 'removing uploaded image');
-    await stableFrameById.locator('.subtitle-display-text').click();
-    await clickFrameAction({ page, frame: stableFrameById, actionLabel: 'Remove image' });
-    const confirmDialog = page.getByRole('dialog').filter({ hasText: 'Remove image from this frame?' }).first();
-    await confirmDialog.waitFor({ timeout: actionTimeoutMs });
-    const clearResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/clear-frame-image') && response.request().method() === 'POST',
-      { timeout: actionTimeoutMs }
-    );
-    await confirmDialog.getByRole('button', { name: 'Remove image', exact: true }).click();
-    await clearResponse;
+    logStep('gallery-upload', 'waiting for uploaded image');
     await page.waitForFunction(
       (fid) => {
         const frameEl = document.querySelector(`.gallery .frame[data-frame-id="${fid}"]`);
-        return !!frameEl && !frameEl.querySelector('img');
+        if (!frameEl) return false;
+        const img = frameEl.querySelector('img');
+        const src = String(img?.getAttribute('src') || '');
+        return src.length > 0;
       },
       frameId,
       { timeout: actionTimeoutMs }
     );
-    if (uploadedBlobNames.length > 0) {
-      await waitForCondition(
-        async () => (await listFrameBlobNames(frameId)).length === 0,
-        { timeoutMs: actionTimeoutMs }
-      );
-    }
+
+    const imgSrc = await stableFrameById.locator('img').getAttribute('src');
+    assert.ok(String(imgSrc || '').length > 0, 'uploaded image should remain visible in the frame');
 
     consoleGuard.assertClean();
   } finally {

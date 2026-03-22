@@ -2,13 +2,13 @@
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
             [reagent.core :as r]
-            [webapp.components.frame :as frame]
+            [webapp.shared.frame-renderer :as frame-renderer]
             [webapp.components.social-media-buttons :as social-media-buttons]
+            [webapp.shared.model :as model]
             [webapp.shared.ui.back-button :as back-button]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            ["@mantine/core" :refer [ActionIcon Box Button Group]]
-            ["react-icons/fa6" :refer [FaXmark]]))
+            ["@mantine/core" :refer [Box Button Group]]))
 
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
@@ -21,16 +21,7 @@
         (recur (rest remaining) active-frame))
       {:prev nil :next nil :active nil})))
 
-(defn owner-display-name [from-page chapter-id saga roster]
-  (let [rows (if (= :roster from-page) roster saga)
-        id-key (if (= :roster from-page) :characterId :chapterId)]
-    (some->> rows
-             (some (fn [row]
-                     (when (= (id-key row) chapter-id)
-                       (or (some-> (:name row) str/trim not-empty)
-                           (some-> (:description row) str/trim not-empty))))))))
-
-(defn top-controls [from-page owner-name roster-id saga-id]
+(defn top-controls [from-page roster-id saga-id]
   (let [show-back? (some? from-page)]
     [:> Group {:className "detail-controls"
                :gap "xs"
@@ -40,13 +31,14 @@
         {:label "Back"
          :on-click #(rf/dispatch [:navigate-from-page])}])
      [:> Button
-     {:variant "default"
+      {:variant "default"
        :size "sm"
        :className "roster-nav-btn"
+       :disabled (str/blank? (or roster-id ""))
        :onClick #(rf/dispatch [:navigate-roster-page roster-id saga-id])}
       "Roster"]]))
 
-(defn nav-controls [chapter-id frame-neighbors from-page]
+(defn nav-controls [owner-id frame-neighbors from-page]
   (let [prev-frame (:prev frame-neighbors)
         next-frame (:next frame-neighbors)]
     [:> Group {:className "detail-controls"
@@ -54,17 +46,17 @@
                :wrap "wrap"}
      [:> Button
       {:variant "default"
-      :size "sm"
+       :size "sm"
        :disabled (nil? prev-frame)
        :onClick #(when prev-frame
-                   (rf/dispatch [:navigate-frame chapter-id (:frameId prev-frame) from-page]))}
+                   (rf/dispatch [:navigate-frame owner-id (:frameId prev-frame) from-page]))}
       "Previous"]
      [:> Button
       {:variant "default"
        :size "sm"
        :disabled (nil? next-frame)
        :onClick #(when next-frame
-                   (rf/dispatch [:navigate-frame chapter-id (:frameId next-frame) from-page]))}
+                   (rf/dispatch [:navigate-frame owner-id (:frameId next-frame) from-page]))}
       "Next"]
      [:> Button
       {:variant "filled"
@@ -130,19 +122,25 @@
                key-handler (fn [e]
                              (handle-frame-page-key-down! @key-context* e))]
     (.addEventListener js/window "keydown" key-handler)
-    (let [chapter-id (:chapter route)
-          saga @(rf/subscribe [:saga])
-          roster @(rf/subscribe [:roster])
+    (let [entities @(rf/subscribe [:entities])
           frame-id (:frame-id route)
+          frame-entity @(rf/subscribe [:entity frame-id])
           from-page (:from-page route)
-          owner-type (if (= :roster from-page) "character" "saga")
-          ordered @(rf/subscribe [:frames-for-owner owner-type chapter-id])
-          owner-name (owner-display-name from-page chapter-id saga roster)
+          payload (:payload frame-entity)
+          owner-id (model/frame-owner-id frame-entity)
+          owner-type (model/frame-owner-type frame-entity
+                                             (when (= :roster from-page)
+                                               "character"))
+          ordered @(rf/subscribe [:frames-for-owner owner-type owner-id])
           roster-id (or (:roster-id route)
-                        (some (fn [character]
-                                (when (= (:characterId character) chapter-id)
-                                  (:rosterId character)))
-                              roster))
+                        (when (= owner-type "character")
+                          (model/chapter-parent-id entities owner-id))
+                        (:rosterId payload))
+          saga-id (or (:saga-id route)
+                      (when (= owner-type "saga")
+                        (model/chapter-parent-id entities owner-id))
+                      (when roster-id
+                        (model/chapter-parent-id entities roster-id)))
           fullscreen? (true? (:fullscreen? route))
           description-editor-open? @(rf/subscribe [:frame-edit-open? frame-id])
           frame-neighbors (prev-next-by-id ordered frame-id)
@@ -162,30 +160,21 @@
       [:section {:className "frame-page-section"}
        (if active-frame
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
-           (when-not fullscreen?
-             [top-controls from-page owner-name roster-id (:saga-id route)])
-          [frame/frame active-frame
-            {:clickable? false
-             :media-nav? true
-             :image-fit "contain"}]
-           (when-not fullscreen?
-             [nav-controls chapter-id frame-neighbors from-page])
-           (if fullscreen?
-             [:> ActionIcon
-              {:className "fullscreen-close"
-               :color "orange"
-               :aria-label "Close fullscreen"
-               :title "Close fullscreen"
-               :variant "filled"
-               :radius "xl"
-               :onClick #(rf/dispatch [:set-frame-fullscreen false])}
-              [:> FaXmark]]
-             [social-media-buttons/social-media-buttons {:saga-name saga-name}])]
-          [:> Box {:className "detail-missing"}
-           [:p "Frame not found in this chapter."]
-           (when from-page
-             [back-button/back-button
-              {:label "Back"
-               :on-click #(rf/dispatch [:navigate-from-page])}])])])
+          (when-not fullscreen?
+            [top-controls from-page roster-id saga-id])
+          [frame-renderer/render-frame active-frame
+           {:clickable? false
+            :media-nav? true
+            :image-fit "contain"}]
+          (when-not fullscreen?
+            [nav-controls owner-id frame-neighbors from-page])
+          (when-not fullscreen?
+            [social-media-buttons/social-media-buttons {:saga-name saga-name}])]
+         [:> Box {:className "detail-missing"}
+          [:p "Frame not found."]
+          (when from-page
+            [back-button/back-button
+             {:label "Back"
+              :on-click #(rf/dispatch [:navigate-from-page])}])])])
     (finally
       (.removeEventListener js/window "keydown" key-handler))))

@@ -24,15 +24,8 @@
     "signalrName": {
       "type": "string"
     },
-    "imageGeneratorKey": {
-      "type": "securestring"
-    },
     "allowedOrigin": {
       "type": "string"
-    },
-    "imageGenerator": {
-      "type": "string",
-      "defaultValue": "openai"
     },
     "signalrHub": {
       "type": "string",
@@ -271,14 +264,8 @@
           "signalrName": {
             "value": "[parameters('signalrName')]"
           },
-          "imageGeneratorKey": {
-            "value": "[parameters('imageGeneratorKey')]"
-          },
           "allowedOrigin": {
             "value": "[parameters('allowedOrigin')]"
-          },
-          "imageGenerator": {
-            "value": "[parameters('imageGenerator')]"
           },
           "signalrHub": {
             "value": "[parameters('signalrHub')]"
@@ -314,15 +301,8 @@
               "type": "string",
               "defaultValue": "[format('{0}-plan', parameters('functionAppName'))]"
             },
-            "imageGeneratorKey": {
-              "type": "securestring"
-            },
             "allowedOrigin": {
               "type": "string"
-            },
-            "imageGenerator": {
-              "type": "string",
-              "defaultValue": "openai"
             },
             "signalrHub": {
               "type": "string",
@@ -395,14 +375,6 @@
                     {
                       "name": "ROBOGENE_ALLOWED_ORIGIN",
                       "value": "[parameters('allowedOrigin')]"
-                    },
-                    {
-                      "name": "ROBOGENE_IMAGE_GENERATOR",
-                      "value": "[parameters('imageGenerator')]"
-                    },
-                    {
-                      "name": "ROBOGENE_IMAGE_GENERATOR_KEY",
-                      "value": "[parameters('imageGeneratorKey')]"
                     },
                     {
                       "name": "AzureWebJobsFeatureFlags",

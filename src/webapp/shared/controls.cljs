@@ -13,6 +13,16 @@
   (activate-frame! frame-id)
   (rf/dispatch [:navigate-frame chapter-id frame-id from-page])))
 
+(defn download-image! [url filename]
+  (when (seq (or url ""))
+    (let [link (.createElement js/document "a")]
+      (set! (.-href link) url)
+      (set! (.-download link) filename)
+      (set! (.-rel link) "noopener")
+      (.appendChild (.-body js/document) link)
+      (.click link)
+      (.remove link))))
+
 (defn open-new-chapter-panel! []
   (activate-frame! new-chapter-frame-id)
   (rf/dispatch [:set-new-chapter-panel-open true]))

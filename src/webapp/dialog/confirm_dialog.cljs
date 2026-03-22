@@ -1,6 +1,6 @@
-(ns webapp.components.confirm-dialog
+(ns webapp.dialog.confirm-dialog
   (:require [reagent.core :as r]
-            [webapp.components.popup-dialog :as popup-dialog]
+            [webapp.dialog.popup-dialog :as popup-dialog]
             ["@mantine/core" :refer [Button Group]]))
 
 (defn confirm-button-color [confirm-color]
