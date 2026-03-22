@@ -10,6 +10,9 @@ permissions:
   id-token: write
   pages: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-webapi:
     name: Build webapi
@@ -21,14 +24,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
 
       - name: Setup Clojure
         uses: DeLaGuardo/setup-clojure@13.2
@@ -124,7 +127,7 @@ jobs:
             --name "${FUNCTION_APP_NAME}" \
             --settings \
               FUNCTIONS_WORKER_RUNTIME=node \
-              WEBSITE_NODE_DEFAULT_VERSION=~22 \
+              WEBSITE_NODE_DEFAULT_VERSION=~24 \
               WEBSITE_RUN_FROM_PACKAGE=1 \
               ROBOGENE_IMAGE_GENERATOR="${ROBOGENE_IMAGE_GENERATOR:-openai}" \
               ROBOGENE_IMAGE_GENERATOR_KEY="${ROBOGENE_IMAGE_GENERATOR_KEY}"
@@ -170,14 +173,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
 
       - name: Setup Clojure
         uses: DeLaGuardo/setup-clojure@13.2
@@ -221,7 +224,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
 
       - name: Install Azure Functions Core Tools
