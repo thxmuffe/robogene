@@ -213,6 +213,7 @@ jobs:
       ROBOGENE_E2E_USE_PREBUILT: "1"
       ROBOGENE_E2E_WEBAPP_DIR: ${{ github.workspace }}/.artifacts/webapp
       ROBOGENE_E2E_WEBAPI_SCRIPT_ROOT: ${{ github.workspace }}/.artifacts/webapi/app
+      FUNCTIONS_WORKER_RUNTIME: "node"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
