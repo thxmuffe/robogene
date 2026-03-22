@@ -43,7 +43,7 @@
     "test:db:start": "azurite --silent --location .tmp/azurite --blobHost 127.0.0.1 --queueHost 127.0.0.1 --tableHost 127.0.0.1",
     "test:e2e": "npm run test:e2e:ui",
     "test:e2e:ui": "node scripts/run-e2e-ui-localdb.js",
-    "test:e2e:ui:direct": "ROBOGENE_E2E_HEADLESS=${ROBOGENE_E2E_HEADLESS:-1} ROBOGENE_RUN_E2E_UI=1 node --test --test-reporter=spec tests/end-to-end/shared-ui.test.mjs",
+    "test:e2e:ui:direct": "ROBOGENE_E2E_HEADLESS=${ROBOGENE_E2E_HEADLESS:-1} ROBOGENE_RUN_E2E_UI=1 node --test --test-reporter=spec tests/e2e/shared-ui.test.mjs",
     "test:e2e:ui:skipped": "ROBOGENE_RUN_SKIPPED_E2E=1 npm run test:e2e:ui",
     "test:e2e:env": "node scripts/run-with-env.js robogen-test.env -- npm run test:e2e:ui:direct",
     "test:e2e:ui:env": "npm run test:e2e:env",

@@ -252,13 +252,9 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     await t.test('ui e2e: gallery add frame and generate image', async () => {
       await runGalleryScenario(ctx);
     });
-    await t.test(
-      'ui e2e: gallery add frame upload image and persist description',
-      { skip: shouldRunSkipped ? false : 'skip until gallery page selectors settle' },
-      async () => {
-        await runGalleryUploadScenario(ctx);
-      }
-    );
+    await t.test('ui e2e: gallery add frame upload image and persist description', async () => { 
+      await runGalleryUploadScenario(ctx);
+    });
     await t.test('ui e2e: mobile frame description edit actions stay visible', async () => {
       await runMobileActionsScenario(ctx);
     });
