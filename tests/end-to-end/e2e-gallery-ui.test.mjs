@@ -55,7 +55,7 @@ async function clickFrameAction({ page, frame, actionLabel, menuLabel = 'Frame a
 }
 
 async function expandFirstGalleryChapter(page) {
-  const toggle = page.locator('.chapter-separator-toggle').first();
+  const toggle = page.locator('.sequence-box-toggle').first();
   await toggle.waitFor();
   await toggle.click();
 }
@@ -178,7 +178,7 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     await uploadDialog.waitFor({ timeout: actionTimeoutMs });
     const fileInput = uploadDialog.locator('input.upload-file-input[type="file"]').first();
     const replaceResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/replace-frame-image') && response.request().method() === 'POST',
+      (response) => response.url().includes('/api/entity/') && response.request().method() === 'PATCH',
       { timeout: actionTimeoutMs }
     );
     await fileInput.setInputFiles(uploadPngLikeFile);
@@ -213,7 +213,7 @@ export async function runGalleryUploadScenario({ openPage, actionTimeoutMs, logS
     const confirmDialog = page.getByRole('dialog').filter({ hasText: 'Remove image from this frame?' }).first();
     await confirmDialog.waitFor({ timeout: actionTimeoutMs });
     const clearResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/clear-frame-image') && response.request().method() === 'POST',
+      (response) => response.url().includes('/api/entity/') && response.request().method() === 'PATCH',
       { timeout: actionTimeoutMs }
     );
     await confirmDialog.getByRole('button', { name: 'Remove image', exact: true }).click();

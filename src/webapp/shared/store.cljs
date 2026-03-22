@@ -57,9 +57,16 @@
 (defn sync-flat-entities [db]
   (refresh-entities-from-flat db (:entities db)))
 
+(defn- frame-row-owner-id [frame]
+  (some-> (or (:parentId frame)
+              (:chapterId frame)
+              (:characterId frame))
+          str
+          not-empty))
+
 (defn- frame-row->entity [frame]
   (let [frame-id (some-> (:frameId frame) str)
-        owner-id (some-> (:chapterId frame) str)
+        owner-id (frame-row-owner-id frame)
         owner-type (or (some-> (:ownerType frame) str) "saga")]
     {:id frame-id
      :title (or (:title frame)
@@ -163,7 +170,7 @@
   (some-> (model/entity-by-id (:entities db) frame-id)
           model/frame-row))
 
-(declare merge-frame-row)
+(declare merge-frame-row optimistic-frame)
 
 (defn set-frame-image-status [db frame-id image-status generator]
   (let [set-status (fn [frame]
@@ -179,30 +186,24 @@
                                   (assoc-in [:payload :generator] generator))))))
 
 (defn add-frame-row [db frame]
-  (let [frame-id (:frameId frame)]
-    (-> db
-        (update-in [:latest-state :frames]
-                   (fn [frames]
-                     (let [rows (vec (or frames []))]
-                       (if (some (fn [row] (= (:frameId row) frame-id)) rows)
-                         (merge-frame-row rows frame)
-                         (conj rows frame)))))
-        (update :hidden-frame-images dissoc frame-id)
-        (assoc-in [:image-ui-by-frame-id frame-id]
-                  (image-ui/image-ui-state-for-url (:imageUrl frame)))
-        (assoc-entity (frame-row->entity frame))
-        (append-child-id (:chapterId frame) frame-id))))
+  (let [frame-id (:frameId frame)
+        owner-id (frame-row-owner-id frame)]
+    (cond-> (-> db
+                (update-in [:latest-state :frames]
+                           (fn [frames]
+                             (let [rows (vec (or frames []))]
+                               (if (some (fn [row] (= (:frameId row) frame-id)) rows)
+                                 (merge-frame-row rows frame)
+                                 (conj rows frame)))))
+                (update :hidden-frame-images dissoc frame-id)
+                (assoc-in [:image-ui-by-frame-id frame-id]
+                          (image-ui/image-ui-state-for-url (:imageUrl frame)))
+                (assoc-entity (frame-row->entity frame)))
+      owner-id
+      (append-child-id owner-id frame-id))))
 
 (defn add-frame [db owner-id owner-type frame-id]
-  (add-frame-row db {:frameId frame-id
-                     :chapterId owner-id
-                     :ownerType (or owner-type "saga")
-                     :description ""
-                     :imageUrl nil
-                     :imageStatus "draft"
-                     :error nil
-                     :createdAt (.toISOString (js/Date.))
-                     :frameDescription ""}))
+  (add-frame-row db (optimistic-frame frame-id owner-id owner-type)))
 
 (defn remove-frames [db frame-ids]
   (let [frame-id-set (set frame-ids)
@@ -243,17 +244,19 @@
 
 (defn merge-frame-response [db frame]
   (if (seq (or (:frameId frame) ""))
-    (-> db
-        (update-in [:latest-state :frames] merge-frame-row frame)
-        (cond-> (and (= "ready" (:imageStatus frame))
-                     (not (str/blank? (or (:imageUrl frame) ""))))
-          (update :hidden-frame-images dissoc (:frameId frame)))
-        (assoc-in [:image-ui-by-frame-id (:frameId frame)]
-                  (if (str/blank? (or (:imageUrl frame) ""))
-                    :idle
-                    :loading))
-        (assoc-entity (frame-row->entity frame))
-        (append-child-id (:chapterId frame) (:frameId frame)))
+    (let [owner-id (frame-row-owner-id frame)]
+      (cond-> (-> db
+                  (update-in [:latest-state :frames] merge-frame-row frame)
+                  (cond-> (and (= "ready" (:imageStatus frame))
+                               (not (str/blank? (or (:imageUrl frame) ""))))
+                    (update :hidden-frame-images dissoc (:frameId frame)))
+                  (assoc-in [:image-ui-by-frame-id (:frameId frame)]
+                            (if (str/blank? (or (:imageUrl frame) ""))
+                              :idle
+                              :loading))
+                  (assoc-entity (frame-row->entity frame)))
+        owner-id
+        (append-child-id owner-id (:frameId frame))))
     db))
 
 (defn merge-entity-row [rows id-key entity]
@@ -415,15 +418,18 @@
       (remove-child-id parent-id entity-id))))
 
 (defn optimistic-frame [frame-id owner-id owner-type]
-  {:frameId frame-id
-   :chapterId owner-id
-   :ownerType (or owner-type "saga")
-   :description ""
-   :imageUrl nil
-   :imageStatus "draft"
-   :error nil
-   :createdAt (.toISOString (js/Date.))
-   :frameDescription ""})
+  (let [owner-type (or owner-type "saga")]
+    {:frameId frame-id
+     :parentId owner-id
+     :chapterId (when (= owner-type "saga") owner-id)
+     :characterId (when (= owner-type "character") owner-id)
+     :ownerType owner-type
+     :description ""
+     :imageUrl nil
+     :imageStatus "draft"
+     :error nil
+     :createdAt (.toISOString (js/Date.))
+     :frameDescription ""}))
 
 (defn optimistic-upload-frame [_db frame-id chapter-id image-data-url]
   {:frameId frame-id
@@ -499,11 +505,15 @@
                              (or merged-frame {:frameId temp-frame-id}))
                   (dissoc-entity temp-frame-id)
                   (assoc-entity (frame-row->entity (or merged-frame {:frameId created-frame-id
-                                                                     :chapterId (or (:chapterId temp-frame)
-                                                                                    (get-in temp-frame-entity [:payload :parentId]))
+                                                                     :parentId (or (frame-row-owner-id temp-frame)
+                                                                                   (get-in temp-frame-entity [:payload :parentId]))
                                                                      :ownerType (or (:ownerType temp-frame)
                                                                                     (get-in temp-frame-entity [:payload :ownerType])
-                                                                                    "saga")})))
+                                                                                    "saga")
+                                                                     :chapterId (or (:chapterId temp-frame)
+                                                                                    (get-in temp-frame-entity [:payload :chapterId]))
+                                                                     :characterId (or (:characterId temp-frame)
+                                                                                      (get-in temp-frame-entity [:payload :characterId]))})))
                   (cond-> (and temp-frame-entity (not= created-frame-id temp-frame-id))
                     (replace-child-id (get-in temp-frame-entity [:payload :parentId])
                                       temp-frame-id
@@ -590,7 +600,9 @@
      :optimistic (fn [db payload]
                    (set-frame-image-status db (:frame-id payload) "queued" (:generator payload)))
      :success (fn [db command]
-                (let [response-frame (get-in command [:response :frame])]
+                (let [response-frame (some-> (get-in command [:response :frame])
+                                             normalize-entity
+                                             model/frame-row)]
                   {:db (cond-> (merge-command-revision db command)
                          response-frame
                          (merge-frame-response response-frame))}))}

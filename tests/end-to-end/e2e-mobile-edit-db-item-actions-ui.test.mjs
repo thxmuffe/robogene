@@ -16,7 +16,7 @@ export async function runMobileActionsScenario({ openPage, actionTimeoutMs, logS
     logStep('mobile-actions', 'opening saga page on mobile viewport');
     if (!seedIds?.sagaId) throw new Error('Saga ID not found');
     await page.goto(`/#/saga/${encodeURIComponent(seedIds.sagaId)}`, { waitUntil: 'domcontentloaded' });
-    await page.locator('.chapter-separator-toggle').first().click();
+    await page.locator('.sequence-box-toggle').first().click();
 
     const frames = page.locator('.gallery .frame[data-frame-id]');
     const beforeCount = await frames.count();

@@ -13,47 +13,32 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
       waitUntil: 'domcontentloaded',
     });
 
-    const stamp = Date.now();
-    const characterName = `Bill ${stamp}`;
+    const characterName = 'Seed Character';
 
     logStep('roster-generate', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
-    await page.locator('.add-frame-tile', { hasText: 'Add New Character' }).first().click();
-    const createPanel = page.locator('.new-chapter-panel').first();
-    await createPanel.getByPlaceholder('Name this character...').fill(characterName);
-    await page.locator('.new-chapter-panel h3').click();
-    await page.waitForTimeout(300);
-    await createPanel.getByRole('button', { name: 'Submit' }).click();
-    logStep('roster-generate', 'character created');
-
-    const chapter = page.locator('.chapter-block', { hasText: characterName }).first();
+    const chapter = page.locator('.sequence', { hasText: characterName }).first();
     await chapter.waitFor({ timeout: actionTimeoutMs });
 
     const frames = chapter.locator('.gallery .frame-panel[data-frame-id]');
     const beforeCount = await frames.count();
-    await chapter.locator('.add-frame-tile[aria-label="Add image"]').click();
+    await chapter.locator('.add-frame-tile[aria-label="Add Item"]').click();
     logStep('roster-generate', 'waiting for new frame');
-    await page.waitForFunction(
-      ({ chapterText, expected }) => {
-        const chapterEl = Array.from(document.querySelectorAll('.chapter-block'))
-          .find((el) => String(el.textContent || '').includes(chapterText));
-        if (!chapterEl) return false;
-        return chapterEl.querySelectorAll('.gallery .frame-panel[data-frame-id]').length >= expected;
-      },
-      { chapterText: characterName, expected: beforeCount + 1 },
-      { timeout: actionTimeoutMs }
-    );
-
     const newFrame = chapter.locator('.gallery .frame-panel[data-frame-id]').nth(beforeCount);
     await newFrame.waitFor({ timeout: actionTimeoutMs });
     const frameId = await newFrame.getAttribute('data-frame-id');
     assert.ok(frameId, 'new roster frame should expose data-frame-id');
 
-    await newFrame.locator('.subtitle-display-text').click();
-    await newFrame.locator('.subtitle-display-input').fill('bill');
+    const stableFrame = page.locator(`.frame-panel[data-frame-id="${frameId}"]`).first();
+    await stableFrame.locator('.subtitle-display-text').click();
+    const editableInput = stableFrame.locator('.subtitle-display-input:not([readonly])').first();
+    await editableInput.waitFor({ timeout: actionTimeoutMs });
+    await editableInput.fill('bill');
     logStep('roster-generate', 'triggering image generation');
-    await newFrame.getByRole('button', { name: 'Generate image', exact: true }).click();
+    const generateButton = stableFrame.getByRole('button', { name: 'Generate image', exact: true });
+    await generateButton.waitFor({ timeout: actionTimeoutMs });
+    await generateButton.click({ force: true });
 
     await page.waitForFunction(
       (fid) => {

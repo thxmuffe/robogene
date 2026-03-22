@@ -17,6 +17,7 @@ const startupTimeoutMs = 90000;
 const actionTimeoutMs = 15000;
 const shouldRunHeadless = process.env.ROBOGENE_E2E_HEADLESS !== '0';
 const shouldUsePrebuilt = process.env.ROBOGENE_E2E_USE_PREBUILT === '1';
+const shouldRunSkipped = process.env.ROBOGENE_RUN_SKIPPED_E2E === '1';
 
 function logStep(scope, message) {
   console.log(`[e2e][${scope}] ${message}`);
@@ -101,22 +102,23 @@ async function runSeedScript({ apiBase, fixturePath, logStep }) {
   }
   logStep('seed', 'done');
   
-  // Fetch state from backend and extract first saga and roster IDs
+  // Fetch state from backend and extract canonical seeded entity IDs from flat entities.
   const stateResponse = await fetch(`${apiBase}/api/state`);
   if (!stateResponse.ok) {
     throw new Error(`Failed to fetch state: ${stateResponse.statusText}`);
   }
   const state = await stateResponse.json();
-  
-  // sagaId is in sagaMeta (backend) or sagas (derived)
-  const sagaId = state.sagaMeta?.sagaId || (state.sagas?.length > 0 ? state.sagas[0].sagaId : null);
-  
-  // rosterId is in rosters (backend/derived)
-  const rosterId = state.rosters?.length > 0 ? state.rosters[0].rosterId : null;
-  
-  logStep('seed', `extracted sagaId: ${sagaId}, rosterId: ${rosterId}`);
-  
-  return { sagaId, rosterId };
+  const entities = state.entities || {};
+  const values = Object.values(entities);
+  const findId = (role, title) => values.find((entity) => entity?.vanityRole === role && entity?.title === title)?.id || null;
+  const sagaId = findId('saga', 'Smoke Test Saga');
+  const rosterId = findId('roster', 'Test Roster');
+  const chapterId = findId('chapter', 'Smoke Chapter');
+  const characterId = findId('character', 'Seed Character');
+
+  logStep('seed', `extracted sagaId: ${sagaId}, rosterId: ${rosterId}, chapterId: ${chapterId}, characterId: ${characterId}`);
+
+  return { sagaId, rosterId, chapterId, characterId };
 }
 
 function spawnLoggedProcess(command, args, options, appLogs) {
@@ -154,6 +156,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     ...process.env,
     WEBAPP_PORT: String(webappPort),
     WEBAPI_PORT: String(apiPort),
+    ROBOGENE_WORKSPACE_ID: `e2e-${Date.now()}`,
     ROBOGENE_BUILD_PROFILE: 'release',
     FUNCTIONS_WORKER_RUNTIME: 'node',
     ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS: '10',
@@ -251,7 +254,7 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     });
     await t.test(
       'ui e2e: gallery add frame upload image and persist description',
-      { skip: 'skip until gallery page selectors settle' },
+      { skip: shouldRunSkipped ? false : 'skip until gallery page selectors settle' },
       async () => {
         await runGalleryUploadScenario(ctx);
       }

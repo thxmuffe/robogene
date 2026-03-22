@@ -23,6 +23,24 @@
 (defn entity-by-id [id]
   (get-in @state [:entities (str id)]))
 
+(defn normalize-entity [entity]
+  (let [entity-id (some-> (:id entity) str str/trim not-empty)
+        payload (or (:payload entity) {})
+        parent-id (some-> (or (:parentId payload)
+                              (:chapterId payload)
+                              (:characterId payload)
+                              (:sagaId payload)
+                              (:rosterId payload))
+                          str
+                          str/trim
+                          not-empty)]
+    (when entity-id
+      (-> entity
+          (assoc :id entity-id)
+          (update :children #(mapv str (or % [])))
+          (assoc :payload (cond-> payload
+                            parent-id (assoc :parentId parent-id)))))))
+
 (defn entities-by-role [role]
   (->> (vals (:entities @state))
        (filter #(= (:vanityRole %) (name role)))
@@ -65,26 +83,114 @@
                                  (or extra {})))]
     (realtime/publish-state-update! payload)))
 
+(defn- persist-entities! [entities]
+  (reduce (fn [p entity]
+            (.then p
+                   (fn [persisted]
+                     (-> (persist-entity! entity)
+                         (.then (fn [saved]
+                                  (conj persisted saved)))))))
+          (js/Promise.resolve [])
+          entities))
+
+(defn- remove-child-id [children child-id]
+  (->> (or children [])
+       (map str)
+       (remove #(= % (str child-id)))
+       vec))
+
+(defn- ensure-child-id [children child-id]
+  (let [child-id (str child-id)
+        children (vec (map str (or children [])))]
+    (if (some #(= % child-id) children)
+      children
+      (conj children child-id))))
+
+(defn- apply-entity-graph-save [entities entity]
+  (let [entity* (normalize-entity entity)
+        entity-id (:id entity*)
+        previous (get entities entity-id)
+        previous-parent-id (some-> previous :payload :parentId str not-empty)
+        next-parent-id (some-> entity* :payload :parentId str not-empty)]
+    (cond-> (assoc entities entity-id entity*)
+      (and previous-parent-id (not= previous-parent-id next-parent-id))
+      (update previous-parent-id
+              (fn [parent]
+                (when parent
+                  (update parent :children remove-child-id entity-id))))
+
+      next-parent-id
+      (update next-parent-id
+              (fn [parent]
+                (when parent
+                  (update parent :children ensure-child-id entity-id)))))))
+
+(defn- entity-descendant-ids [entities entity-id]
+  (let [entity (get entities (str entity-id))]
+    (reduce (fn [acc child-id]
+              (let [child-id (str child-id)]
+                (into (conj acc child-id)
+                      (entity-descendant-ids entities child-id))))
+            []
+            (or (:children entity) []))))
+
 (defn save-entity! [entity]
-  (let [id (str (:id entity))]
-    (swap! state (fn [s]
-                   (-> s
-                       (assoc-in [:entities id] entity)
-                       (update :revision inc))))
-    (-> (persist-entity! entity)
-        (.then (fn [persisted-entity]
-                 (swap! state assoc-in [:entities id] persisted-entity)
-                 (emit-state-changed! "entity-updated" {:entity persisted-entity})
-                 persisted-entity)))))
+  (let [entity* (or (normalize-entity entity)
+                    (throw (js/Error. "Entity save requires :id.")))
+        id (:id entity*)]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :entities apply-entity-graph-save entity*)
+                 (update :revision inc))))
+    (let [snapshot @state
+          persisted-entities (let [saved (get-in snapshot [:entities id])
+                                   parent-id (some-> saved :payload :parentId str not-empty)
+                                   parent (when parent-id
+                                            (get-in snapshot [:entities parent-id]))]
+                               (cond-> [saved]
+                                 parent (conj parent)))]
+      (-> (persist-entities! persisted-entities)
+          (.then (fn [persisted]
+                   (swap! state
+                          (fn [s]
+                            (reduce (fn [acc saved]
+                                      (assoc-in acc [:entities (:id saved)] saved))
+                                    s
+                                    persisted)))
+                   (let [saved (get-in @state [:entities id])]
+                     (emit-state-changed! "entity-updated" {:entity saved})
+                     saved)))))))
 
 (defn delete-entity! [id]
   (let [workspace-id (or (:workspaceId @state) "default")
-        id (str id)]
-    (swap! state (fn [s]
-                   (-> s
-                       (update :entities dissoc id)
-                       (update :revision inc))))
-    (-> (store/delete-entity! workspace-id id)
+        id (str id)
+        snapshot @state
+        entities (:entities snapshot)
+        entity (get entities id)
+        parent-id (some-> entity :payload :parentId str not-empty)
+        removed-ids (->> (cons id (entity-descendant-ids entities id))
+                         distinct
+                         vec)
+        next-parent (when-let [parent (get entities parent-id)]
+                      (update parent :children remove-child-id id))]
+    (swap! state
+           (fn [s]
+             (-> s
+                 (update :entities
+                         (fn [current]
+                           (cond-> (apply dissoc current removed-ids)
+                             next-parent
+                             (assoc parent-id next-parent))))
+                 (update :revision inc))))
+    (-> (reduce (fn [p entity-id]
+                  (.then p (fn [_] (store/delete-entity! workspace-id entity-id))))
+                (js/Promise.resolve true)
+                removed-ids)
+        (.then (fn [_]
+                 (if next-parent
+                   (persist-entity! next-parent)
+                   (js/Promise.resolve true))))
         (.then (fn [_]
                  (emit-state-changed! "entity-deleted" {:id id})
                  true)))))

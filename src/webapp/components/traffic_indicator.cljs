@@ -1,11 +1,16 @@
 (ns webapp.components.traffic-indicator
-  (:require [reagent.core :as r]))
+  (:require [clojure.string :as str]
+            [reagent.core :as r]))
+
+(defn frame-failed? [frame]
+  (and (= "failed" (:imageStatus frame))
+       (not (str/blank? (or (:error frame) "")))))
 
 (defn red-signal-debug-info [state]
   (let [frames (or (:frames state) [])
         failed-frames (->> frames
                            (filter (fn [frame]
-                                     (= "failed" (:imageStatus frame))))
+                                     (frame-failed? frame)))
                            (map (fn [frame]
                                   {:frameId (:frameId frame)
                                    :ownerType (or (:ownerType frame) "saga")
@@ -32,7 +37,9 @@
                    (inc pending)
                    pending)
         :errors (if (= "failed" status)
-                  (inc errors)
+                  (if (frame-failed? frame)
+                    (inc errors)
+                    errors)
                   errors)}))
    {:pending 0 :errors 0}
    (or frames [])))
