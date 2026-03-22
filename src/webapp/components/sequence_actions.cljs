@@ -1,13 +1,11 @@
 (ns webapp.components.sequence-actions
   (:require [clojure.string :as str]
             [reagent.core :as r]
-            [webapp.components.confirm-dialog :as confirm-dialog]
-            [webapp.components.popup-dialog :as popup-dialog]
-            [webapp.components.roster-button :as roster-button]
-            [webapp.components.roster-select-dialog :as roster-select-dialog]
-            [webapp.components.upload-dialog :as upload-dialog]
+            [webapp.dialog.confirm-dialog :as confirm-dialog]
+            [webapp.dialog.link-entities-dialog :as link-entities-dialog]
+            [webapp.dialog.popup-dialog :as popup-dialog]
+            [webapp.dialog.upload-dialog :as upload-dialog]
             [webapp.components.waterfall-row :as waterfall-row]
-            [webapp.shared.model :as model]
             ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaDownload FaImages FaPlus FaShuffle FaTrashCan]]
             ["@mantine/core" :refer [Button NativeSelect Stack Text]]))
 
@@ -26,17 +24,19 @@
    :on-confirm on-confirm})
 
 (defn sequence-actions [entity {:keys [cancel-ui-token
-                                       roster-link-state
-                                       rosters
+                                       link-entities-state
+                                       linkable-entities
+                                       entities-map
                                        frames
                                        on-open-page
                                        on-set-role
                                        on-delete
-                                       on-open-roster-link
-                                       on-select-roster
-                                       on-roster-search
-                                       on-close-roster-dialog
-                                       on-create-roster
+                                       on-open-link-entities
+                                       on-select-link-entity
+                                       on-link-entities-search
+                                       on-link-entities-sort
+                                       on-link-entities-role-filters
+                                       on-close-link-entities-dialog
                                        on-upload-images
                                        on-delete-empty-frames]}]
   (r/with-let [confirm* (r/atom nil)
@@ -47,39 +47,21 @@
     (let [entity-id (:id entity)
           role (some-> (:vanityRole entity) str str/lower-case)
           owner-type (if (= role "character") "character" "saga")
+          sequence-of-sequence? (contains? #{"saga" "roster"} role)
           empty-frames (filterv (fn [frame]
                                   (str/blank? (or (:imageUrl frame) "")))
                                 (or frames []))
           empty-frame-count (count empty-frames)
-          frame-sequence? (contains? #{"chapter" "character"} role)
+          frame-sequence? (and (not sequence-of-sequence?)
+                               (contains? #{"chapter" "character"} role))
           label (case role
                   "saga" "saga"
                   "chapter" "chapter"
                   "character" "character"
                   "sequence")
           title-case-label (str/capitalize label)
-          roster-target (:target roster-link-state)
-          roster-search (some-> (:search roster-link-state) str str/lower-case str/trim)
-          roster-dialog-open? (and (= role "chapter")
-                                   (:open? roster-link-state)
-                                   (= entity-id (:chapter-id roster-target)))
-          filtered-rosters (if (str/blank? (or roster-search ""))
-                             rosters
-                             (filterv (fn [roster]
-                                        (let [title (some-> (:title roster) str str/lower-case)
-                                              description (some-> (:description roster) str str/lower-case)]
-                                          (or (str/includes? (or title "") roster-search)
-                                              (str/includes? (or description "") roster-search))))
-                                      rosters))
-          roster-items (mapv (fn [roster]
-                               ^{:key (:id roster)}
-                               [roster-button/roster-button
-                                {:label (model/primary-label roster)
-                                 :description (some-> (:description roster) str/trim not-empty)
-                                 :class-name "roster-select-option"
-                                 :on-click #(when on-select-roster
-                                              (on-select-roster (:id roster)))}])
-                             filtered-rosters)
+          link-dialog-open? (and (:open? link-entities-state)
+                                 (= entity-id (get-in link-entities-state [:target :parent-id])))
           items [{:id :open-page
                   :label "Open page"
                   :icon FaArrowUpRightFromSquare
@@ -116,26 +98,31 @@
                   :label "Link"
                   :icon FaPlus
                   :color "grape"
-                  :disabled? (not= role "chapter")
                   :on-select (fn [_]
-                               (when (and (= role "chapter") on-open-roster-link)
-                                 (on-open-roster-link entity-id)))}
+                               (when on-open-link-entities
+                                 (on-open-link-entities entity-id)))}
                  {:id :upload-images
                   :label "Upload images"
                   :icon FaImages
                   :color "blue"
-                  :disabled? (not= role "chapter")
+                  :disabled? (or sequence-of-sequence?
+                                 (not= role "chapter"))
                   :on-select (fn [_]
-                               (when (and (= role "chapter") on-upload-images)
+                               (when (and (not sequence-of-sequence?)
+                                          (= role "chapter")
+                                          on-upload-images)
                                  (reset! upload-open?* true)))}
                  {:id :delete-empty-frames
                   :label "Delete empty frames"
                   :icon FaBroom
                   :color "orange"
-                  :disabled? (or (not frame-sequence?)
+                  :disabled? (or sequence-of-sequence?
+                                 (not frame-sequence?)
                                  (zero? empty-frame-count))
                   :on-select (fn [_]
-                               (when (and frame-sequence? (pos? empty-frame-count))
+                               (when (and (not sequence-of-sequence?)
+                                          frame-sequence?
+                                          (pos? empty-frame-count))
                                  (reset! confirm* (confirm-item
                                                    :delete-empty-frames
                                                    "Delete empty frames?"
@@ -202,14 +189,19 @@
             :disabled (or (str/blank? (or @role-draft* ""))
                           (= (some-> @role-draft* str str/trim str/lower-case)
                              role))}
-           "Save"]]]
+          "Save"]]]
        ]
-       [roster-select-dialog/roster-select-dialog
-        {:open roster-dialog-open?
-         :title "Select roster"
-         :search (:search roster-link-state)
-         :on-search #(when on-roster-search (on-roster-search %))
-         :on-close #(when on-close-roster-dialog (on-close-roster-dialog))
-         :on-create #(when on-create-roster (on-create-roster))
-         :items roster-items
-         :empty-label "No rosters match this search."}]])))
+       [link-entities-dialog/link-entities-dialog
+        {:open link-dialog-open?
+         :title "Link entities"
+         :search (:search link-entities-state)
+         :sort (:sort link-entities-state)
+         :role-filters (:role-filters link-entities-state)
+         :entities linkable-entities
+         :entities-map entities-map
+         :on-search #(when on-link-entities-search (on-link-entities-search %))
+         :on-sort #(when on-link-entities-sort (on-link-entities-sort %))
+         :on-role-filters #(when on-link-entities-role-filters (on-link-entities-role-filters %))
+         :on-close #(when on-close-link-entities-dialog (on-close-link-entities-dialog))
+         :on-select #(when on-select-link-entity (on-select-link-entity %))
+         :empty-label "No sequence entities match this search."}]])))

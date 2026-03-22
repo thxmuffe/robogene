@@ -4,8 +4,8 @@
             [re-frame.core :as rf]
             [webapp.components.db-text :as db-text]
             [webapp.components.waterfall-row :as waterfall-row]
-            [webapp.components.confirm-dialog :as confirm-dialog]
-            [webapp.components.upload-dialog :as upload-dialog]
+            [webapp.dialog.confirm-dialog :as confirm-dialog]
+            [webapp.dialog.upload-dialog :as upload-dialog]
             [webapp.shared.controls :as controls]
             [webapp.shared.ui.interaction :as interaction]
             ["react-icons/fa6" :refer [FaCamera FaDownload FaEraser FaTrashCan FaWandMagic FaWandMagicSparkles]]
@@ -48,13 +48,15 @@
        [:div {:className (str "spinner" (when (= imageStatus "uploading") " spinner-reverse"))}])
      [:div.placeholder-text label]]))
 
-(defn frame-status-note [{:keys [imageStatus image-loading? image-error?]}]
+(defn frame-status-note [{:keys [imageStatus image-loading? image-error? has-image?]}]
   (let [note-kind (cond
                     (= imageStatus "uploading") :uploading
                     (= imageStatus "processing") :processing
                     (= imageStatus "queued") :queued
                     image-loading? :loading-image
-                    (or image-error? (= imageStatus "failed")) :failed
+                    (or image-error?
+                        (and (= imageStatus "failed")
+                             (not has-image?))) :failed
                     :else nil)
         label (case note-kind
                 :uploading "Uploading..."
@@ -135,11 +137,13 @@
            visible-image-url (when-not image-hidden? (:imageUrl frame))
            has-image? (not (str/blank? (or visible-image-url "")))
            busy? (#{"queued" "processing"} (:imageStatus frame))
-           image-status-overlay? (and has-image?
-                                      (#{"queued" "processing" "failed"} (:imageStatus frame)))
            image-ui @(rf/subscribe [:frame-image-ui (:frameId frame)])
            image-loading? (= :loading image-ui)
            image-error? (= :error image-ui)
+           image-status-overlay? (and has-image?
+                                      (or busy?
+                                          (and (= "failed" (:imageStatus frame))
+                                               image-error?)))
            current-input (clamp-subtitle current-input)
            cancel-ui-token @(rf/subscribe [:cancel-ui-token])
            frame* (assoc frame
@@ -242,8 +246,9 @@
               (when image-status-overlay?
                 [:div {:className (str "frame-image-status-overlay"
                                        (when busy? " is-busy")
-                                       (when (= "failed" (:imageStatus frame)) " is-failed"))}])
+                                       (when (and (= "failed" (:imageStatus frame)) image-error?) " is-failed"))}])
               [frame-status-note {:imageStatus (:imageStatus frame)
+                                  :has-image? has-image?
                                   :image-loading? image-loading?
                                   :image-error? image-error?}]]
              [frame-placeholder frame])]

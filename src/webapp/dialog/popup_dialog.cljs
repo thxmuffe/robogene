@@ -1,4 +1,4 @@
-(ns webapp.components.popup-dialog
+(ns webapp.dialog.popup-dialog
   (:require [clojure.string :as str]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [Modal]]))

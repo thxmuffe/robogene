@@ -64,7 +64,7 @@
                     (open-active-frame! entities))
         nil))))
 
-(defn child-sequence-block [child-sequence entities collapsed? on-toggle]
+(defn child-sequence-block [child-sequence entities collapsed? on-toggle owner-type add-child-label]
   (let [sequence-id (model/entity-id child-sequence)
         preview-url (model/preview-image-url entities sequence-id)
         title (model/primary-label child-sequence)]
@@ -96,8 +96,8 @@
           :actions-renderer sequence-action-renderer/render-sequence-actions
           :on-save-title #(save-entity-title! child-sequence %)
           :on-save-description #(save-entity-description! child-sequence %)
-          :add-child-label "Add New Frame"
-          :add-child-fn #(rf/dispatch [:add-frame sequence-id "saga"])}]])]))
+          :add-child-label add-child-label
+          :add-child-fn #(rf/dispatch [:add-frame sequence-id owner-type])}]])]))
 
 (defn gallery-page [{:keys [entity-id]}]
   (r/with-let [key-context* (r/atom nil)
@@ -131,13 +131,20 @@
           (when (not= filtered-collapsed @collapsed-sequence-ids*)
             (reset! collapsed-sequence-ids* filtered-collapsed))))
       (reset! key-context* {:entities entities})
-      (let [effective-collapsed-ids (or @collapsed-sequence-ids* child-sequence-ids #{})]
+      (let [effective-collapsed-ids (or @collapsed-sequence-ids* child-sequence-ids #{})
+            role (some-> (:vanityRole entity) str)
+            page-class (case role
+                         "roster" "roster-page"
+                         "saga" "saga-page"
+                         "gallery-page")
+            child-owner-type (if (= role "roster") "character" "saga")
+            add-child-label (if (= role "roster") "New" "Add New Frame")]
         (cond
           (nil? entity)
           [:div.gallery-page [:p "Loading gallery..."]]
 
-          (= "saga" (:vanityRole entity))
-          [:div.gallery-page.saga-page
+          (contains? #{"saga" "roster"} role)
+          [:div {:className (str "gallery-page " page-class)}
            [sequence/sequence-description-editor
             entity
             {:on-save-title #(save-entity-title! entity %)
@@ -152,29 +159,9 @@
                [child-sequence-block child
                 entities
                 (contains? effective-collapsed-ids (model/entity-id child))
-                #(toggle-collapsed! collapsed-sequence-ids* effective-collapsed-ids (model/entity-id child))])
-             [:p.gallery-empty-message "No sequences found."])]
-
-          :else
-          [:div.gallery-page.roster-page
-           [sequence/sequence-description-editor
-            entity
-            {:on-save-title #(save-entity-title! entity %)
-             :on-save-description #(save-entity-description! entity %)
-             :actions-renderer sequence-action-renderer/render-sequence-actions}
-            title-editing-atom
-            description-editing-atom]
-           (if (seq children-ids)
-             (for [child children
-                   :when child]
-               ^{:key (:id child)}
-               [sequence/sequence child
-                {:children-fetcher fetch-entity
-                 :actions-renderer sequence-action-renderer/render-sequence-actions
-                 :add-child-label "New"
-                 :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
-                 :on-save-title #(save-entity-title! child %)
-                 :on-save-description #(save-entity-description! child %)}])
+                #(toggle-collapsed! collapsed-sequence-ids* effective-collapsed-ids (model/entity-id child))
+                child-owner-type
+                add-child-label])
              [:p.gallery-empty-message "No sequences found."])])))
     (finally
       (.removeEventListener js/window "keydown" key-handler))))

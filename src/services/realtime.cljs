@@ -86,12 +86,7 @@
                          :body body})
           (.then (fn [response]
                    (if (.-ok response)
-                     (do
-                       (js/console.info
-                        (str "[robogene] SignalR publish ok"
-                             " status=" (.-status response)
-                             " reason=" (or (gobj/get data "reason") "")))
-                       true)
+                     true
                      (-> (.text response)
                          (.then (fn [text]
                                   (throw (js/Error. (str "SignalR publish failed: HTTP "

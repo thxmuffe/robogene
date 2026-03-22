@@ -277,16 +277,40 @@
         entities (normalize-entities-map (:entities db))
         existing (model/entity-by-id entities entity-id)]
     (if (map? existing)
-      (let [next-entity (-> existing
+      (let [previous-parent-id (model/entity-parent-id existing)
+            next-entity (-> existing
                             (cond-> (contains? patch :title)
                               (assoc :title (:title patch)))
                             (cond-> (contains? patch :description)
                               (assoc :description (:description patch)))
+                            (cond-> (contains? patch :vanityRole)
+                              (assoc :vanityRole (:vanityRole patch)))
                             (cond-> (contains? patch :payload)
                               (update :payload merge (or (:payload patch) {})))
                             (update :payload #(or % {}))
                             (update :children #(vec (or % []))))
-            entities* (assoc entities entity-id next-entity)
+            next-parent-id (model/entity-parent-id next-entity)
+            entities* (cond-> (assoc entities entity-id next-entity)
+                        (and previous-parent-id (not= previous-parent-id next-parent-id))
+                        (update previous-parent-id
+                                (fn [parent]
+                                  (when parent
+                                    (update parent :children
+                                            (fn [children]
+                                              (->> (or children [])
+                                                   (remove #(= entity-id (str %)))
+                                                   (mapv str)))))))
+
+                        next-parent-id
+                        (update next-parent-id
+                                (fn [parent]
+                                  (when parent
+                                    (update parent :children
+                                            (fn [children]
+                                              (let [children (vec (map str (or children [])))]
+                                                (if (some #(= entity-id %) children)
+                                                  children
+                                                  (conj children entity-id)))))))))
             image-url-patch (get-in patch [:payload :imageUrl])
             image-url-updated? (contains? (or (:payload patch) {}) :imageUrl)]
         (cond-> (-> db
@@ -309,7 +333,8 @@
   (let [entity-id (str (:id payload))
         existing (model/entity-by-id (:entities db) entity-id)
         patch (or (:patch payload) {})
-        role (or (:vanityRole existing)
+        role (or (:vanityRole patch)
+                 (:vanityRole existing)
                  "generic")
         title (if (contains? patch :title)
                 (:title patch)

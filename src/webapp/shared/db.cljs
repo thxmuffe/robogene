@@ -33,6 +33,11 @@
                        :per-page 12
                        :new-panel-open? false
                        :show-celebration? false}
+                :link-entities {:open? false
+                                :search ""
+                                :sort "title-asc"
+                                :role-filters ["roster"]
+                                :target nil}
                 :roster-link {:open? false
                               :search ""
                               :target nil}

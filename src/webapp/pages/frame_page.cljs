@@ -8,8 +8,7 @@
             [webapp.shared.ui.back-button :as back-button]
             [webapp.shared.ui.frame-nav :as frame-nav]
             [webapp.shared.ui.interaction :as interaction]
-            ["@mantine/core" :refer [ActionIcon Box Button Group]]
-            ["react-icons/fa6" :refer [FaXmark]]))
+            ["@mantine/core" :refer [Box Button Group]]))
 
 (defn prev-next-by-id [frames frame-id]
   (loop [remaining (seq frames)
@@ -169,16 +168,7 @@
             :image-fit "contain"}]
           (when-not fullscreen?
             [nav-controls owner-id frame-neighbors from-page])
-          (if fullscreen?
-            [:> ActionIcon
-             {:className "fullscreen-close"
-              :color "orange"
-              :aria-label "Close fullscreen"
-              :title "Close fullscreen"
-              :variant "filled"
-              :radius "xl"
-              :onClick #(rf/dispatch [:set-frame-fullscreen false])}
-             [:> FaXmark]]
+          (when-not fullscreen?
             [social-media-buttons/social-media-buttons {:saga-name saga-name}])]
          [:> Box {:className "detail-missing"}
           [:p "Frame not found."]

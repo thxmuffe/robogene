@@ -9,6 +9,7 @@
             [webapp.shared.store :as store]
             [webapp.shared.visual-effects]
             [webapp.shared.events.handlers.frame-page]
+            [webapp.shared.events.handlers.link-entities]
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.visual-effects]
             [webapp.shared.events.handlers.frames]
@@ -223,6 +224,11 @@
       (assoc :open-frame-actions {})
       (assoc-in [:view-state :index :editing-id] nil)
       (assoc-in [:view-state :saga :editing-id] nil)
+      (assoc-in [:view-state :link-entities :open?] false)
+      (assoc-in [:view-state :link-entities :search] "")
+      (assoc-in [:view-state :link-entities :sort] "title-asc")
+      (assoc-in [:view-state :link-entities :role-filters] ["roster"])
+      (assoc-in [:view-state :link-entities :target] nil)
       (assoc-in [:view-state :roster-link :open?] false)
       (assoc-in [:view-state :roster-link :search] "")
       (assoc-in [:view-state :roster-link :target] nil)

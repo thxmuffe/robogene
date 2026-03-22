@@ -60,7 +60,6 @@
 (defn dispatch-api-response
   [{:keys [ok status text]} success-event fail-event ok? request-label]
   (let [data (model/parse-json-safe text)]
-    (js/console.log "dispatch-api-response" request-label "status" status "ok" ok "has-entities" (boolean (:entities data)))
     (rf/dispatch
      [:wait-lights-log
       (if (ok? ok status) :incoming :error)
@@ -134,6 +133,7 @@
 
 (defn build-connection [url access-token]
   (-> (signalr/HubConnectionBuilder.)
+      (.configureLogging (.-Warning signalr/LogLevel))
       (.withUrl url #js {:accessTokenFactory (fn [] access-token)})
       (.build)))
 
@@ -149,7 +149,6 @@
        (fn [payload]
          (when (epoch-current? epoch)
            (let [payload* (js->clj payload :keywordize-keys true)]
-           (js/console.log "[robogene] SignalR stateChanged event received.")
            (reset! realtime-connected?* true)
            (rf/dispatch [:realtime-state-changed payload*])
            (when-not (= false (:requiresFetch payload*))
@@ -161,7 +160,6 @@
                (when (epoch-current? epoch)
                  (reset! realtime-conn* conn)
                  (reset! realtime-connected?* true)
-                 (js/console.log "[robogene] SignalR connected.")
                  (rf/dispatch [:fetch-state]))))
       (.catch (fn [err]
                 (when (epoch-current? epoch)
@@ -187,7 +185,6 @@
   (when (and (nil? @realtime-conn*)
              (not @realtime-starting?*))
     (reset! realtime-starting?* true)
-    (js/console.log "[robogene] SignalR connect attempt...")
     (let [epoch (swap! realtime-epoch* inc)]
       (-> (negotiate-realtime!)
           (.then (fn [info]
@@ -265,7 +262,6 @@
      (reset! coalesced-fetch-state!*
              (create-coalesced-runner
               (fn []
-                (js/console.log "fetch-state =>" (state-url))
                 (request-json (state-url)
                               {:cache "no-store"}
                               :state-loaded

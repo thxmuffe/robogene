@@ -59,20 +59,6 @@
         (dissoc :prompt "prompt")
         (dissoc :image "image"))))
 
-(defn log-openai-request! [mode options refs]
-  (let [opts (sanitize-openai-options options)
-        model (or (get opts "model") (get opts :model) "-")
-        size (or (get opts "size") (get opts :size) "-")
-        quality (or (get opts "quality") (get opts :quality) "-")
-        refs-count (count (or refs []))]
-    (js/console.info
-     (str "[robogene] openai image request"
-          " mode=" mode
-          " refs=" refs-count
-          " model=" model
-          " size=" size
-          " quality=" quality))))
-
 (defn reference->meta [{:keys [bytes name]}]
   {:name (or name "<unnamed>")
    :bytes (or (some-> bytes .-length) 0)
@@ -88,7 +74,6 @@
   (let [options (sanitize-openai-options options)]
     (if (seq refs)
       (let [form (js/FormData.)]
-        (log-openai-request! "edits" options refs)
         (.append form "prompt" prompt)
         (doseq [[k v] options]
           (when (some? v)
@@ -100,7 +85,6 @@
                          :headers #js {:Authorization (str "Bearer " key)}
                          :body form}))
       (do
-        (log-openai-request! "generations" options refs)
         (fetch-json "https://api.openai.com/v1/images/generations"
                     #js {:method "POST"
                          :headers #js {:Authorization (str "Bearer " key)

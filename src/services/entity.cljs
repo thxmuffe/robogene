@@ -26,11 +26,7 @@
 (defn normalize-entity [entity]
   (let [entity-id (some-> (:id entity) str str/trim not-empty)
         payload (or (:payload entity) {})
-        parent-id (some-> (or (:parentId payload)
-                              (:chapterId payload)
-                              (:characterId payload)
-                              (:sagaId payload)
-                              (:rosterId payload))
+        parent-id (some-> (:parentId payload)
                           str
                           str/trim
                           not-empty)]
@@ -106,6 +102,18 @@
       children
       (conj children child-id))))
 
+(defn- self-child-link? [parent-id child-id]
+  (= (str parent-id) (str child-id)))
+
+(defn- validate-entity-graph! [entity]
+  (let [entity-id (some-> (:id entity) str not-empty)
+        children (mapv str (or (:children entity) []))
+        parent-id (some-> (get-in entity [:payload :parentId]) str not-empty)]
+    (when (some #(= % entity-id) children)
+      (throw (js/Error. "Entity cannot include itself in children.")))
+    (when (self-child-link? parent-id entity-id)
+      (throw (js/Error. "Entity cannot be its own parent.")))))
+
 (defn- apply-entity-graph-save [entities entity]
   (let [entity* (normalize-entity entity)
         entity-id (:id entity*)
@@ -138,6 +146,7 @@
   (let [entity* (or (normalize-entity entity)
                     (throw (js/Error. "Entity save requires :id.")))
         id (:id entity*)]
+    (validate-entity-graph! entity*)
     (swap! state
            (fn [s]
              (-> s
@@ -252,19 +261,31 @@
         (-> (save-entity! (assoc-in queued [:payload :imageStatus] "processing"))
             (.then (fn [_]
                      (emit-state-changed! "processing" {:id id})
-                     (generate-image! queued)))
-            (.then (fn [image-data-url]
-                     (save-entity! (-> queued
-                                       (assoc-in [:payload :imageStatus] "ready")
-                                       (assoc-in [:payload :imageUrl] image-data-url)))))
-            (.then (fn [_]
-                     (emit-state-changed! "ready" {:id id})
-                     (process-step!)))
+                     (-> (generate-image! queued)
+                         (.then (fn [image-data-url]
+                                  (-> (save-entity! (-> queued
+                                                        (assoc-in [:payload :imageStatus] "ready")
+                                                        (assoc-in [:payload :imageUrl] image-data-url)))
+                                      (.then (fn [_]
+                                               (emit-state-changed! "ready" {:id id})
+                                               (process-step!)))
+                                      (.catch (fn [err]
+                                                (js/console.error "[robogene] frame persistence failed" err)
+                                                (emit-state-changed! "failed" {:id id :error (str err)})
+                                                (process-step!))))))
+                         (.catch (fn [err]
+                                   (js/console.error "[robogene] generation failed" err)
+                                   (-> (save-entity! (-> queued
+                                                         (assoc-in [:payload :imageStatus] "failed")
+                                                         (assoc-in [:payload :error] (str err))))
+                                       (.catch (fn [persist-err]
+                                                 (js/console.error "[robogene] failed saving generation error state" persist-err)
+                                                 nil))
+                                       (.finally (fn []
+                                                   (emit-state-changed! "failed" {:id id :error (str err)})
+                                                   (process-step!)))))))))
             (.catch (fn [err]
-                      (js/console.error "[robogene] generation failed" err)
-                      (save-entity! (-> queued
-                                        (assoc-in [:payload :imageStatus] "failed")
-                                        (assoc-in [:payload :error] (str err))))
+                      (js/console.error "[robogene] frame pipeline failed" err)
                       (emit-state-changed! "failed" {:id id :error (str err)})
                       (process-step!))))))))
 

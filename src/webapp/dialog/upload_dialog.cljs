@@ -1,8 +1,8 @@
-(ns webapp.components.upload-dialog
+(ns webapp.dialog.upload-dialog
   (:require [clojure.string :as str]
             [reagent.core :as r]
             [webapp.components.waterfall-row :as waterfall-row]
-            [webapp.components.popup-dialog :as popup-dialog]
+            [webapp.dialog.popup-dialog :as popup-dialog]
             [webapp.shared.ui.interaction :as interaction]
             ["@mantine/core" :refer [ActionIcon]]
             ["react-icons/fa6" :refer [FaCamera FaFolderOpen FaImage FaPaste FaVideo FaXmark]]))

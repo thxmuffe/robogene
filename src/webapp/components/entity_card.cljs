@@ -27,8 +27,17 @@
     (.drawImage ctx img 0 0 width height)
     (.toDataURL canvas "image/jpeg" 0.82)))
 
+(defn- same-origin-or-inline-image? [src]
+  (or (not (re-find #"^[a-zA-Z][a-zA-Z0-9+.-]*://" (or src "")))
+      (.startsWith (or src "") "data:")
+      (.startsWith (or src "") "blob:")
+      (= (.-origin js/location)
+         (.-origin (js/URL. src js/location.href)))))
+
 (defn- start-thumbnail! [src on-ready]
-  (if-let [cached (get @thumbnail-cache* src)]
+  (if-not (same-origin-or-inline-image? src)
+    (on-ready src)
+    (if-let [cached (get @thumbnail-cache* src)]
     (on-ready cached)
     (if-let [listeners (get @thumbnail-pending* src)]
       (swap! thumbnail-pending* update src conj on-ready)
@@ -37,7 +46,6 @@
         (let [img (js/Image.)]
           (set! (.-decoding img) "async")
           (set! (.-loading img) "eager")
-          (set! (.-crossOrigin img) "anonymous")
           (set! (.-onload img)
                 (fn []
                   (let [thumb (try
@@ -56,9 +64,9 @@
                     (swap! thumbnail-pending* dissoc src)
                     (doseq [listener listeners]
                       (listener src)))))
-          (set! (.-src img) src))))))
+          (set! (.-src img) src)))))))
 
-(defn entity-card [{:keys [entity clickable? on-click]}]
+(defn entity-card [{:keys [entity clickable? on-click class-name]}]
   (let [entities @(rf/subscribe [:entities])
         entity-id (:id entity)
         preview-url (model/preview-image-url entities entity-id)
@@ -73,7 +81,9 @@
         (when preview-url
           (start-thumbnail! preview-url #(reset! thumb-url* %))))
       [:> Card
-       {:className (str "frame entity-card" (when clickable? " frame-clickable"))
+       {:className (str "frame entity-card"
+                        (when clickable? " frame-clickable")
+                        (when (seq class-name) (str " " class-name)))
         :onClick on-click}
        [:> Stack {:gap "xs"}
         [:> Box {:className "media-shell entity-card-media"}

@@ -19,9 +19,14 @@
     "red" "#dc2626"
     nil))
 
-(defn- action-icon [icon color]
+(def disabled-action-color "#94a3b8")
+
+(defn- action-icon [icon color disabled?]
   (when icon
-    (r/as-element [:> icon {:style #js {:color (or (action-color color) "currentColor")}}])))
+    (r/as-element
+     [:> icon {:style #js {:color (if disabled?
+                                    disabled-action-color
+                                    (or (action-color color) "currentColor"))}}])))
 
 (defn- visible-prefix-count [container-width action-count mandatory-count action-size]
   (let [slot-width (+ (or action-size default-inline-action-size) inline-action-gap)
@@ -87,16 +92,22 @@
             {:aria-label label
              :title label
              :size action-size
-             :variant (or variant "subtle")
+             :variant (if disabled? "transparent" (or variant "subtle"))
              :color color
-             :className class-name
+             :className (str (when (seq class-name) (str class-name " "))
+                             (when disabled? "is-disabled-action"))
              :radius "xl"
              :disabled (true? disabled?)
+             :style #js {:background "transparent"
+                         :color (if disabled?
+                                  disabled-action-color
+                                  "inherit")
+                         :opacity (if disabled? 0.45 1)}
              :onClick (fn [e]
                         (interaction/halt! e)
                         (when (and on-select (not disabled?))
                           (on-select e)))}
-            (action-icon icon color)]])]
+            (action-icon icon color disabled?)]])]
        (when (seq overflow-actions)
          [:> Menu {:withinPortal true
                    :position "bottom-end"
@@ -117,9 +128,15 @@
            (for [{:keys [id label icon on-select disabled? color]} overflow-actions]
              ^{:key (str "overflow-action-" id)}
              [:> (.-Item Menu)
-              {:leftSection (action-icon icon color)
+              {:leftSection (action-icon icon color disabled?)
                :color color
+               :className (when disabled? "is-disabled-action")
                :disabled (true? disabled?)
+               :style #js {:color (if disabled?
+                                    disabled-action-color
+                                    "inherit")
+                           :opacity (if disabled? 0.45 1)
+                           :background "transparent"}
                :onClick (fn [e]
                           (interaction/halt! e)
                           (when (and on-select (not disabled?))

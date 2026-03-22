@@ -104,6 +104,11 @@
  (fn [db _]
    (get-in db [:view-state :roster-link])))
 
+(rf/reg-sub
+ :link-entities-state
+ (fn [db _]
+   (get-in db [:view-state :link-entities])))
+
 (rf/reg-sub :frames-for-chapter
             (fn [db [_ chapter-id]]
               (model/frames-for-chapter (:entities db) chapter-id)))

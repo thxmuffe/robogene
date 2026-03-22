@@ -40,6 +40,22 @@
          (remove nil?)
          vec)))
 
+(defn entity-descendant-ids
+  ([entities target-id]
+   (entity-descendant-ids entities target-id #{}))
+  ([entities target-id seen]
+   (let [entity-id* (entity-id (entity-by-id entities target-id))]
+     (if (or (nil? entity-id*) (contains? seen entity-id*))
+       []
+       (reduce (fn [acc child-id]
+                 (let [child-id* (normalize-entity-id child-id)]
+                   (if (nil? child-id*)
+                     acc
+                     (into (conj acc child-id*)
+                           (entity-descendant-ids entities child-id* (conj seen entity-id*))))))
+               []
+               (entity-children-ids (entity-by-id entities entity-id*)))))))
+
 (defn image-url [entity]
   (let [payload (:payload entity)]
     (some-> (or (:imageUrl payload)
@@ -51,11 +67,7 @@
             not-empty)))
 
 (defn entity-parent-id [entity]
-  (some-> (or (get-in entity [:payload :parentId])
-              (get-in entity [:payload :chapterId])
-              (get-in entity [:payload :characterId])
-              (get-in entity [:payload :sagaId])
-              (get-in entity [:payload :rosterId]))
+  (some-> (get-in entity [:payload :parentId])
           str
           not-empty))
 
