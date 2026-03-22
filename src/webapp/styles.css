@@ -914,6 +914,12 @@ button.sequence-box.is-collapsed {
   z-index: 2;
 }
 
+.frame-image,
+.frame-nav-surface {
+  width: 100%;
+  display: block;
+}
+
 .frame-main {
   position: relative;
   display: flex;
@@ -1150,6 +1156,10 @@ button.sequence-box.is-collapsed {
   background: #fffdfa;
   border-top: 1px solid rgba(17, 24, 39, 0.08);
   cursor: text;
+}
+
+.subtitle-display-shell {
+  width: 100%;
 }
 
 .subtitle-display-editing { gap: 12px; }
@@ -1758,6 +1768,8 @@ button.sequence-box.is-collapsed {
   width: var(--menu-dot-btn-size); height: var(--menu-dot-btn-size); border-width: 1px;
 }
 .chapter-header .waterfall-row-inline > button:hover, .chapter-header .waterfall-row-trigger:hover { filter: brightness(0.98); }
+.frame-action-buttons { padding: 0 14px 16px; }
+.frame-action-buttons .waterfall-row-inline { justify-content: center; gap: 10px; width: 100%; }
 
 .error-line { color: #8b1e3f; font-weight: 700; font-size: 0.85rem; }
 

@@ -27,11 +27,12 @@
     (rf/dispatch [:navigate-relative-frame delta])))
 
 (defn frame-image [{:keys [imageUrl frameId]} image-fit on-load on-error]
-  [:> Image
+  [:img
    {:key (str frameId "|" (or imageUrl ""))
+    :className "frame-image"
     :src (or imageUrl "")
     :alt (str "Frame " frameId)
-    :fit image-fit
+    :style {:objectFit image-fit}
     :onLoad (or on-load (fn [] nil))
     :onError (or on-error (fn [] nil))}])
 
@@ -41,7 +42,7 @@
                 "processing" "Generating..."
                 "queued" "Queued..."
                 "failed" "Generation failed"
-                "Edit subtitle and generate")]
+                "No image")]
     [:> Box {:className "placeholder-img"}
      (when (#{"queued" "processing" "uploading"} imageStatus)
        [:div {:className (str "spinner" (when (= imageStatus "uploading") " spinner-reverse"))}])
@@ -296,26 +297,26 @@
                                           (reset! action-pointer-down?* true)
                                           (.requestAnimationFrame js/window
                                                                   (fn []
-                                                                    (reset! action-pointer-down?* false))))}]]
-             [confirm-dialog/confirm-dialog
-              {:item selected-item
-               :on-cancel #(reset! confirm* nil)
-               :on-confirm (fn []
-                             (when-let [on-confirm (:on-confirm selected-item)]
-                               (on-confirm))
-                             (reset! confirm* nil))}]
-             [upload-dialog/upload-dialog
-              {:open @upload-open?*
-               :active-frame-id (:frameId frame)
-               :on-close (fn []
-                           (reset! upload-open?* false)
-                           (when @upload-submit-blur?*
-                             (reset! upload-submit-blur?* false)
-                             (.requestAnimationFrame js/window
-                                                     (fn []
-                                                       (blur-subtitle-input! (:frameId frame))))))
-               :on-submit (fn [image-data-url]
-                            (reset! upload-submit-blur?* true)
-                            (when on-replace-image
-                              (on-replace-image image-data-url)))}]])]]
+                                                                    (reset! action-pointer-down?* false))))}]]])]]
+        [confirm-dialog/confirm-dialog
+         {:item selected-item
+          :on-cancel #(reset! confirm* nil)
+          :on-confirm (fn []
+                        (when-let [on-confirm (:on-confirm selected-item)]
+                          (on-confirm))
+                        (reset! confirm* nil))}]
+        [upload-dialog/upload-dialog
+         {:open @upload-open?*
+          :active-frame-id (:frameId frame)
+          :on-close (fn []
+                      (reset! upload-open?* false)
+                      (when @upload-submit-blur?*
+                        (reset! upload-submit-blur?* false)
+                        (.requestAnimationFrame js/window
+                                                (fn []
+                                                  (blur-subtitle-input! (:frameId frame))))))
+          :on-submit (fn [image-data-url]
+                       (reset! upload-submit-blur?* true)
+                       (when on-replace-image
+                         (on-replace-image image-data-url)))}]
         ]))))

@@ -23,7 +23,7 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
 
     const frames = chapter.locator('.gallery .frame-panel[data-frame-id]');
     const beforeCount = await frames.count();
-    await chapter.locator('.add-frame-tile[aria-label="Add Item"]').click();
+    await chapter.locator('.add-frame-tile[aria-label="New"]').click();
     logStep('roster-generate', 'waiting for new frame');
     const newFrame = chapter.locator('.gallery .frame-panel[data-frame-id]').nth(beforeCount);
     await newFrame.waitFor({ timeout: actionTimeoutMs });

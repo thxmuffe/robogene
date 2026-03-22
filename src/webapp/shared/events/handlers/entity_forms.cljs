@@ -3,6 +3,46 @@
             [re-frame.core :as rf]
             [webapp.shared.model :as model]))
 
+(def allowed-vanity-roles #{"saga" "roster" "chapter" "character"})
+
+(defn- role-parent-id [entity next-role]
+  (let [payload (or (:payload entity) {})
+        current-parent-id (model/entity-parent-id entity)]
+    (case next-role
+      "chapter" (or (some-> (:sagaId payload) str not-empty)
+                    current-parent-id)
+      "character" (or (some-> (:rosterId payload) str not-empty)
+                      current-parent-id)
+      "saga" nil
+      "roster" nil
+      current-parent-id)))
+
+(defn- role-payload-patch [entity next-role]
+  (let [payload (or (:payload entity) {})
+        next-parent-id (role-parent-id entity next-role)]
+    (if (seq (or next-parent-id ""))
+      (assoc payload :parentId next-parent-id)
+      (dissoc payload :parentId))))
+
+(defn- frame-role-payload-patch [entity-id next-role frame-entity]
+  (let [payload (or (:payload frame-entity) {})]
+    (case next-role
+      "chapter"
+      (-> payload
+          (assoc :parentId entity-id
+                 :ownerType "saga"
+                 :chapterId entity-id)
+          (dissoc :characterId))
+
+      "character"
+      (-> payload
+          (assoc :parentId entity-id
+                 :ownerType "character"
+                 :characterId entity-id)
+          (dissoc :chapterId))
+
+      payload)))
+
 (defn entity-label->keys [entity-label]
   (case (str entity-label)
     "saga"
@@ -94,14 +134,60 @@
          title (cond
                  (contains? patch :title) (some-> (:title patch) str str/trim)
                  :else (:title entity))
+         vanity-role (when (contains? patch :vanityRole)
+                       (some-> (:vanityRole patch) str str/trim str/lower-case))
          next-patch (cond-> {}
                       (contains? patch :title) (assoc :title title)
-                      (contains? patch :description) (assoc :description (some-> (:description patch) str)))]
+                      (contains? patch :description) (assoc :description (some-> (:description patch) str))
+                      (contains? patch :payload) (assoc :payload (:payload patch))
+                      (contains? patch :vanityRole) (assoc :vanityRole vanity-role))]
      (if (or (nil? entity)
-             (str/blank? (or title "")))
+             (and (contains? patch :title)
+                  (str/blank? (or title "")))
+             (and (contains? patch :vanityRole)
+                  (not (contains? allowed-vanity-roles vanity-role))))
        {:db db}
        {:db (assoc-in db editing-key nil)
         :dispatch [:update-entity entity-id next-patch]}))))
+
+(rf/reg-event-fx
+ :change-entity-role
+ (fn [{:keys [db]} [_ entity-id next-role]]
+   (let [entity (model/entity-by-id (:entities db) entity-id)
+         next-role (some-> next-role str str/trim str/lower-case)
+         current-role (model/entity-role entity)
+         old-parent-id (model/entity-parent-id entity)
+         next-parent-id (role-parent-id entity next-role)
+         child-frame-ids (vec (or (:children entity) []))
+         child-frame-patches (keep (fn [child-id]
+                                     (let [child-entity (model/entity-by-id (:entities db) child-id)
+                                           child-role (model/entity-role child-entity)]
+                                       (when (= child-role "frame")
+                                         [:update-entity child-id
+                                          {:payload (frame-role-payload-patch (str entity-id) next-role child-entity)}])))
+                                   child-frame-ids)
+         dispatches (cond-> []
+                      (and (seq (or old-parent-id ""))
+                           (not= (str old-parent-id) (str next-parent-id)))
+                      (conj [:entity-remove-child old-parent-id entity-id])
+
+                      (and (seq (or next-parent-id ""))
+                           (not= (str old-parent-id) (str next-parent-id)))
+                      (conj [:entity-add-child next-parent-id entity-id])
+
+                      true
+                      (into child-frame-patches)
+
+                      true
+                      (conj [:save-entity entity-id
+                             {:vanityRole next-role
+                              :payload (role-payload-patch entity next-role)}]))]
+     (if (or (nil? entity)
+             (not (contains? allowed-vanity-roles next-role))
+             (= current-role next-role))
+       {:db db}
+       {:db db
+        :dispatch-n dispatches}))))
 
 (rf/reg-event-db
  :set-new-saga-panel-open

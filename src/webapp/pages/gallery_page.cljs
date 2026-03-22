@@ -171,7 +171,7 @@
                [sequence/sequence child
                 {:children-fetcher fetch-entity
                  :actions-renderer sequence-action-renderer/render-sequence-actions
-                 :add-child-label "Add Item"
+                 :add-child-label "New"
                  :add-child-fn #(rf/dispatch [:add-frame (:id child) "character"])
                  :on-save-title #(save-entity-title! child %)
                  :on-save-description #(save-entity-description! child %)}])

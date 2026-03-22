@@ -1,7 +1,8 @@
 (ns webapp.shared.sequence-action-renderer
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [webapp.components.sequence-actions :as sequence-actions]))
+            [webapp.components.sequence-actions :as sequence-actions]
+            [webapp.shared.model :as model]))
 
 (defn render-sequence-actions [entity]
   (let [entity-id (:id entity)
@@ -18,6 +19,9 @@
       :roster-link-state roster-link-state
       :rosters rosters
       :frames frames
+      :on-open-page #(set! (.-hash js/location)
+                           (model/route-hash-for-entity entity))
+      :on-set-role #(rf/dispatch [:change-entity-role entity-id %])
       :on-delete #(rf/dispatch [(case role
                                   "saga" :delete-saga
                                   "character" :delete-character

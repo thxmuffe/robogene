@@ -7,9 +7,21 @@
 (def default-inline-action-size 38)
 (def inline-action-gap 4)
 
-(defn- action-icon [icon]
+(defn- action-color [color]
+  (case color
+    "indigo" "#4f46e5"
+    "violet" "#7c3aed"
+    "grape" "#9333ea"
+    "blue" "#2563eb"
+    "cyan" "#0891b2"
+    "teal" "#0f766e"
+    "orange" "#ea580c"
+    "red" "#dc2626"
+    nil))
+
+(defn- action-icon [icon color]
   (when icon
-    (r/as-element [:> icon])))
+    (r/as-element [:> icon {:style #js {:color (or (action-color color) "currentColor")}}])))
 
 (defn- visible-prefix-count [container-width action-count mandatory-count action-size]
   (let [slot-width (+ (or action-size default-inline-action-size) inline-action-gap)
@@ -84,7 +96,7 @@
                         (interaction/halt! e)
                         (when (and on-select (not disabled?))
                           (on-select e)))}
-            (action-icon icon)]])]
+            (action-icon icon color)]])]
        (when (seq overflow-actions)
          [:> Menu {:withinPortal true
                    :position "bottom-end"
@@ -105,7 +117,7 @@
            (for [{:keys [id label icon on-select disabled? color]} overflow-actions]
              ^{:key (str "overflow-action-" id)}
              [:> (.-Item Menu)
-              {:leftSection (action-icon icon)
+              {:leftSection (action-icon icon color)
                :color color
                :disabled (true? disabled?)
                :onClick (fn [e]
