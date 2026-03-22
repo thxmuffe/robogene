@@ -158,7 +158,6 @@ test('ui e2e suite', { skip: !shouldRun, concurrency: false }, async (t) => {
     WEBAPI_PORT: String(apiPort),
     ROBOGENE_WORKSPACE_ID: `e2e-${Date.now()}`,
     ROBOGENE_BUILD_PROFILE: 'release',
-    FUNCTIONS_WORKER_RUNTIME: 'node',
     ROBOGENE_IMAGE_GENERATOR_MOCK_DELAY_MS: '10',
     ROBOGENE_ALLOWED_ORIGIN: `http://localhost:${webappPort},http://127.0.0.1:${webappPort}`,
   };

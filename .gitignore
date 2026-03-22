@@ -26,7 +26,6 @@ yarn-error.log*
 .tmp/
 tmp/
 .azure/
-src/host/local.settings.json
 dist/
 build/
 

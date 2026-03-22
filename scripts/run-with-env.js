@@ -5,47 +5,6 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const SYSTEM_ENV_KEYS = new Set([
-  "PATH",
-  "HOME",
-  "TMPDIR",
-  "TMP",
-  "TEMP",
-  "TERM",
-  "SHELL",
-  "LANG",
-  "LC_ALL",
-  "LC_CTYPE",
-  "USER",
-  "LOGNAME",
-  "PWD",
-  "SHLVL",
-  "SystemRoot",
-  "SYSTEMROOT",
-  "ComSpec",
-  "COMSPEC",
-  "PATHEXT",
-  "APPDATA",
-  "LOCALAPPDATA",
-  "PROGRAMDATA",
-  "PROGRAMFILES",
-  "PROGRAMFILES(X86)",
-  "HOMEDRIVE",
-  "HOMEPATH",
-  "USERNAME",
-  "USERPROFILE",
-  "WINDIR",
-]);
-
-const SYSTEM_ENV_PREFIXES = [
-  "XDG_",
-  "NPM_CONFIG_",
-  "npm_config_",
-  "NVM_",
-  "VOLTA_",
-  "ASDF_",
-];
-
 function parseEnvFile(filePath) {
   const parsed = {};
   const text = fs.readFileSync(filePath, "utf8");
@@ -71,16 +30,6 @@ function usage() {
   console.error("Usage: node scripts/run-with-env.js <overlay-env-file> -- <command...>");
 }
 
-function isAllowedSystemEnvKey(key) {
-  return SYSTEM_ENV_KEYS.has(key) || SYSTEM_ENV_PREFIXES.some((prefix) => key.startsWith(prefix));
-}
-
-function baseSystemEnv(env) {
-  return Object.fromEntries(
-    Object.entries(env).filter(([key]) => isAllowedSystemEnvKey(key))
-  );
-}
-
 function main() {
   const args = process.argv.slice(2);
   const separator = args.indexOf("--");
@@ -101,7 +50,7 @@ function main() {
   }
 
   const env = {
-    ...baseSystemEnv(process.env),
+    ...process.env,
     ...parseEnvFile(overlayEnvPath),
   };
 
