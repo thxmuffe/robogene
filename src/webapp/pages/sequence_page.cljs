@@ -38,7 +38,7 @@
         ;; Sequences rendered here are item-level parents (chapter/character/roster).
         ;; Saga/roster-level "add sequence" belongs in gallery, so we only add items here.
         :add-child-label (case (:vanityRole entity)
-                           ("chapter" "character" "roster") "New"
+                           ("chapter" "character" "roster") "Add"
                            "New")
         :add-child-fn (fn []
                         (when (#{ "chapter" "character" "roster"} (:vanityRole entity))

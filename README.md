@@ -19,7 +19,7 @@ Copy-paste:
 cp robogen.env.example robogen.env
 
 # Fill real secrets in robogen.env:
-# - OPENAI_API_KEY (or whatever env names your IMAGE_GENERATORS entries reference)
+# - ROBOGENE_IMAGE_GENERATOR_KEY (or whatever env names your IMAGE_GENERATORS entries reference)
 # - AzureWebJobsStorage (or ROBOGENE_STORAGE_CONNECTION_STRING)
 # - AzureSignalRConnectionString
 

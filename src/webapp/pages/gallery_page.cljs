@@ -138,7 +138,7 @@
                          "saga" "saga-page"
                          "gallery-page")
             child-owner-type (if (= role "roster") "character" "saga")
-            add-child-label (if (= role "roster") "New" "Add New Frame")]
+            add-child-label (if (= role "roster") "Add" "Add New Frame")]
         (cond
           (nil? entity)
           [:div.gallery-page [:p "Loading gallery..."]]

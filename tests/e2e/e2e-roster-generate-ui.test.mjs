@@ -18,14 +18,14 @@ export async function runRosterGenerateScenario({ openPage, actionTimeoutMs, log
     logStep('roster-generate', 'waiting for roster page');
     await page.locator('.roster-page').waitFor({ timeout: actionTimeoutMs });
 
-    const chapter = page.locator('.sequence', { hasText: characterName }).first();
-    await chapter.waitFor({ timeout: actionTimeoutMs });
+    const sequence = page.locator('.sequence', { hasText: characterName }).first();
+    await sequence.waitFor({ timeout: actionTimeoutMs });
 
-    const frames = chapter.locator('.gallery .frame-panel[data-frame-id]');
+    const frames = sequence.locator('.gallery .frame-panel[data-frame-id]');
     const beforeCount = await frames.count();
-    await chapter.locator('.add-frame-tile[aria-label="New"]').click();
+    await sequence.locator('.add-frame-tile[aria-label="Add"]').click();
     logStep('roster-generate', 'waiting for new frame');
-    const newFrame = chapter.locator('.gallery .frame-panel[data-frame-id]').nth(beforeCount);
+    const newFrame = sequence.locator('.gallery .frame-panel[data-frame-id]').nth(beforeCount);
     await newFrame.waitFor({ timeout: actionTimeoutMs });
     const frameId = await newFrame.getAttribute('data-frame-id');
     assert.ok(frameId, 'new roster frame should expose data-frame-id');
