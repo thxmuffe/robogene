@@ -158,7 +158,7 @@
                                  (str (random-uuid))))
       nil)))
 
-(defn local-placeholder-id [command]
+(defn local-command-id [command]
   (or (get-in command [:payload :local-entity :id])
       (get-in command [:payload :local-saga :sagaId])
       (get-in command [:payload :local-roster :rosterId])
@@ -357,13 +357,6 @@
     (assoc db :last-rendered-revision revision)
     db))
 
-(defn replace-row-by-id [rows id-key placeholder-id next-row]
-  (mapv (fn [row]
-          (if (= (id-key row) placeholder-id)
-            (or next-row row)
-            row))
-        (or rows [])))
-
 (defn entity-meta [entity-label]
   (case (str entity-label)
     "saga"
@@ -487,72 +480,10 @@
   (let [rows (model/frames-for-owner (:entities db) owner-type owner-id)]
     (inc (reduce max 0 (keep :frameNumber rows)))))
 
-(defn replace-placeholder-frame [db placeholder-frame-id created-frame]
-  (if placeholder-frame-id
-    (let [created-frame-id (or (:frameId created-frame) placeholder-frame-id)
-          placeholder-frame-entity (model/entity-by-id (:entities db) placeholder-frame-id)
-          placeholder-frame (or (some-> placeholder-frame-entity model/frame-row)
-                                (frame-by-id db placeholder-frame-id))
-          placeholder-draft (get-in db [:frame-drafts placeholder-frame-id])
-          placeholder-open? (true? (get-in db [:open-frame-actions placeholder-frame-id]))
-          placeholder-hidden? (true? (get-in db [:hidden-frame-images placeholder-frame-id]))
-          merged-frame (cond-> (merge placeholder-frame created-frame)
-                         (and (seq (or (:description placeholder-frame) ""))
-                              (str/blank? (or (:description created-frame) "")))
-                         (assoc :description (:description placeholder-frame)))
-          migrated-db (if (not= created-frame-id placeholder-frame-id)
-                        (-> db
-                            (update :frame-drafts (fn [m]
-                                                    (cond-> (dissoc (or m {}) placeholder-frame-id)
-                                                      (some? placeholder-draft)
-                                                      (assoc created-frame-id placeholder-draft))))
-                            (update :open-frame-actions (fn [m]
-                                                          (cond-> (dissoc (or m {}) placeholder-frame-id)
-                                                            placeholder-open?
-                                                            (assoc created-frame-id true))))
-                            (update :hidden-frame-images (fn [m]
-                                                           (cond-> (dissoc (or m {}) placeholder-frame-id)
-                                                             placeholder-hidden?
-                                                             (assoc created-frame-id true))))
-                            (update :image-ui-by-frame-id (fn [m]
-                                                            (let [ui-map (or m {})
-                                                                  existing (get ui-map placeholder-frame-id)]
-                                                              (cond-> (image-ui/remove-frame ui-map placeholder-frame-id)
-                                                                (some? existing)
-                                                                (assoc created-frame-id existing)))))
-                            (cond-> (= (:active-frame-id db) placeholder-frame-id)
-                              (assoc :active-frame-id created-frame-id)))
-                        (cond-> db
-                          placeholder-hidden?
-                          (assoc-in [:hidden-frame-images created-frame-id] true)))]
-      (cond-> (-> migrated-db
-                  (update-in [:latest-state :frames] replace-row-by-id :frameId placeholder-frame-id
-                             (or merged-frame {:frameId placeholder-frame-id}))
-                  (dissoc-entity placeholder-frame-id)
-                  (assoc-entity (frame-row->entity (or merged-frame {:frameId created-frame-id
-                                                                     :parentId (or (frame-row-owner-id placeholder-frame)
-                                                                                   (get-in placeholder-frame-entity [:payload :parentId]))
-                                                                     :ownerType (or (:ownerType placeholder-frame)
-                                                                                    (get-in placeholder-frame-entity [:payload :ownerType])
-                                                                                    "saga")
-                                                                     :chapterId (or (:chapterId placeholder-frame)
-                                                                                    (get-in placeholder-frame-entity [:payload :chapterId]))
-                                                                     :characterId (or (:characterId placeholder-frame)
-                                                                                      (get-in placeholder-frame-entity [:payload :characterId]))})))
-                  (cond-> (and placeholder-frame-entity (not= created-frame-id placeholder-frame-id))
-                    (replace-child-id (get-in placeholder-frame-entity [:payload :parentId])
-                                      placeholder-frame-id
-                                      created-frame-id)))
-        (seq (or created-frame-id ""))
-        (assoc-in [:image-ui-by-frame-id created-frame-id]
-                  (image-ui/image-ui-state-for-url (:imageUrl merged-frame)))))
-    db))
-
 (defn generic-entity-success [db command]
   "Generic success handler for POST/PATCH to /api/entity endpoint"
   (let [response (:response command)
         kind (:kind command)
-        placeholder-id (local-placeholder-id command)
         entity-label (case kind
                        :add-saga "saga"
                        :add-roster "roster"
@@ -570,23 +501,16 @@
                           nil)]
     {:db (-> db
              (merge-command-revision command)
-             (cond-> (and placeholder-id entity-label (not= placeholder-id (:id entity)))
-               (dissoc-entity placeholder-id))
              (cond-> entity
                (assoc-entity entity))
-             (cond-> (and entity (#{"chapter" "character"} entity-label))
-               (replace-child-id (get-in entity [:payload :parentId]) placeholder-id (:id entity)))
-             (cond-> (and entity (= "frame" entity-label))
-               (replace-child-id (get-in entity [:payload :parentId]) placeholder-id (:id entity)))
              (assoc-in (conj view-state-path :new-name) "")
              (assoc-in (conj view-state-path :new-description) "")
              (assoc-in (conj view-state-path :new-panel-open?) false))
      :start-chapter-celebration celebration?}))
 
 (defn create-roster-success [db command]
-  (let [placeholder-roster-id (get-in command [:payload :local-roster :rosterId])
-        created-roster-id (or (some-> (:response command) :id str)
-                              (some-> placeholder-roster-id str))
+  (let [created-roster-id (or (some-> (:response command) :id str)
+                              (some-> (get-in command [:payload :local-roster :rosterId]) str))
         after-create (:after-create (:payload command))
         saga-id (:saga-id after-create)
         dispatches (case (:mode after-create)
@@ -612,11 +536,11 @@
 (defn create-character-success [db command]
   (generic-entity-success db command))
 
-(defn remove-placeholder-saga [db command]
-  (remove-entity-tree db (local-placeholder-id command)))
+(defn remove-local-saga [db command]
+  (remove-entity-tree db (local-command-id command)))
 
-(defn remove-placeholder-entity [db placeholder-id]
-  (remove-entity-tree db placeholder-id))
+(defn remove-local-entity [db entity-id]
+  (remove-entity-tree db entity-id))
 
 (defn mutation-spec [kind]
   (case kind
@@ -637,19 +561,18 @@
      :apply-local (fn [db payload]
                     (add-frame-row db (:local-frame payload)))
      :success (fn [db command]
-                (let [placeholder-id (local-placeholder-id command)
+                (let [frame-id (local-command-id command)
                       response (:response command)
                       created-frame (or (:frame response)
                                         (some-> response normalize-entity model/frame-row))]
                   {:db (-> db
                            (merge-command-revision command)
-                           (update :frame-drafts dissoc placeholder-id)
-                           (update :open-frame-actions dissoc placeholder-id)
-                           (update :image-ui-by-frame-id image-ui/remove-frame placeholder-id)
+                           (update :frame-drafts dissoc frame-id)
+                           (update :open-frame-actions dissoc frame-id)
                            (cond-> created-frame
-                             (replace-placeholder-frame placeholder-id created-frame)))}))
+                             (merge-frame-response created-frame)))}))
      :failure (fn [db command]
-                (remove-frames db [(local-placeholder-id command)]))
+                (remove-frames db [(local-command-id command)]))
      :fetch-after-success? false}
 
     :delete-frame
@@ -683,7 +606,7 @@
      :apply-local (fn [db payload]
                     (add-local-entity db (:local-entity payload)))
      :success generic-entity-success
-     :failure remove-placeholder-saga}
+     :failure remove-local-saga}
 
     :add-roster
     {:transport-fx :post-save-entity
@@ -691,7 +614,7 @@
                     (add-local-entity db (:local-entity payload)))
      :success create-roster-success
      :failure (fn [db command]
-                (remove-entity-tree db (local-placeholder-id command)))}
+                (remove-entity-tree db (local-command-id command)))}
 
     :add-chapter
     {:transport-fx :post-save-entity
@@ -702,7 +625,7 @@
                           (add-frame-row (:local-frame payload)))))
      :success create-chapter-success
      :failure (fn [db command]
-                (remove-placeholder-entity db (local-placeholder-id command)))}
+                (remove-local-entity db (local-command-id command)))}
 
     :add-character
     {:transport-fx :post-save-entity
@@ -713,7 +636,7 @@
                           (add-frame-row (:local-frame payload)))))
      :success create-character-success
      :failure (fn [db command]
-                (remove-placeholder-entity db (local-placeholder-id command)))}
+                (remove-local-entity db (local-command-id command)))}
 
     :delete-saga
     {:transport-fx :post-delete-entity

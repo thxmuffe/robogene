@@ -204,7 +204,7 @@
  :enqueue-add-saga
  (fn [{:keys [db]} [_ name description]]
    (let [command-id (sync/next-command-id)
-         local-saga-id (str "placeholder-saga-" command-id)
+         local-saga-id (str "saga-" command-id)
          local-saga {:sagaId local-saga-id
                      :sagaNumber (store/next-saga-number db)
                      :name name
@@ -229,7 +229,7 @@
  :enqueue-add-roster
  (fn [{:keys [db]} [_ after-create]]
    (let [command-id (sync/next-command-id)
-         local-roster-id (str "placeholder-roster-" command-id)
+         local-roster-id (str "roster-" command-id)
          local-roster {:rosterId local-roster-id
                        :rosterNumber (store/next-roster-number db)
                        :name (str "Roster " (store/next-roster-number db))
@@ -255,8 +255,8 @@
  :enqueue-add-chapter
  (fn [{:keys [db]} [_ saga-id roster-id name description]]
    (let [command-id (sync/next-command-id)
-         local-chapter-id (str "placeholder-chapter-" command-id)
-         local-frame-id (str "placeholder-frame-" command-id)
+         local-chapter-id (str "chapter-" command-id)
+         local-frame-id (str "frame-" command-id)
          local-chapter {:chapterId local-chapter-id
                         :sagaId saga-id
                         :rosterId roster-id
@@ -293,8 +293,8 @@
  :enqueue-add-character
  (fn [{:keys [db]} [_ roster-id name description]]
    (let [command-id (sync/next-command-id)
-         local-character-id (str "placeholder-character-" command-id)
-         local-frame-id (str "placeholder-frame-" command-id)
+         local-character-id (str "character-" command-id)
+         local-frame-id (str "frame-" command-id)
          local-character {:characterId local-character-id
                           :rosterId roster-id
                           :characterNumber (store/next-character-number db)
