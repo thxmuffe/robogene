@@ -1,5 +1,7 @@
 ## Working Defaults (Mandatory)
 
+Architecture note: before changing data flow, sync, subscriptions, search loading, or realtime behavior, read `ARCHITECTURE.md` and keep new work aligned with it.
+
 1. No commit or push unless user explicitly says: "commit" or "push".
 2. Implement by default when the user asks for a change; do not pause for approval on normal edits.
 3. Ask for confirmation only before high-risk/destructive actions (e.g., irreversible data deletion, large refactors with broad impact, production-impacting operations) or when requirements are ambiguous enough to risk wrong implementation.

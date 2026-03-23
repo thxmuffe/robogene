@@ -50,6 +50,12 @@
 (rf/reg-sub :collection-per-page
             (fn [db [_ view-id]]
               (get-in db [:view-state view-id :per-page] 12)))
+(rf/reg-sub :search-loading?
+            (fn [db _]
+              (true? (get-in db [:view-state :search-page :loading?]))))
+(rf/reg-sub :search-next-cursor
+            (fn [db _]
+              (get-in db [:view-state :search-page :next-cursor])))
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
@@ -67,37 +73,26 @@
             (fn [db [_ entity-id]]
               (model/entity-by-id (:entities db) entity-id)))
 
+(rf/reg-sub :entity-children-ids
+            (fn [db [_ entity-id]]
+              (model/entity-children-ids
+               (model/entity-by-id (:entities db) entity-id))))
+
 (rf/reg-sub :entity-children
             (fn [db [_ entity-id]]
               (model/entity-children (:entities db) entity-id)))
+
+(rf/reg-sub :entity-preview-url
+            (fn [db [_ entity-id]]
+              (model/preview-image-url (:entities db) entity-id)))
 
 (rf/reg-sub :entity-ui-state
             (fn [db [_ entity-id]]
               (get-in db [:ui-state entity-id] {})))
 
-(rf/reg-sub :entity-editing?
-            (fn [db [_ entity-id]]
-              (true? (get-in db [:ui-state entity-id :editing?]))))
-
-(rf/reg-sub :entity-name-draft
-            (fn [db [_ entity-id]]
-              (get-in db [:ui-state entity-id :name-draft] "")))
-
-(rf/reg-sub :entity-description-draft
-            (fn [db [_ entity-id]]
-              (get-in db [:ui-state entity-id :description-draft] "")))
-
 (rf/reg-sub :derived-state (fn [db _] (:derived-state db)))
 
-(rf/reg-sub :children-by-parent-id
-            (fn [db _]
-              (get-in db [:derived-state :children-by-parent-id] {})))
-
 ;; Compatibility selectors derived from entities
-
-(rf/reg-sub :rosters
-            (fn [db _]
-              (model/entities-by-role (:entities db) :roster)))
 
 (rf/reg-sub
  :roster-link-state
@@ -113,6 +108,14 @@
             (fn [db [_ chapter-id]]
               (model/frames-for-chapter (:entities db) chapter-id)))
 
+(rf/reg-sub :frame-ids-for-owner
+            (fn [db [_ owner-type owner-id]]
+              (mapv :frameId (model/frames-for-owner (:entities db) owner-type owner-id))))
+
 (rf/reg-sub :frames-for-owner
             (fn [db [_ owner-type owner-id]]
               (model/frames-for-owner (:entities db) owner-type owner-id)))
+
+(rf/reg-sub :search-result-ids
+            (fn [db _]
+              (vec (or (get-in db [:view-state :search-page :result-ids]) []))))

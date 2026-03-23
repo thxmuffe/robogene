@@ -1,7 +1,8 @@
 (ns webapp.shared.events.handlers.entity-forms
   (:require [clojure.string :as str]
             [re-frame.core :as rf]
-            [webapp.shared.model :as model]))
+            [webapp.shared.model :as model]
+            [webapp.shared.store :as store]))
 
 (def allowed-vanity-roles #{"saga" "roster" "chapter" "character"})
 
@@ -210,6 +211,54 @@
    (-> db
        (assoc-in [:view-state view-id :search] (or value ""))
        (assoc-in [:view-state view-id :page] 1))))
+
+(rf/reg-event-fx
+ :search/request
+ (fn [{:keys [db]} [_ {:keys [append? cursor]}]]
+   (let [query (get-in db [:view-state :search-page :search] "")
+         limit (get-in db [:view-state :search-page :per-page] 20)]
+     {:db (assoc-in db [:view-state :search-page :loading?] true)
+      :search-entities {:query query
+                        :cursor cursor
+                        :limit limit
+                        :append? append?}})))
+
+(rf/reg-event-fx
+ :search/load-more
+ (fn [{:keys [db]} _]
+   (if-let [cursor (get-in db [:view-state :search-page :next-cursor])]
+     {:dispatch [:search/request {:append? true
+                                  :cursor cursor}]}
+     {:db db})))
+
+(rf/reg-event-fx
+ :search/succeeded
+ (fn [{:keys [db]} [_ {:keys [query append?]} payload]]
+   (let [items (vec (or (:items payload) []))
+         ids (->> items (keep :id) vec)
+         current-query (get-in db [:view-state :search-page :search] "")]
+     (if (not= (or query "") current-query)
+       {:db db}
+       (let [normalized-items (keep store/normalize-entity items)
+             entities-map (into {}
+                                (map (fn [entity] [(:id entity) entity]))
+                                normalized-items)
+             next-entities (merge (or (:entities db) {}) entities-map)]
+         {:db (-> db
+                  (assoc :entities next-entities)
+                  (assoc :derived-state (store/compute-derived-state next-entities))
+                  (assoc-in [:view-state :search-page :loading?] false)
+                  (assoc-in [:view-state :search-page :loaded-query] query)
+                  (assoc-in [:view-state :search-page :next-cursor] (:nextCursor payload))
+                  (assoc-in [:view-state :search-page :result-ids]
+                            (if append?
+                              (vec (concat (get-in db [:view-state :search-page :result-ids] []) ids))
+                              ids)))})))))
+
+(rf/reg-event-db
+ :search/failed
+ (fn [db [_ _ctx _msg]]
+   (assoc-in db [:view-state :search-page :loading?] false)))
 
 (rf/reg-event-db
  :collection-page-selected

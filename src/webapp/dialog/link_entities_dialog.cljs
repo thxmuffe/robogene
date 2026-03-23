@@ -82,13 +82,17 @@
                     filtered-entities)]
     [popup-dialog/popup-dialog {:open open
                                 :on-close on-close
+                                :className "slim-dialog-modal"
                                 :size "72rem"
-                                :padding "lg"}
-     [:div.link-entities-dialog
-      [:h3.link-entities-title (or title "Link entities")]
+                                :padding "md"}
+     [popup-dialog/slim-dialog-shell
+      {:title (or title "Link entities")
+       :on-close on-close
+       :close-label "Close link entities dialog"
+       :class-name "link-entities-dialog"}
       [:> Stack {:gap "sm"}
-       [:> TextInput
-       {:value (or search "")
+        [:> TextInput
+        {:value (or search "")
          :placeholder "Search sequences..."
          :className "link-entities-search"
          :onChange #(when on-search
@@ -111,8 +115,7 @@
                            (on-role-filters next-values)))}
             label])]
         [:> NativeSelect
-         {:label "Sort"
-          :value (or sort "title-asc")
+         {:value (or sort "title-asc")
           :data (clj->js sort-options)
           :className "link-entities-sort"
           :onChange #(when on-sort

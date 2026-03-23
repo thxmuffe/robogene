@@ -13,7 +13,7 @@
       :else (or (:frameId frame) "frame"))))
 
 (defn queue-command! [db status-message command]
-  (sync/queue-command (store/apply-command-optimistically db command)
+  (sync/queue-command (store/apply-command-locally db command)
                       status-message
                       command))
 
@@ -65,7 +65,7 @@
                                 :generator generator
                                 :without-roster false}
                       :success-status "Frame request queued."}]
-         (sync/queue-command (store/apply-command-optimistically db command)
+         (sync/queue-command (store/apply-command-locally db command)
                              "Queueing frame..."
                              command))))))
 
@@ -87,7 +87,7 @@
                                 :generator generator
                                 :without-roster true}
                       :success-status "Frame request queued."}]
-         (sync/queue-command (store/apply-command-optimistically db command)
+         (sync/queue-command (store/apply-command-locally db command)
                              "Queueing frame..."
                              command))))))
 
@@ -96,22 +96,22 @@
  (fn [{:keys [db]} [_ owner-id owner-type]]
    (let [command-id (sync/next-command-id)
          owner-type (or owner-type "saga")
-         optimistic-frame-id (str "frame-" command-id)
-         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id owner-id owner-type)
-                                 :frameNumber (store/next-frame-number db owner-id owner-type))
-         optimistic-entity (frame-entity optimistic-frame-id
-                                         owner-id
-                                         owner-type
-                                         (:frameNumber optimistic-frame)
-                                         nil
-                                         "draft")
+         local-frame-id (str "frame-" command-id)
+         local-frame (assoc (store/build-local-frame local-frame-id owner-id owner-type)
+                            :frameNumber (store/next-frame-number db owner-id owner-type))
+         local-entity (frame-entity local-frame-id
+                                    owner-id
+                                    owner-type
+                                    (:frameNumber local-frame)
+                                    nil
+                                    "draft")
          command {:id command-id
                   :kind :add-frame
                   :payload {:owner-id owner-id
                             :owner-type owner-type
-                            :frame-id optimistic-frame-id
-                            :optimistic-entity optimistic-entity
-                            :optimistic-frame optimistic-frame}
+                            :frame-id local-frame-id
+                            :local-entity local-entity
+                            :local-frame local-frame}
                   :success-status "Frame added."}]
      (queue-command! db "Adding frame..." command))))
 
@@ -128,23 +128,23 @@
         (mapv (fn [idx image-data-url]
                 (let [frame-id (str "temp-upload-frame-" (.now js/Date) "-" idx)
                       frame-number (+ (store/next-frame-number db chapter-id "saga") idx)
-                      optimistic-frame (assoc (store/optimistic-upload-frame db
-                                                                            frame-id
-                                                                            chapter-id
-                                                                            image-data-url)
-                                             :frameNumber frame-number)
+                      local-frame (assoc (store/build-upload-frame db
+                                                                  frame-id
+                                                                  chapter-id
+                                                                  image-data-url)
+                                         :frameNumber frame-number)
                       command {:id (sync/next-command-id)
                                :kind :add-frame
                                :payload {:owner-id chapter-id
                                          :owner-type "saga"
                                          :frame-id frame-id
-                                         :optimistic-frame optimistic-frame
-                                         :optimistic-entity (frame-entity frame-id
-                                                                          chapter-id
-                                                                          "saga"
-                                                                          frame-number
-                                                                          image-data-url
-                                                                          "uploading")}
+                                         :local-frame local-frame
+                                         :local-entity (frame-entity frame-id
+                                                                     chapter-id
+                                                                     "saga"
+                                                                     frame-number
+                                                                     image-data-url
+                                                                     "uploading")}
                                :success-status "Uploaded image."}]
                   [:queue-command-direct command
                    (str "Uploading " image-count " image" (when (not= 1 image-count) "s") "...")]))
@@ -204,24 +204,24 @@
  :enqueue-add-saga
  (fn [{:keys [db]} [_ name description]]
    (let [command-id (sync/next-command-id)
-         optimistic-saga-id (str "temp-saga-" command-id)
-         optimistic-saga {:sagaId optimistic-saga-id
-                          :sagaNumber (store/next-saga-number db)
-                          :name name
-                          :description (or description "")
-                          :createdAt (.toISOString (js/Date.))}
-         optimistic-entity {:id optimistic-saga-id
-                            :vanityRole "saga"
-                            :title name
-                            :description (or description "")
-                            :children []
-                            :payload {:createdAt (:createdAt optimistic-saga)}}
+         local-saga-id (str "saga-" command-id)
+         local-saga {:sagaId local-saga-id
+                     :sagaNumber (store/next-saga-number db)
+                     :name name
+                     :description (or description "")
+                     :createdAt (.toISOString (js/Date.))}
+         local-entity {:id local-saga-id
+                       :vanityRole "saga"
+                       :title name
+                       :description (or description "")
+                       :children []
+                       :payload {:createdAt (:createdAt local-saga)}}
          command {:id command-id
                   :kind :add-saga
                   :payload {:name name
                             :description description
-                            :optimistic-entity optimistic-entity
-                            :optimistic-saga optimistic-saga}
+                            :local-entity local-entity
+                            :local-saga local-saga}
                   :success-status "Saga created."}]
      (queue-command! db "Creating saga..." command))))
 
@@ -229,25 +229,25 @@
  :enqueue-add-roster
  (fn [{:keys [db]} [_ after-create]]
    (let [command-id (sync/next-command-id)
-         optimistic-roster-id (str "temp-roster-" command-id)
-         optimistic-roster {:rosterId optimistic-roster-id
-                            :rosterNumber (store/next-roster-number db)
-                            :name (str "Roster " (store/next-roster-number db))
-                            :description ""
-                            :createdAt (.toISOString (js/Date.))}
-         optimistic-entity {:id optimistic-roster-id
-                            :vanityRole "roster"
-                            :title (or (:name after-create) (:name optimistic-roster))
-                            :description (or (:description after-create) "")
-                            :children []
-                            :payload {:createdAt (:createdAt optimistic-roster)}}
+         local-roster-id (str "roster-" command-id)
+         local-roster {:rosterId local-roster-id
+                       :rosterNumber (store/next-roster-number db)
+                       :name (str "Roster " (store/next-roster-number db))
+                       :description ""
+                       :createdAt (.toISOString (js/Date.))}
+         local-entity {:id local-roster-id
+                       :vanityRole "roster"
+                       :title (or (:name after-create) (:name local-roster))
+                       :description (or (:description after-create) "")
+                       :children []
+                       :payload {:createdAt (:createdAt local-roster)}}
          command {:id command-id
                   :kind :add-roster
                   :payload {:name (:name after-create)
                             :description (:description after-create)
                             :after-create after-create
-                            :optimistic-entity optimistic-entity
-                            :optimistic-roster optimistic-roster}
+                            :local-entity local-entity
+                            :local-roster local-roster}
                   :success-status "Roster created."}]
      (queue-command! db "Creating roster..." command))))
 
@@ -255,37 +255,37 @@
  :enqueue-add-chapter
  (fn [{:keys [db]} [_ saga-id roster-id name description]]
    (let [command-id (sync/next-command-id)
-         optimistic-chapter-id (str "temp-chapter-" command-id)
-         optimistic-frame-id (str "temp-frame-" command-id)
-         optimistic-chapter {:chapterId optimistic-chapter-id
-                             :sagaId saga-id
-                             :rosterId roster-id
-                             :rosterIds [roster-id]
-                             :chapterNumber (store/next-chapter-number db saga-id)
-                             :name name
-                             :description (or description "")
-                             :createdAt (.toISOString (js/Date.))}
-         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-chapter-id "saga")
-                                 :frameNumber (store/next-frame-number db optimistic-chapter-id "saga"))
-         optimistic-entity {:id optimistic-chapter-id
-                            :vanityRole "chapter"
-                            :title name
-                            :description (or description "")
-                            :children [optimistic-frame-id]
-                            :payload {:parentId saga-id
-                                      :sagaId saga-id
-                                      :rosterId roster-id
-                                      :rosterIds [roster-id]
-                                      :createdAt (:createdAt optimistic-chapter)}}
+         local-chapter-id (str "chapter-" command-id)
+         local-frame-id (str "frame-" command-id)
+         local-chapter {:chapterId local-chapter-id
+                        :sagaId saga-id
+                        :rosterId roster-id
+                        :rosterIds [roster-id]
+                        :chapterNumber (store/next-chapter-number db saga-id)
+                        :name name
+                        :description (or description "")
+                        :createdAt (.toISOString (js/Date.))}
+         local-frame (assoc (store/build-local-frame local-frame-id local-chapter-id "saga")
+                            :frameNumber (store/next-frame-number db local-chapter-id "saga"))
+         local-entity {:id local-chapter-id
+                       :vanityRole "chapter"
+                       :title name
+                       :description (or description "")
+                       :children [local-frame-id]
+                       :payload {:parentId saga-id
+                                 :sagaId saga-id
+                                 :rosterId roster-id
+                                 :rosterIds [roster-id]
+                                 :createdAt (:createdAt local-chapter)}}
          command {:id command-id
                   :kind :add-chapter
                   :payload {:saga-id saga-id
                             :roster-id roster-id
                             :name name
                             :description description
-                            :optimistic-entity optimistic-entity
-                            :optimistic-chapter optimistic-chapter
-                            :optimistic-frame optimistic-frame}
+                            :local-entity local-entity
+                            :local-chapter local-chapter
+                            :local-frame local-frame}
                   :success-status "Chapter created."}]
      (queue-command! db "Creating chapter..." command))))
 
@@ -293,32 +293,32 @@
  :enqueue-add-character
  (fn [{:keys [db]} [_ roster-id name description]]
    (let [command-id (sync/next-command-id)
-         optimistic-character-id (str "temp-character-" command-id)
-         optimistic-frame-id (str "temp-frame-" command-id)
-         optimistic-character {:characterId optimistic-character-id
-                               :rosterId roster-id
-                               :characterNumber (store/next-character-number db)
-                               :name name
-                               :description (or description "")
-                               :createdAt (.toISOString (js/Date.))}
-         optimistic-frame (assoc (store/optimistic-frame optimistic-frame-id optimistic-character-id "character")
-                                 :frameNumber (store/next-frame-number db optimistic-character-id "character"))
-         optimistic-entity {:id optimistic-character-id
-                            :vanityRole "character"
-                            :title name
-                            :description (or description "")
-                            :children [optimistic-frame-id]
-                            :payload {:parentId roster-id
-                                      :rosterId roster-id
-                                      :createdAt (:createdAt optimistic-character)}}
+         local-character-id (str "character-" command-id)
+         local-frame-id (str "frame-" command-id)
+         local-character {:characterId local-character-id
+                          :rosterId roster-id
+                          :characterNumber (store/next-character-number db)
+                          :name name
+                          :description (or description "")
+                          :createdAt (.toISOString (js/Date.))}
+         local-frame (assoc (store/build-local-frame local-frame-id local-character-id "character")
+                            :frameNumber (store/next-frame-number db local-character-id "character"))
+         local-entity {:id local-character-id
+                       :vanityRole "character"
+                       :title name
+                       :description (or description "")
+                       :children [local-frame-id]
+                       :payload {:parentId roster-id
+                                 :rosterId roster-id
+                                 :createdAt (:createdAt local-character)}}
          command {:id command-id
                   :kind :add-character
                   :payload {:roster-id roster-id
                             :name name
                             :description description
-                            :optimistic-entity optimistic-entity
-                            :optimistic-character optimistic-character
-                            :optimistic-frame optimistic-frame}
+                            :local-entity local-entity
+                            :local-character local-character
+                            :local-frame local-frame}
                   :success-status "Character created."}]
      (queue-command! db "Creating character..." command))))
 
@@ -359,7 +359,7 @@
                   :kind :delete-saga
                   :payload {:saga-id saga-id}
                   :success-status "Saga deleted."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
+     (sync/queue-command (store/apply-command-locally db command)
                          "Deleting saga..."
                          command))))
 
@@ -382,7 +382,7 @@
                   :kind :delete-chapter
                   :payload {:chapter-id chapter-id}
                   :success-status "Chapter deleted."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
+     (sync/queue-command (store/apply-command-locally db command)
                          "Deleting chapter..."
                          command))))
 
@@ -393,7 +393,7 @@
                   :kind :delete-character
                   :payload {:character-id character-id}
                   :success-status "Character deleted."}]
-     (sync/queue-command (store/apply-command-optimistically db command)
+     (sync/queue-command (store/apply-command-locally db command)
                          "Deleting character..."
                          command))))
 

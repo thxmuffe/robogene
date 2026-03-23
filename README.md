@@ -6,8 +6,12 @@ RoboGene is a ClojureScript web app + Azure Functions backend for comic frame ge
 
 - Realtime updates use **Azure SignalR** (`stateChanged` events).
 - The frontend does **not** use scheduled polling for normal state sync.
+- The intended architecture is push-first realtime sync plus incremental loading, not full-database browser loads.
 - Secrets are handled via `.env` files locally and Azure App Settings in production.
 - Deploy to Azure is automatic from GitHub Actions on `main`.
+
+Architecture guidance for future changes:
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ## Local Secrets + Run (Single Flow)
 
@@ -72,6 +76,15 @@ You need:
 Full hosting + CLI deploy guide:
 - [Azure hosting guide](scripts/azure/HOSTING.md)
 
+## Database
+
+- Azure Table Storage table: `robogeneEntities`
+- Partition key: workspace id, currently `default`
+- Row key: entity id
+- Each row stores one normalized entity in `payloadJson`
+- Images are stored in Blob Storage container `robogene-images`
+- Old tables from before the flat entity model are obsolete
+
 ## Monitoring
 
 - Azure dashboard (direct): [Application Insights - robogene-func-prod](https://portal.azure.com/#@hbceducation.onmicrosoft.com/resource/subscriptions/aaa0b596-1388-40cf-a166-cbbf5731a57f/resourceGroups/robogene-rg/providers/microsoft.insights/components/robogene-func-prod/overview)
@@ -93,3 +106,4 @@ Project priorities for all contributors:
 
 Agent-specific working rules are documented in:
 - [AGENTS.md](AGENTS.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)

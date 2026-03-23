@@ -42,6 +42,64 @@
        (filter #(= (:vanityRole %) (name role)))
        vec))
 
+(defn- normalize-search [s]
+  (-> (or s "")
+      str
+      str/trim
+      str/lower-case))
+
+(defn- parse-positive-int [value fallback]
+  (let [n (js/Number value)]
+    (if (and (js/Number.isFinite n) (>= n 0))
+      (js/Math.floor n)
+      fallback)))
+
+(defn- search-role-rank [role]
+  (case (normalize-search role)
+    "saga" 0
+    "roster" 1
+    "chapter" 2
+    "character" 3
+    4))
+
+(defn- searchable-role? [entity]
+  (contains? #{"saga" "roster" "chapter"} (normalize-search (:vanityRole entity))))
+
+(defn- sort-search-entities [entities]
+  (sort-by (fn [{:keys [vanityRole title]}]
+             [(search-role-rank vanityRole) (normalize-search title)])
+           entities))
+
+(defn search-entities [{:keys [query cursor limit]}]
+  (let [q (normalize-search query)
+        offset (parse-positive-int cursor 0)
+        page-size (min 100 (max 1 (parse-positive-int limit 20)))
+        entities (->> (vals (:entities @state))
+                      (filter searchable-role?)
+                      sort-search-entities)
+        matching (if (str/blank? q)
+                   entities
+                   (let [exact-title (->> entities
+                                          (filter #(= q (normalize-search (:title %)))))
+                         exact-ids (set (map :id exact-title))
+                         partial-title (->> entities
+                                            (remove #(contains? exact-ids (:id %)))
+                                            (filter #(str/includes? (normalize-search (:title %)) q)))]
+                     (concat exact-title partial-title)))
+        rows (vec matching)
+        total (count rows)
+        items (->> rows
+                   (drop offset)
+                   (take page-size)
+                   vec)
+        next-offset (+ offset (count items))
+        next-cursor (when (< next-offset total)
+                      (str next-offset))]
+    {:query (or query "")
+     :items items
+     :nextCursor next-cursor
+     :total total}))
+
 (defn apply-persisted-state! [entities]
   (swap! state
          (fn [s]
@@ -71,11 +129,11 @@
 (defn emit-state-changed! [reason extra]
   (let [snapshot @state
         payload (clj->js (merge {:reason reason
-                                  :workspaceId (:workspaceId snapshot)
-                                  :revision (:revision snapshot)
-                                  :processing (:processing snapshot)
-                                  :pendingCount (active-queue-count)
-                                  :emittedAt (.toISOString (js/Date.))}
+                                 :workspaceId (:workspaceId snapshot)
+                                 :revision (:revision snapshot)
+                                 :processing (:processing snapshot)
+                                 :pendingCount (active-queue-count)
+                                 :emittedAt (.toISOString (js/Date.))}
                                  (or extra {})))]
     (realtime/publish-state-update! payload)))
 
@@ -160,15 +218,18 @@
                                (cond-> [saved]
                                  parent (conj parent)))]
       (-> (persist-entities! persisted-entities)
-          (.then (fn [persisted]
-                   (swap! state
-                          (fn [s]
-                            (reduce (fn [acc saved]
-                                      (assoc-in acc [:entities (:id saved)] saved))
-                                    s
-                                    persisted)))
-                   (let [saved (get-in @state [:entities id])]
-                     (emit-state-changed! "entity-updated" {:entity saved})
+        (.then (fn [persisted]
+                 (swap! state
+                        (fn [s]
+                          (reduce (fn [acc saved]
+                                    (assoc-in acc [:entities (:id saved)] saved))
+                                  s
+                                  persisted)))
+                   (let [saved (get-in @state [:entities id])
+                         persisted* (vec persisted)]
+                     (emit-state-changed! "entity-updated"
+                                          {:entity saved
+                                           :entities persisted*})
                      saved)))))))
 
 (defn delete-entity! [id]
@@ -201,7 +262,11 @@
                    (persist-entity! next-parent)
                    (js/Promise.resolve true))))
         (.then (fn [_]
-                 (emit-state-changed! "entity-deleted" {:id id})
+                 (emit-state-changed! "entity-deleted"
+                                      {:id id
+                                       :deletedIds removed-ids
+                                       :entities (cond-> []
+                                                   next-parent (conj next-parent))})
                  true)))))
 
 ;; Image Generation
@@ -260,14 +325,12 @@
       (let [id (:id queued)]
         (-> (save-entity! (assoc-in queued [:payload :imageStatus] "processing"))
             (.then (fn [_]
-                     (emit-state-changed! "processing" {:id id})
                      (-> (generate-image! queued)
                          (.then (fn [image-data-url]
                                   (-> (save-entity! (-> queued
                                                         (assoc-in [:payload :imageStatus] "ready")
                                                         (assoc-in [:payload :imageUrl] image-data-url)))
                                       (.then (fn [_]
-                                               (emit-state-changed! "ready" {:id id})
                                                (process-step!)))
                                       (.catch (fn [err]
                                                 (js/console.error "[robogene] frame persistence failed" err)
