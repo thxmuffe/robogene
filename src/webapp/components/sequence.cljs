@@ -9,11 +9,23 @@
             [webapp.shared.frame-renderer :as frame-renderer]
             [webapp.components.item :as item]
             [webapp.components.db-text :as db-text]
-            [webapp.shared.model :as model]
             [webapp.shared.visual-effects :as visual-effects]
             ["@mantine/core" :refer [Box]]))
 
 (declare sequence)
+
+(defn sequence-child
+  [child-id frame-sequence? get-child-options active-frame-id]
+  (when-let [child-entity @(rf/subscribe [:entity child-id])]
+    [:div.gallery-motion-item
+     {:style (visual-effects/gallery-motion-style child-id)}
+     (if (seq (:children child-entity))
+       [sequence child-entity (get-child-options child-entity)]
+       (if frame-sequence?
+         [frame-renderer/render-frame child-id
+          (merge {:active? (= active-frame-id child-id)}
+                 (get-child-options child-entity))]
+         [item/item child-entity (get-child-options child-entity)]))]))
 
 (defn sequence-gallery
   "Render a grid of child entities (items or sequences).
@@ -21,15 +33,12 @@
    Props:
    - entity-id: Parent entity ID
    - children-ids: Array of child entity IDs
-   - child-data-fn: (child-id) -> entity map for rendering each child
    - add-child-label: Text for 'add new' tile (optional)
    - add-child-fn: () -> dispatch action to add child (optional)
    - child-options-fn: (child-entity) -> options map for rendering (optional)"
-  [{:keys [entity-id role children-ids child-data-fn add-child-label add-child-fn child-options-fn]}]
-  (let [children-data (map child-data-fn children-ids)
-        get-child-options (or child-options-fn (constantly {}))
-        frame-sequence? (and (seq children-data)
-                             (every? model/frame-entity? children-data))
+  [{:keys [entity-id role children-ids add-child-label add-child-fn child-options-fn]}]
+  (let [get-child-options (or child-options-fn (constantly {}))
+        frame-sequence? (contains? #{"chapter" "character"} (some-> role str/lower-case))
         active-frame-id (when frame-sequence?
                           @(rf/subscribe [:active-frame-id]))
         add-tile-title (or add-child-label
@@ -40,19 +49,9 @@
                             "Create the next image for this character"
                             "Create the next frame in this sequence")]
     [:> Box {:className "gallery sequence-gallery-grid"}
-     (map-indexed
-       (fn [idx child-entity]
-         ^{:key (or (:id child-entity) (str "child-" idx))}
-         [:div.gallery-motion-item
-          {:style (visual-effects/gallery-motion-style (:id child-entity))}
-          (if (seq (:children child-entity))
-            [sequence child-entity (get-child-options child-entity)]
-            (if frame-sequence?
-              [frame-renderer/render-frame (model/frame-row child-entity)
-               (merge {:active? (= active-frame-id (:id child-entity))}
-                      (get-child-options child-entity))]
-              [item/item child-entity (get-child-options child-entity)]))])
-       children-data)
+     (for [child-id children-ids]
+       ^{:key child-id}
+       [sequence-child child-id frame-sequence? get-child-options active-frame-id])
      
      (when add-child-fn
        [:div.gallery-motion-item.add-frame-slot
@@ -133,7 +132,6 @@
    - :payload Map with flexible fields
    
    Options:
-   - :children-fetcher (child-id) -> entity map to render each child
    - :add-child-fn () -> dispatch to create child
    - :add-child-label Text for add child tile
    - :on-save-title (text) -> handler for title save
@@ -146,7 +144,6 @@
    (r/with-let [title-editing-atom (r/atom false)
                 description-editing-atom (r/atom false)]
      (let [children-ids (or children [])
-           child-data-fn (or (:children-fetcher options) (constantly {}))
            child-options-fn (:child-options-fn options)
            add-child-label (:add-child-label options)
            add-child-fn (:add-child-fn options)]
@@ -170,7 +167,6 @@
            {:entity-id id
             :role (some-> vanityRole str str/lower-case)
             :children-ids children-ids
-            :child-data-fn child-data-fn
             :child-options-fn child-options-fn
             :add-child-label add-child-label
             :add-child-fn add-child-fn}])]))))

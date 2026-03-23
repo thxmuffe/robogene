@@ -6,20 +6,22 @@
             [webapp.shared.visual-effects :as visual-effects]
             ["@mantine/core" :refer [Box]]))
 
+(defn search-gallery-item [entity-id]
+  (when-let [entity @(rf/subscribe [:entity entity-id])]
+    [:div.gallery-motion-item
+     {:style (visual-effects/gallery-motion-style entity-id)}
+     [entity-card/entity-card
+      {:entity entity
+       :on-click #(set! (.-hash js/location) (model/route-hash-for-entity entity))}]]))
+
 (defn search-gallery
   "Generic gallery for search results. Renders sequences if an entity has children,
    frames via the frame component, otherwise generic item cards."
   [{:keys [entity-ids]}]
   [:> Box {:className "gallery"}
-   (for [entity-id entity-ids
-         :let [entity @(rf/subscribe [:entity entity-id])]
-         :when entity]
+   (for [entity-id entity-ids]
      ^{:key entity-id}
-     [:div.gallery-motion-item
-      {:style (visual-effects/gallery-motion-style entity-id)}
-      [entity-card/entity-card
-       {:entity entity
-        :on-click #(set! (.-hash js/location) (model/route-hash-for-entity entity))}]])])
+     [search-gallery-item entity-id])])
 
 (defn- chapter-preview-card [chapter]
   (let [chapter-id (:chapterId chapter)
