@@ -149,10 +149,10 @@
        (fn [payload]
          (when (epoch-current? epoch)
            (let [payload* (js->clj payload :keywordize-keys true)]
-           (reset! realtime-connected?* true)
-           (rf/dispatch [:realtime-state-changed payload*])
-           (when-not (= false (:requiresFetch payload*))
-             (rf/dispatch [:fetch-state])))))))
+             (reset! realtime-connected?* true)
+             (rf/dispatch [:realtime-state-changed payload*])
+             (when (true? (:requiresFetch payload*))
+               (rf/dispatch [:fetch-state])))))))
 
 (defn start-connection! [conn epoch]
   (-> (.start conn)

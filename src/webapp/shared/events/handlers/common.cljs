@@ -33,6 +33,58 @@
         (assoc :status
                (model/status-line latest-state (:entities db))))))
 
+(defn cleanup-deleted-frame-state [db deleted-frame-ids]
+  (let [frame-id-set (set deleted-frame-ids)
+        remaining-frames (->> (model/gallery-frames (:entities db))
+                              (remove (fn [frame]
+                                        (contains? frame-id-set (:frameId frame))))
+                              vec)
+        current-active-id (:active-frame-id db)
+        next-active-id (if (contains? frame-id-set current-active-id)
+                         (some-> remaining-frames first :frameId)
+                         current-active-id)
+        dissoc-ids (fn [m]
+                     (apply dissoc (or m {}) deleted-frame-ids))]
+    (-> db
+        (assoc :active-frame-id next-active-id)
+        (update :frame-drafts dissoc-ids)
+        (update :open-frame-actions dissoc-ids)
+        (update :hidden-frame-images dissoc-ids)
+        (update :image-ui-by-frame-id dissoc-ids))))
+
+(defn apply-realtime-delta [db payload]
+  (let [incoming-entities (->> (concat (when-let [entity (:entity payload)]
+                                         [entity])
+                                       (or (:entities payload) []))
+                               (keep store/normalize-entity)
+                               (reduce (fn [acc entity]
+                                         (assoc acc (:id entity) entity))
+                                       {}))
+        deleted-ids (->> (concat (when-let [id (:id payload)]
+                                   [id])
+                                 (or (:deletedIds payload) []))
+                         (keep #(some-> % str not-empty))
+                         distinct
+                         vec)
+        existing-entities (:entities db)
+        deleted-frame-ids (->> deleted-ids
+                               (keep (fn [id]
+                                       (when (= "frame" (model/entity-role (get existing-entities id)))
+                                         id)))
+                               vec)
+        next-entities (reduce dissoc
+                              (reduce (fn [acc [entity-id entity]]
+                                        (assoc acc entity-id entity))
+                                      existing-entities
+                                      incoming-entities)
+                              deleted-ids)]
+    (cond-> (-> db
+                (assoc :entities next-entities)
+                (assoc :derived-state (store/compute-derived-state next-entities))
+                refresh-derived-status)
+      (seq deleted-frame-ids)
+      (cleanup-deleted-frame-state deleted-frame-ids))))
+
 (rf/reg-event-fx
  :initialize
  (fn [_ _]
@@ -149,7 +201,7 @@
 (rf/reg-event-fx
  :realtime-state-changed
  (fn [{:keys [db]} [_ payload]]
-   (let [{:keys [processing entity id revision pendingCount]} (or payload {})
+   (let [{:keys [processing revision pendingCount]} (or payload {})
          current-revision (or (:last-rendered-revision db) -1)]
      (if (and (some? revision) (<= revision current-revision))
        {:db db}
@@ -165,24 +217,7 @@
 
                        (some? pendingCount)
                        (assoc-in [:latest-state :pendingCount] pendingCount))
-             next-db (cond
-                       (map? entity)
-                       (let [entity* (store/normalize-entity entity)
-                             entities (assoc (:entities next-db) (:id entity*) entity*)]
-                         (-> next-db
-                             (assoc :entities entities)
-                             (assoc :derived-state (store/compute-derived-state entities))
-                             refresh-derived-status))
-
-                       (seq (or id ""))
-                       (let [entities (dissoc (:entities next-db) (str id))]
-                         (-> next-db
-                             (assoc :entities entities)
-                             (assoc :derived-state (store/compute-derived-state entities))
-                             refresh-derived-status))
-
-                       :else
-                       (refresh-derived-status next-db))]
+             next-db (apply-realtime-delta next-db payload)]
          {:db next-db})))))
 
 (rf/reg-event-fx

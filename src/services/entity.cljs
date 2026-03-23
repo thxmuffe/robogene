@@ -71,11 +71,12 @@
 (defn emit-state-changed! [reason extra]
   (let [snapshot @state
         payload (clj->js (merge {:reason reason
-                                  :workspaceId (:workspaceId snapshot)
-                                  :revision (:revision snapshot)
-                                  :processing (:processing snapshot)
-                                  :pendingCount (active-queue-count)
-                                  :emittedAt (.toISOString (js/Date.))}
+                                 :workspaceId (:workspaceId snapshot)
+                                 :revision (:revision snapshot)
+                                 :processing (:processing snapshot)
+                                 :pendingCount (active-queue-count)
+                                 :requiresFetch false
+                                 :emittedAt (.toISOString (js/Date.))}
                                  (or extra {})))]
     (realtime/publish-state-update! payload)))
 
@@ -160,15 +161,18 @@
                                (cond-> [saved]
                                  parent (conj parent)))]
       (-> (persist-entities! persisted-entities)
-          (.then (fn [persisted]
-                   (swap! state
-                          (fn [s]
-                            (reduce (fn [acc saved]
-                                      (assoc-in acc [:entities (:id saved)] saved))
-                                    s
-                                    persisted)))
-                   (let [saved (get-in @state [:entities id])]
-                     (emit-state-changed! "entity-updated" {:entity saved})
+        (.then (fn [persisted]
+                 (swap! state
+                        (fn [s]
+                          (reduce (fn [acc saved]
+                                    (assoc-in acc [:entities (:id saved)] saved))
+                                  s
+                                  persisted)))
+                   (let [saved (get-in @state [:entities id])
+                         persisted* (vec persisted)]
+                     (emit-state-changed! "entity-updated"
+                                          {:entity saved
+                                           :entities persisted*})
                      saved)))))))
 
 (defn delete-entity! [id]
@@ -201,7 +205,11 @@
                    (persist-entity! next-parent)
                    (js/Promise.resolve true))))
         (.then (fn [_]
-                 (emit-state-changed! "entity-deleted" {:id id})
+                 (emit-state-changed! "entity-deleted"
+                                      {:id id
+                                       :deletedIds removed-ids
+                                       :entities (cond-> []
+                                                   next-parent (conj next-parent))})
                  true)))))
 
 ;; Image Generation
@@ -260,14 +268,12 @@
       (let [id (:id queued)]
         (-> (save-entity! (assoc-in queued [:payload :imageStatus] "processing"))
             (.then (fn [_]
-                     (emit-state-changed! "processing" {:id id})
                      (-> (generate-image! queued)
                          (.then (fn [image-data-url]
                                   (-> (save-entity! (-> queued
                                                         (assoc-in [:payload :imageStatus] "ready")
                                                         (assoc-in [:payload :imageUrl] image-data-url)))
                                       (.then (fn [_]
-                                               (emit-state-changed! "ready" {:id id})
                                                (process-step!)))
                                       (.catch (fn [err]
                                                 (js/console.error "[robogene] frame persistence failed" err)
