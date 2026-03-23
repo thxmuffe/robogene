@@ -6,8 +6,12 @@ RoboGene is a ClojureScript web app + Azure Functions backend for comic frame ge
 
 - Realtime updates use **Azure SignalR** (`stateChanged` events).
 - The frontend does **not** use scheduled polling for normal state sync.
+- The intended architecture is push-first realtime sync plus incremental loading, not full-database browser loads.
 - Secrets are handled via `.env` files locally and Azure App Settings in production.
 - Deploy to Azure is automatic from GitHub Actions on `main`.
+
+Architecture guidance for future changes:
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ## Local Secrets + Run (Single Flow)
 
@@ -93,3 +97,4 @@ Project priorities for all contributors:
 
 Agent-specific working rules are documented in:
 - [AGENTS.md](AGENTS.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
