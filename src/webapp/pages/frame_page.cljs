@@ -162,7 +162,7 @@
          [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
           (when-not fullscreen?
             [top-controls from-page roster-id saga-id])
-          [frame-renderer/render-frame active-frame
+          [frame-renderer/render-frame (:frameId active-frame)
            {:clickable? false
             :media-nav? true
             :image-fit "contain"}]
