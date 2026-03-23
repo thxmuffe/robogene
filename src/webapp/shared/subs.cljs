@@ -90,29 +90,9 @@
             (fn [db [_ entity-id]]
               (get-in db [:ui-state entity-id] {})))
 
-(rf/reg-sub :entity-editing?
-            (fn [db [_ entity-id]]
-              (true? (get-in db [:ui-state entity-id :editing?]))))
-
-(rf/reg-sub :entity-name-draft
-            (fn [db [_ entity-id]]
-              (get-in db [:ui-state entity-id :name-draft] "")))
-
-(rf/reg-sub :entity-description-draft
-            (fn [db [_ entity-id]]
-              (get-in db [:ui-state entity-id :description-draft] "")))
-
 (rf/reg-sub :derived-state (fn [db _] (:derived-state db)))
 
-(rf/reg-sub :children-by-parent-id
-            (fn [db _]
-              (get-in db [:derived-state :children-by-parent-id] {})))
-
 ;; Compatibility selectors derived from entities
-
-(rf/reg-sub :rosters
-            (fn [db _]
-              (model/entities-by-role (:entities db) :roster)))
 
 (rf/reg-sub
  :roster-link-state

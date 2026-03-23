@@ -62,11 +62,6 @@
      (with-derived-state db next-entities))))
 
 (rf/reg-event-db
- :ui-entity-field-changed
- (fn [db [_ entity-id field value]]
-   (assoc-in db [:ui-state entity-id field] value)))
-
-(rf/reg-event-db
  :ui-entity-editing-start
  (fn [db [_ entity-id]]
    (let [entity (get-in db [:entities entity-id])]
@@ -74,29 +69,3 @@
                {:editing? true
                 :name-draft (:title entity)
                 :description-draft (:description entity)}))))
-
-(rf/reg-event-db
- :ui-entity-editing-stop
- (fn [db [_ entity-id]]
-   (assoc-in db [:ui-state entity-id :editing?] false)))
-
-(rf/reg-event-db
- :entities-load-batch
- (fn [db [_ entities-list]]
-   (let [entities-map (store/normalize-entities-map
-                       (reduce (fn [acc entity]
-                                 (assoc acc (:id entity) entity))
-                               {}
-                               entities-list))
-         next-entities (merge (store/normalize-entities-map (:entities db)) entities-map)]
-     (with-derived-state db next-entities))))
-
-(rf/reg-event-db
- :entities-replace-all
- (fn [db [_ entities-list]]
-   (let [entities-map (store/normalize-entities-map
-                       (reduce (fn [acc entity]
-                                 (assoc acc (:id entity) entity))
-                               {}
-                               entities-list))]
-     (with-derived-state db entities-map))))
