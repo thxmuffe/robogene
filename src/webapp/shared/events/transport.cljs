@@ -45,6 +45,14 @@
 (defn state-url []
   (str (api-url "/api/state") "?t=" (.now js/Date)))
 
+(defn search-url [query cursor limit]
+  (str (api-url "/api/search")
+       "?q=" (.encodeURIComponent js/globalThis (or query ""))
+       (when (seq (or cursor ""))
+         (str "&cursor=" (.encodeURIComponent js/globalThis cursor)))
+       (when (some? limit)
+         (str "&limit=" limit))))
+
 (defn response->map [res]
   (-> (.text res)
       (.then (fn [text]
@@ -268,6 +276,17 @@
                               :state-failed
                               (fn [ok _] ok))))))
    (@coalesced-fetch-state!*)))
+
+(rf/reg-fx
+ :search-entities
+ (fn [{:keys [query cursor limit append?]}]
+   (request-json (search-url query cursor limit)
+                 {:cache "no-store"}
+                 [:search/succeeded {:query query
+                                     :append? (true? append?)}]
+                 [:search/failed {:query query
+                                  :append? (true? append?)}]
+                 (fn [ok _] ok))))
 
 (rf/reg-fx
  :post-generate-frame

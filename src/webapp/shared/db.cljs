@@ -46,7 +46,14 @@
                          :editing-id nil
                          :new-name ""
                          :new-description ""
-                         :new-panel-open? false}}
+                         :new-panel-open? false}
+                :search-page {:search ""
+                              :page 1
+                              :per-page 20
+                              :result-ids []
+                              :next-cursor nil
+                              :loading? false
+                              :loaded-query nil}}
    :image-ui-by-frame-id {}
    :hidden-frame-images {}
    :available-image-generators []

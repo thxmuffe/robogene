@@ -8,6 +8,11 @@
 
 (def app (.-app azf))
 
+(defn parse-int-param [value]
+  (let [n (js/Number value)]
+    (when (js/Number.isFinite n)
+      (js/Math.floor n))))
+
 (defn require-startup-env! []
   (when (empty? (settings/allowed-origins))
     (throw (js/Error. "Missing ROBOGENE_ALLOWED_ORIGIN in Function App settings."))))
@@ -33,6 +38,21 @@
   (-> (entity/sync-state!)
       (.then (fn [snapshot]
                (json-response 200 snapshot request)))))
+
+(defn handle-search-entities [request]
+  (-> (entity/sync-state!)
+      (.then (fn [_]
+               (let [url (js/URL. (.-url request))
+                     params (.-searchParams url)
+                     query (.get params "q")
+                     cursor (.get params "cursor")
+                     limit-raw (.get params "limit")
+                     limit (parse-int-param limit-raw)]
+                 (json-response 200
+                                (entity/search-entities {:query query
+                                                         :cursor cursor
+                                                         :limit limit})
+                                request))))))
 
 (defn handle-save-entity [request]
   (-> (.json request)
@@ -71,6 +91,12 @@
             :authLevel "anonymous"
             :route "state"
             :handler handle-get-state})
+
+(.http app "get-search"
+       #js {:methods #js ["GET"]
+            :authLevel "anonymous"
+            :route "search"
+            :handler handle-search-entities})
 
 (.http app "post-entity"
        #js {:methods #js ["POST"]

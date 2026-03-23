@@ -42,6 +42,64 @@
        (filter #(= (:vanityRole %) (name role)))
        vec))
 
+(defn- normalize-search [s]
+  (-> (or s "")
+      str
+      str/trim
+      str/lower-case))
+
+(defn- parse-positive-int [value fallback]
+  (let [n (js/Number value)]
+    (if (and (js/Number.isFinite n) (>= n 0))
+      (js/Math.floor n)
+      fallback)))
+
+(defn- search-role-rank [role]
+  (case (normalize-search role)
+    "saga" 0
+    "roster" 1
+    "chapter" 2
+    "character" 3
+    4))
+
+(defn- searchable-role? [entity]
+  (contains? #{"saga" "roster" "chapter"} (normalize-search (:vanityRole entity))))
+
+(defn- sort-search-entities [entities]
+  (sort-by (fn [{:keys [vanityRole title]}]
+             [(search-role-rank vanityRole) (normalize-search title)])
+           entities))
+
+(defn search-entities [{:keys [query cursor limit]}]
+  (let [q (normalize-search query)
+        offset (parse-positive-int cursor 0)
+        page-size (min 100 (max 1 (parse-positive-int limit 20)))
+        entities (->> (vals (:entities @state))
+                      (filter searchable-role?)
+                      sort-search-entities)
+        matching (if (str/blank? q)
+                   entities
+                   (let [exact-title (->> entities
+                                          (filter #(= q (normalize-search (:title %)))))
+                         exact-ids (set (map :id exact-title))
+                         partial-title (->> entities
+                                            (remove #(contains? exact-ids (:id %)))
+                                            (filter #(str/includes? (normalize-search (:title %)) q)))]
+                     (concat exact-title partial-title)))
+        rows (vec matching)
+        total (count rows)
+        items (->> rows
+                   (drop offset)
+                   (take page-size)
+                   vec)
+        next-offset (+ offset (count items))
+        next-cursor (when (< next-offset total)
+                      (str next-offset))]
+    {:query (or query "")
+     :items items
+     :nextCursor next-cursor
+     :total total}))
+
 (defn apply-persisted-state! [entities]
   (swap! state
          (fn [s]
@@ -75,7 +133,6 @@
                                  :revision (:revision snapshot)
                                  :processing (:processing snapshot)
                                  :pendingCount (active-queue-count)
-                                 :requiresFetch false
                                  :emittedAt (.toISOString (js/Date.))}
                                  (or extra {})))]
     (realtime/publish-state-update! payload)))

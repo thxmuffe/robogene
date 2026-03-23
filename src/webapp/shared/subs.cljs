@@ -1,7 +1,6 @@
 (ns webapp.shared.subs
   (:require [re-frame.core :as rf]
-            [webapp.shared.model :as model]
-            [webapp.shared.search :as search]))
+            [webapp.shared.model :as model]))
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
@@ -51,6 +50,12 @@
 (rf/reg-sub :collection-per-page
             (fn [db [_ view-id]]
               (get-in db [:view-state view-id :per-page] 12)))
+(rf/reg-sub :search-loading?
+            (fn [db _]
+              (true? (get-in db [:view-state :search-page :loading?]))))
+(rf/reg-sub :search-next-cursor
+            (fn [db _]
+              (get-in db [:view-state :search-page :next-cursor])))
 (rf/reg-sub :wait-lights-visible? (fn [db _] (:wait-lights-visible? db)))
 (rf/reg-sub :pending-api-requests (fn [db _] (:pending-api-requests db)))
 (rf/reg-sub :wait-lights-events (fn [db _] (:wait-lights-events db)))
@@ -132,7 +137,5 @@
               (model/frames-for-owner (:entities db) owner-type owner-id)))
 
 (rf/reg-sub :search-result-ids
-            (fn [db [_ query]]
-              (->> (search/search-entities (:entities db) query)
-                   (keep :id)
-                   vec)))
+            (fn [db _]
+              (vec (or (get-in db [:view-state :search-page :result-ids]) []))))
