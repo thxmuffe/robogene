@@ -95,7 +95,7 @@
  (fn [{:keys [db]} [_ fullscreen?]]
    (let [route (:route db)]
      (if (= :frame (:view route))
-       {:db db
+       {:db (assoc db :active-frame-id (:frame-id route))
         :set-hash (model/frame-hash (:frame-id route)
                                     (true? fullscreen?)
                                     (:from-page route)

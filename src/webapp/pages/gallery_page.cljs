@@ -1,6 +1,7 @@
 (ns webapp.pages.gallery-page
   "Gallery page: render a sequence of sequences (e.g., saga → chapters, roster → characters)."
-  (:require [re-frame.core :as rf]
+  (:require [clojure.string :as str]
+            [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.components.sequence :as sequence]
             [webapp.shared.sequence-action-renderer :as sequence-action-renderer]
@@ -51,7 +52,8 @@
          :saga))))))
 
 (defn handle-gallery-key-down! [e]
-  (let [key (or (.-key e) "")]
+  (let [key (or (.-key e) "")
+        lower-key (str/lower-case key)]
     (when-not (interaction/ignore-global-keydown? e)
       (case key
         "ArrowLeft" (do (interaction/halt! e)
@@ -64,7 +66,10 @@
                         (navigate-active-frame-vertical! :down))
         "Enter" (do (interaction/halt! e)
                     (open-active-frame!))
-        nil))))
+        nil)
+      (when (= "f" lower-key)
+        (interaction/halt! e)
+        (rf/dispatch [:toggle-fullscreen-shortcut])))))
 
 (defn child-sequence-block [child-id collapsed? on-toggle owner-type add-child-label]
   (let [child-sequence @(rf/subscribe [:entity child-id])

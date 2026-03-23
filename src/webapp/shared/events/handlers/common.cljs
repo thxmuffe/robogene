@@ -96,7 +96,10 @@
 (rf/reg-event-db
  :hash-changed
  (fn [db [_ hash]]
-   (assoc db :route (model/parse-hash-route hash))))
+   (let [route (model/parse-hash-route hash)]
+     (cond-> (assoc db :route route)
+       (= :frame (:view route))
+       (assoc :active-frame-id (:frame-id route))))))
 
 (rf/reg-event-fx
  :fetch-state

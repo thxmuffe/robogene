@@ -1447,13 +1447,14 @@ button.sequence-box.is-collapsed {
   max-width: none;
   max-height: none;
   overflow: auto;
-  --frame-media-max-height: 92vh;
+  --card-width: 92vw;
+  --frame-media-max-height: min(calc(var(--card-width) * 2), 92vh);
   background: #000 !important;
 }
 
 .detail-page-fullscreen .frame {
-  width: fit-content;
-  max-width: 92vw;
+  width: min(100%, var(--card-width));
+  max-width: 100%;
   border-radius: 0;
   border: 0;
   box-shadow: none;
@@ -1464,22 +1465,16 @@ button.sequence-box.is-collapsed {
 }
 
 .detail-page-fullscreen .frame-main {
-  width: fit-content;
   background: #000 !important;
 }
 
 .detail-page-fullscreen .media-shell,
 .detail-page-fullscreen .frame-nav-surface {
-  width: fit-content;
   background: #000 !important;
 }
 
 .detail-page-fullscreen .frame img,
 .detail-page-fullscreen .frame-image {
-  width: auto;
-  height: auto;
-  max-width: 92vw;
-  max-height: var(--frame-media-max-height);
   background: #000 !important;
 }
 
