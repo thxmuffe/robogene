@@ -1,15 +1,13 @@
 (ns webapp.pages.search-page
   (:require [re-frame.core :as rf]
             [webapp.components.gallery :as gallery]
-            [webapp.shared.search :as search]
             ["@mantine/core" :refer [Stack TextInput]]))
 
 (def view-id :search-page)
 
 (defn search-page []
   (let [query @(rf/subscribe [:collection-search view-id])
-        entities @(rf/subscribe [:entities])
-        filtered (search/search-entities entities query)]
+        result-ids @(rf/subscribe [:search-result-ids query])]
     [:> Stack {:gap "md" :className "search-page"}
      [:> TextInput {:placeholder "Search..."
                     :variant "filled"
@@ -17,7 +15,7 @@
                     :className "collection-search-input"
                     :value query
                     :onChange #(rf/dispatch [:collection-search-changed view-id (.. % -target -value)])}]
-     [gallery/search-gallery {:entities filtered}]]))
+     [gallery/search-gallery {:entity-ids result-ids}]]))
 
 (defn search-page-view []
   [search-page])

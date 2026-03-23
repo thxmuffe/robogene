@@ -67,9 +67,8 @@
           (set! (.-src img) src)))))))
 
 (defn entity-card [{:keys [entity clickable? on-click class-name]}]
-  (let [entities @(rf/subscribe [:entities])
-        entity-id (:id entity)
-        preview-url (model/preview-image-url entities entity-id)
+  (let [entity-id (:id entity)
+        preview-url @(rf/subscribe [:entity-preview-url entity-id])
         title (model/primary-label entity)
         subtitle (model/secondary-label entity)
         clickable? (not (false? clickable?))]

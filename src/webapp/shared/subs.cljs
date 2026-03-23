@@ -1,6 +1,7 @@
 (ns webapp.shared.subs
   (:require [re-frame.core :as rf]
-            [webapp.shared.model :as model]))
+            [webapp.shared.model :as model]
+            [webapp.shared.search :as search]))
 
 (rf/reg-sub :status (fn [db _] (:status db)))
 (rf/reg-sub :open-frame-actions (fn [db _] (:open-frame-actions db)))
@@ -67,9 +68,18 @@
             (fn [db [_ entity-id]]
               (model/entity-by-id (:entities db) entity-id)))
 
+(rf/reg-sub :entity-children-ids
+            (fn [db [_ entity-id]]
+              (model/entity-children-ids
+               (model/entity-by-id (:entities db) entity-id))))
+
 (rf/reg-sub :entity-children
             (fn [db [_ entity-id]]
               (model/entity-children (:entities db) entity-id)))
+
+(rf/reg-sub :entity-preview-url
+            (fn [db [_ entity-id]]
+              (model/preview-image-url (:entities db) entity-id)))
 
 (rf/reg-sub :entity-ui-state
             (fn [db [_ entity-id]]
@@ -113,6 +123,16 @@
             (fn [db [_ chapter-id]]
               (model/frames-for-chapter (:entities db) chapter-id)))
 
+(rf/reg-sub :frame-ids-for-owner
+            (fn [db [_ owner-type owner-id]]
+              (mapv :frameId (model/frames-for-owner (:entities db) owner-type owner-id))))
+
 (rf/reg-sub :frames-for-owner
             (fn [db [_ owner-type owner-id]]
               (model/frames-for-owner (:entities db) owner-type owner-id)))
+
+(rf/reg-sub :search-result-ids
+            (fn [db [_ query]]
+              (->> (search/search-entities (:entities db) query)
+                   (keep :id)
+                   vec)))

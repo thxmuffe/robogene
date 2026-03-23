@@ -9,17 +9,17 @@
 (defn search-gallery
   "Generic gallery for search results. Renders sequences if an entity has children,
    frames via the frame component, otherwise generic item cards."
-  [{:keys [entities]}]
+  [{:keys [entity-ids]}]
   [:> Box {:className "gallery"}
-   (map-indexed
-    (fn [idx ent]
-      ^{:key (or (:id ent) (str "search-" idx))}
-      [:div.gallery-motion-item
-       {:style (visual-effects/gallery-motion-style (:id ent))}
-       [entity-card/entity-card
-        {:entity ent
-         :on-click #(set! (.-hash js/location) (model/route-hash-for-entity ent))}]])
-    entities)])
+   (for [entity-id entity-ids
+         :let [entity @(rf/subscribe [:entity entity-id])]
+         :when entity]
+     ^{:key entity-id}
+     [:div.gallery-motion-item
+      {:style (visual-effects/gallery-motion-style entity-id)}
+      [entity-card/entity-card
+       {:entity entity
+        :on-click #(set! (.-hash js/location) (model/route-hash-for-entity entity))}]])])
 
 (defn- chapter-preview-card [chapter]
   (let [chapter-id (:chapterId chapter)
