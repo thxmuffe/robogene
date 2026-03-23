@@ -3,6 +3,7 @@
             [re-frame.core :as rf]
             [reagent.core :as r]
             [webapp.shared.frame-renderer :as frame-renderer]
+            [webapp.shared.fullscreen-layout :as fullscreen-layout]
             [webapp.components.social-media-buttons :as social-media-buttons]
             [webapp.shared.model :as model]
             [webapp.shared.ui.back-button :as back-button]
@@ -119,6 +120,8 @@
 (defn frame-page [route saga-name]
   (r/with-let [key-context* (r/atom nil)
                focused-subtitle-key* (r/atom nil)
+               fullscreen-style* (r/atom nil)
+               fullscreen-key* (r/atom nil)
                key-handler (fn [e]
                              (handle-frame-page-key-down! @key-context* e))]
     (.addEventListener js/window "keydown" key-handler)
@@ -149,6 +152,17 @@
                             :active-frame-id frame-id
                             :description-editor-open? description-editor-open?
                             :from-page from-page})
+      (let [fullscreen-key [frame-id fullscreen?]]
+        (cond
+          (not fullscreen?)
+          (do
+            (reset! fullscreen-key* nil)
+            (reset! fullscreen-style* nil))
+
+          (not= fullscreen-key @fullscreen-key*)
+          (do
+            (reset! fullscreen-key* fullscreen-key)
+            (reset! fullscreen-style* (fullscreen-layout/compute-style frame-id)))))
       (let [focus-key [frame-id fullscreen? description-editor-open?]]
         (when (and active-frame
                    (not description-editor-open?)
@@ -159,7 +173,8 @@
                                     (frame-nav/focus-subtitle! frame-id)))))
       [:section {:className "frame-page-section"}
        (if active-frame
-         [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))}
+         [:> Box {:className (str "detail-page" (when fullscreen? " detail-page-fullscreen"))
+                  :style @fullscreen-style*}
           (when-not fullscreen?
             [top-controls from-page roster-id saga-id])
           [frame-renderer/render-frame (:frameId active-frame)

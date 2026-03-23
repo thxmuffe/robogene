@@ -7,7 +7,7 @@
             [webapp.dialog.upload-dialog :as upload-dialog]
             [webapp.components.waterfall-row :as waterfall-row]
             ["react-icons/fa6" :refer [FaArrowUpRightFromSquare FaBroom FaDownload FaImages FaPlus FaShuffle FaTrashCan]]
-            ["@mantine/core" :refer [Button NativeSelect Stack Text]]))
+            ["@mantine/core" :refer [Button Stack Text]]))
 
 (def vanity-role-options
   [{:value "saga" :label "Saga"}
@@ -42,8 +42,7 @@
   (r/with-let [confirm* (r/atom nil)
                seen-cancel-token* (r/atom nil)
                upload-open?* (r/atom false)
-               set-role-open?* (r/atom false)
-               role-draft* (r/atom nil)]
+               set-role-open?* (r/atom false)]
     (let [entity-id (:id entity)
           role (some-> (:vanityRole entity) str str/lower-case)
           owner-type (if (= role "character") "character" "saga")
@@ -74,7 +73,6 @@
                   :icon FaShuffle
                   :color "violet"
                   :on-select (fn [_]
-                               (reset! role-draft* role)
                                (reset! set-role-open?* true))}
                  {:id :download-sequence
                   :label (str "Download " label)
@@ -163,34 +161,29 @@
        [popup-dialog/popup-dialog
         {:open @set-role-open?*
          :on-close #(reset! set-role-open?* false)
-         :title "Set role"
+         :className "slim-dialog-modal"
          :centered true
          :size "sm"}
-        [:> Stack {:gap "sm"}
-         [:> Text {:size "sm"}
-          "Change how this entity is interpreted in navigation and collection pages."]
-         [:> NativeSelect
-          {:label "Vanity role"
-           :value (or @role-draft* role "")
-           :data (clj->js vanity-role-options)
-           :onChange #(reset! role-draft* (.. % -target -value))}]
-         [:div {:style {:display "flex"
-                        :justify-content "flex-end"
-                        :gap "8px"}}
-          [:> Button
-           {:variant "default"
-            :onClick #(reset! set-role-open?* false)}
-           "Cancel"]
-          [:> Button
-           {:onClick #(when-let [next-role (some-> @role-draft* str str/trim str/lower-case not-empty)]
-                        (when on-set-role
-                          (on-set-role next-role))
-                        (reset! set-role-open?* false))
-            :disabled (or (str/blank? (or @role-draft* ""))
-                          (= (some-> @role-draft* str str/trim str/lower-case)
-                             role))}
-          "Save"]]]
-       ]
+        [popup-dialog/slim-dialog-shell
+         {:title "Set role"
+          :on-close #(reset! set-role-open?* false)
+          :close-label "Close set role dialog"
+          :class-name "set-role-dialog"}
+         [:> Stack {:gap "sm"}
+          [:> Text {:size "sm"}
+           "Change how this entity is interpreted in navigation and collection pages."]
+          [:div.set-role-options
+           (for [{:keys [value label]} vanity-role-options]
+             ^{:key value}
+             [:> Button
+              {:variant (if (= value role) "filled" "default")
+               :className "set-role-option"
+               :onClick #(do
+                           (when (and on-set-role
+                                      (not= value role))
+                             (on-set-role value))
+                           (reset! set-role-open?* false))}
+              label])]]]]
        [link-entities-dialog/link-entities-dialog
         {:open link-dialog-open?
          :title "Link entities"
