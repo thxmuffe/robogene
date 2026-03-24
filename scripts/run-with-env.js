@@ -105,10 +105,13 @@ function main() {
     ...parseEnvFile(overlayEnvPath),
   };
 
-  const executable =
-    process.platform === "win32" && command[0] === "npm" ? "npm.cmd" : command[0];
+  const isWindowsNpm = process.platform === "win32" && command[0] === "npm";
+  const executable = isWindowsNpm ? process.env.ComSpec || process.env.COMSPEC || "cmd.exe" : command[0];
+  const childArgs = isWindowsNpm
+    ? ["/d", "/s", "/c", "npm.cmd", ...command.slice(1)]
+    : command.slice(1);
 
-  const child = spawn(executable, command.slice(1), {
+  const child = spawn(executable, childArgs, {
     stdio: "inherit",
     shell: false,
     detached: false,
