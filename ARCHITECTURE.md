@@ -56,4 +56,5 @@
   - delta replication
   - narrow subscriptions
   - incremental loading
+- New externally sourced or user-imported data should enter as isolated draft data first and remain unlinked from the main entity graph until the user explicitly confirms attachment/publication.
 - Avoid introducing alternate sync styles that pull the app back toward broad polling, broad refetches, or full-db browser loads.

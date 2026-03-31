@@ -53,7 +53,10 @@
                               :result-ids []
                               :next-cursor nil
                               :loading? false
-                              :loaded-query nil}}
+                              :loaded-query nil}
+                :lobby {:target-id nil
+                        :source-name "chatgpt"
+                        :items []}}
    :image-ui-by-frame-id {}
    :hidden-frame-images {}
    :available-image-generators []

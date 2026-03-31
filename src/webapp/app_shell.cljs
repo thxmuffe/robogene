@@ -8,8 +8,9 @@
             [webapp.pages.item-page :as item-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.pages.gallery-page :as gallery-page]
+            [webapp.pages.lobby-page :as lobby-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
-            ["@mantine/core" :refer [MantineProvider Container Stack Box]]))
+            ["@mantine/core" :refer [MantineProvider Container Stack Box Button]]))
 
 (def app-name "robogene")
 
@@ -67,8 +68,15 @@
           [:h1
            [:a {:href (model/index-hash)
                 :className "hero-home-link"}
-            app-name]]]]
+            app-name]]
+          [:> Button {:component "a"
+                      :href (model/lobby-hash)
+                      :variant "light"}
+           "Lobby"]]]
         (case (:view route)
+          :lobby
+          [lobby-page/lobby-page-view]
+
           :frame
           [frame-page/frame-page route nil]
 

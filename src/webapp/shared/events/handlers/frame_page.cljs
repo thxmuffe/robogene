@@ -40,6 +40,19 @@
     :set-hash (model/index-hash)}))
 
 (rf/reg-event-fx
+ :navigate-entity-page
+ (fn [{:keys [db]} [_ entity-id]]
+   (let [entity (get (:entities db) (str entity-id))]
+     {:db db
+      :set-hash (model/route-hash-for-entity entity)})))
+
+(rf/reg-event-fx
+ :navigate-lobby
+ (fn [{:keys [db]} [_ target-id]]
+   {:db db
+    :set-hash (model/lobby-hash target-id)}))
+
+(rf/reg-event-fx
  :navigate-from-page
  (fn [{:keys [db]} _]
    (if-let [target (from-page->hash (get-in db [:route :from-page])

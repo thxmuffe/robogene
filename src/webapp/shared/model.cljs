@@ -211,6 +211,11 @@
          {:view :saga
           :saga-id entity-id
           :entity-id entity-id}))
+     (when-let [[_ query] (re-matches #"^#/lobby/?(?:\?(.*))?$" raw)]
+       (let [query* (or query "")
+             target-id (parse-query-param query* "targetId")]
+         {:view :lobby
+          :target-id target-id}))
      (when (or (str/blank? raw)
                (re-matches #"^#/?$" raw))
        {:view :index})
@@ -272,6 +277,13 @@
          query (when (seq query-parts)
                  (str "?" (str/join "&" query-parts)))]
      (str "#/frame/" (js/encodeURIComponent frame-id) (or query "")))))
+
+(defn lobby-hash
+  ([] "#/lobby")
+  ([target-id]
+   (str "#/lobby"
+        (when-not (str/blank? (or target-id ""))
+          (str "?targetId=" (js/encodeURIComponent target-id))))))
 
 (defn route-hash-for-entity [entity]
   (let [id (:id entity)

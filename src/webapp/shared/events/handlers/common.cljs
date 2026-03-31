@@ -13,6 +13,7 @@
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.visual-effects]
             [webapp.shared.events.handlers.frames]
+            [webapp.shared.events.handlers.lobby]
             [webapp.shared.events.handlers.entity]
             [webapp.shared.model :as model]))
 
