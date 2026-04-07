@@ -8,7 +8,7 @@
             [webapp.pages.item-page :as item-page]
             [webapp.pages.frame-page :as frame-page]
             [webapp.pages.gallery-page :as gallery-page]
-            [webapp.pages.lobby-page :as lobby-page]
+            [webapp.pages.create-page :as create-page]
             [webapp.components.traffic-indicator :as traffic-indicator]
             ["@mantine/core" :refer [MantineProvider Container Stack Box Button]]))
 
@@ -70,12 +70,12 @@
                 :className "hero-home-link"}
             app-name]]
           [:> Button {:component "a"
-                      :href (model/lobby-hash)
+                      :href (model/create-hash)
                       :variant "light"}
-           "Lobby"]]]
+           "Create"]]]
         (case (:view route)
-          :lobby
-          [lobby-page/lobby-page-view]
+          :create
+          [create-page/create-page-view]
 
           :frame
           [frame-page/frame-page route nil]

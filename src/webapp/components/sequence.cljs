@@ -162,7 +162,7 @@
           title-editing-atom
           description-editing-atom]]
         
-       (when (seq children-ids)
+       (when (or (seq children-ids) add-child-fn)
           [sequence-gallery
            {:entity-id id
             :role (some-> vanityRole str str/lower-case)

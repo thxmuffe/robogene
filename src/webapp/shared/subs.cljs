@@ -120,29 +120,6 @@
             (fn [db _]
               (vec (or (get-in db [:view-state :search-page :result-ids]) []))))
 
-(rf/reg-sub :lobby-target-id
+(rf/reg-sub :create-entity-id
             (fn [db _]
-              (get-in db [:view-state :lobby :target-id])))
-
-(rf/reg-sub :lobby-source-name
-            (fn [db _]
-              (get-in db [:view-state :lobby :source-name])))
-
-(rf/reg-sub :lobby-items
-            (fn [db _]
-              (vec (or (get-in db [:view-state :lobby :items]) []))))
-
-(rf/reg-sub :lobby-target-options
-            (fn [db _]
-              (let [entities (:entities db)
-                    chapters (map (fn [entity]
-                                    {:value (:id entity)
-                                     :label (str (or (model/primary-label entity) "Untitled chapter")
-                                                 " [chapter]")})
-                                  (model/entities-by-role entities :chapter))
-                    characters (map (fn [entity]
-                                      {:value (:id entity)
-                                       :label (str (or (model/primary-label entity) "Untitled character")
-                                                   " [character]")})
-                                    (model/entities-by-role entities :character))]
-                (vec (concat chapters characters)))))
+              (get-in db [:view-state :create :entity-id])))

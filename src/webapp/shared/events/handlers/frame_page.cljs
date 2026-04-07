@@ -47,10 +47,10 @@
       :set-hash (model/route-hash-for-entity entity)})))
 
 (rf/reg-event-fx
- :navigate-lobby
- (fn [{:keys [db]} [_ target-id]]
+ :navigate-create
+ (fn [{:keys [db]} _]
    {:db db
-    :set-hash (model/lobby-hash target-id)}))
+    :set-hash (model/create-hash)}))
 
 (rf/reg-event-fx
  :navigate-from-page

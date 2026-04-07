@@ -9,11 +9,11 @@
             [webapp.shared.store :as store]
             [webapp.shared.visual-effects]
             [webapp.shared.events.handlers.frame-page]
+            [webapp.shared.events.handlers.create]
             [webapp.shared.events.handlers.link-entities]
             [webapp.shared.events.handlers.saga]
             [webapp.shared.events.handlers.visual-effects]
             [webapp.shared.events.handlers.frames]
-            [webapp.shared.events.handlers.lobby]
             [webapp.shared.events.handlers.entity]
             [webapp.shared.model :as model]))
 

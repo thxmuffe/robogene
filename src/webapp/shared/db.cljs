@@ -54,9 +54,7 @@
                               :next-cursor nil
                               :loading? false
                               :loaded-query nil}
-                :lobby {:target-id nil
-                        :source-name "chatgpt"
-                        :items []}}
+                :create {:entity-id nil}}
    :image-ui-by-frame-id {}
    :hidden-frame-images {}
    :available-image-generators []
