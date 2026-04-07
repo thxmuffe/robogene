@@ -536,7 +536,7 @@
 (defn create-character-success [db command]
   (generic-entity-success db command))
 
-(defn create-draft-sequence-success [db command]
+(defn create-sequence-success [db command]
   (let [entity (some-> (:response command) normalize-entity)
         entity-id (or (:id entity)
                       (local-command-id command))]
@@ -648,13 +648,13 @@
      :failure (fn [db command]
                 (remove-local-entity db (local-command-id command)))}
 
-    :add-draft-sequence
+    :add-create-sequence
     {:transport-fx :post-save-entity
      :apply-local (fn [db payload]
                     (-> db
                         (assoc-in [:view-state :create :entity-id] (some-> (:local-entity payload) :id str))
                         (add-local-entity (:local-entity payload))))
-     :success create-draft-sequence-success
+     :success create-sequence-success
      :failure (fn [db command]
                 (-> db
                     (assoc-in [:view-state :create :entity-id] nil)
@@ -700,7 +700,7 @@
     (when transport-fx
       (case kind
         ; Generic entity operations use new unified API
-        (:add-saga :add-roster :add-chapter :add-character :add-draft-sequence :add-frame :update-entity)
+        (:add-saga :add-roster :add-chapter :add-character :add-create-sequence :add-frame :update-entity)
         (let [is-update (= :update-entity kind)
               entity (if is-update
                        (update-command-entity db (:payload command))
