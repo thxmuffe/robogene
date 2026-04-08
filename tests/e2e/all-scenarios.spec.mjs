@@ -20,7 +20,7 @@ function logStep(scope, message) {
 }
 
 test.beforeAll(async () => {
-  const fixturePath = process.env.ROBOGENE_E2E_SEED_FILE || 'tests/fixtures/e2e-seed.http';
+  const fixturePath = process.env.ROBOGENE_E2E_SEED_FILE || 'tests/shared/fixtures/e2e-seed.http';
   if (fs.existsSync(fixturePath)) {
     logStep('seed', `running ${fixturePath}`);
     await execa('npx', ['httpyac', 'send', path.resolve(fixturePath), '--all'], {
