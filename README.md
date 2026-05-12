@@ -2,6 +2,10 @@
 
 RoboGene is a ClojureScript web app + Azure Functions backend for comic frame generation.
 
+## Domain Concepts
+
+- **Roster**: The long-term memory for a character's visual appearance. It is used purely during image generation to ensure the correct visuals are produced when generating a new frame. A story or chapter is typically linked to a roster, but individual frames can utilize "visiting rosters" to allow characters from other stories to appear. The linking feature is currently unfinished.
+
 ## What Is Special Here
 
 - Realtime updates use **Azure SignalR** (`stateChanged` events).

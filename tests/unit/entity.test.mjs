@@ -73,12 +73,16 @@ function resetEntityState(entities = []) {
           cljs.core.assoc(
             cljs.core.assoc(
               cljs.core.assoc(
-                jsToCljs({}),
-                kw('workspaceId'),
-                'test-workspace',
+                cljs.core.assoc(
+                  jsToCljs({}),
+                  kw('workspaceId'),
+                  'test-workspace',
+                ),
+                kw('entities'),
+                buildEntityMap(entities),
               ),
-              kw('entities'),
-              buildEntityMap(entities),
+              kw('chapterAgents'),
+              jsToCljs({}),
             ),
             kw('processing'),
             false,
@@ -187,8 +191,87 @@ test('entity queue_frame_generation_BANG_ drives a frame from queued to ready im
   assert.deepEqual(generationRequests, [
     {
       generator: 'mock',
-      prompt: 'Create ONE comic image.\n\nSubject: Frame 1\n\nDetails: A better prompt\n\nAvoid text overlays.',
+      prompt: 'A better prompt',
       refs: [],
     },
   ]);
+});
+
+test('entity ensure_agent_exists_BANG_ builds chapter context from linked rosters', () => {
+  resetEntityState([
+    {
+      id: 'chapter-1',
+      vanityRole: 'chapter',
+      title: 'Chapter 1',
+      description: 'Opening chapter',
+      children: [],
+      payload: { rosterIds: ['roster-1'] },
+    },
+    { id: 'roster-1', vanityRole: 'roster', title: 'Main roster', children: ['character-1'], payload: {} },
+    { id: 'character-1', vanityRole: 'character', title: 'Ada', description: 'Red coat, silver hair.', children: ['ref-1'], payload: { parentId: 'roster-1' } },
+    { id: 'ref-1', vanityRole: 'frame', title: 'Ada ref', description: 'Reference portrait', children: [], payload: { parentId: 'character-1', imageUrl: 'https://example.test/ada.png' } },
+  ]);
+
+  const agent = cljsToJs(entity.ensure_agent_exists_BANG_('chapter-1'));
+
+  assert.equal(agent.agentId, 'chapter-agent-chapter-1');
+  assert.deepEqual(agent.rosterIds, ['roster-1']);
+  assert.equal(agent.rosterMap.Ada.description, 'Red coat, silver hair.');
+  assert.equal(agent.frameHistory, undefined);
+});
+
+test('entity ensure_agent_exists_BANG_ reuses existing chapter context', () => {
+  resetEntityState([
+    { id: 'chapter-1', vanityRole: 'chapter', title: 'Chapter 1', children: [], payload: {} },
+  ]);
+
+  const first = cljsToJs(entity.ensure_agent_exists_BANG_('chapter-1'));
+  const second = cljsToJs(entity.ensure_agent_exists_BANG_('chapter-1'));
+
+  assert.equal(second.createdAt, first.createdAt);
+});
+
+test('entity trash_agent_BANG_ deletes only cached chapter context', () => {
+  resetEntityState([
+    { id: 'chapter-1', vanityRole: 'chapter', title: 'Chapter 1', children: [], payload: {} },
+  ]);
+
+  entity.ensure_agent_exists_BANG_('chapter-1');
+  entity.trash_agent_BANG_('chapter-1');
+
+  const state = snapshot();
+  assert.equal(state.chapterAgents['chapter-1'], undefined);
+  assert.equal(state.entities['chapter-1'].title, 'Chapter 1');
+  assert.deepEqual(deletedIds, []);
+});
+
+test('entity queue_frame_generation_BANG_ ensures chapter agent before image generation', async () => {
+  resetEntityState([
+    {
+      id: 'chapter-1',
+      vanityRole: 'chapter',
+      title: 'Chapter 1',
+      description: 'Opening chapter',
+      children: ['frame-1'],
+      payload: { rosterIds: ['roster-1'] },
+    },
+    { id: 'frame-1', vanityRole: 'frame', title: 'Frame 1', description: 'Old prompt', children: [], payload: { parentId: 'chapter-1', frameNumber: 1 } },
+    { id: 'roster-1', vanityRole: 'roster', title: 'Main roster', children: ['character-1'], payload: {} },
+    { id: 'character-1', vanityRole: 'character', title: 'Ada', description: 'Red coat, silver hair.', children: [], payload: { parentId: 'roster-1' } },
+  ]);
+
+  await entity.queue_frame_generation_BANG_(
+    jsToCljs({
+      frameId: 'frame-1',
+      direction: 'Ada opens the door',
+      generator: 'mock',
+      withoutRoster: false,
+    }),
+  );
+
+  await waitForReadyFrame('frame-1');
+  assert.equal(snapshot().entities['frame-1'].payload.agentId, 'chapter-agent-chapter-1');
+  assert.equal(snapshot().chapterAgents['chapter-1'].agentId, 'chapter-agent-chapter-1');
+  assert.equal(generationRequests[0].agentId, 'chapter-agent-chapter-1');
+  assert.equal(generationRequests[0].prompt, 'Ada opens the door');
 });

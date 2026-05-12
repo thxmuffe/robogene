@@ -15,6 +15,7 @@
 (defonce state
   (atom {:workspaceId nil
          :entities {} ;; Map of id -> entity
+         :chapterAgents {}
          :processing false
          :revision 0
          :defaultImageGenerator (settings/default-image-generator)
@@ -40,6 +41,12 @@
 (defn entities-by-role [role]
   (->> (vals (:entities @state))
        (filter #(= (:vanityRole %) (name role)))
+       vec))
+
+(defn entity-children [entities parent-id]
+  (->> (get-in entities [(str parent-id) :children])
+       (map #(get entities (str %)))
+       (remove nil?)
        vec))
 
 (defn- normalize-search [s]
@@ -272,23 +279,81 @@
 ;; Image Generation
 (declare process-queue!)
 
-(defn build-prompt-for-entity [entity]
-  (let [title (:title entity)
-        desc (:description entity)
-        parent-id (get-in entity [:payload :parentId])
-        parent (when parent-id (entity-by-id parent-id))]
-    (str/join "\n\n"
-              (filter seq
-                      ["Create ONE comic image."
-                       (when parent (str "Context: " (:title parent) ". " (:description parent)))
-                       (str "Subject: " title)
-                       (str "Details: " desc)
-                       "Avoid text overlays."]))))
+(defn chapter-roster-ids [chapter]
+  (->> (or (seq (get-in chapter [:payload :rosterIds]))
+           (when-let [roster-id (get-in chapter [:payload :rosterId])]
+             [roster-id]))
+       (remove str/blank?)
+       (mapv str)))
+
+(defn character-entry [entities roster character]
+  {:id (:id character)
+   :name (:title character)
+   :description (:description character)
+   :rosterId (:id roster)
+   :referenceFrames (->> (entity-children entities (:id character))
+                         (filter #(= "frame" (:vanityRole %)))
+                         (mapv (fn [frame]
+                                 {:id (:id frame)
+                                  :description (:description frame)
+                                  :imageUrl (get-in frame [:payload :imageUrl])})))})
+
+(defn build-roster-map [entities roster-ids]
+  (->> roster-ids
+       (keep #(get entities (str %)))
+       (mapcat (fn [roster]
+                 (->> (entity-children entities (:id roster))
+                      (filter #(= "character" (:vanityRole %)))
+                      (map #(character-entry entities roster %)))))
+       (reduce (fn [acc character]
+                 (assoc acc (:name character) character))
+               {})))
+
+(defn build-chapter-agent [chapter-id]
+  (let [entities (:entities @state)
+        chapter (get entities (str chapter-id))]
+    (when-not chapter
+      (throw (js/Error. "Chapter not found.")))
+    (when-not (= "chapter" (:vanityRole chapter))
+      (throw (js/Error. "Only chapter entities can have chapter agents.")))
+    (let [roster-ids (chapter-roster-ids chapter)]
+      {:chapterId (str chapter-id)
+       :agentId (str "chapter-agent-" chapter-id)
+       :chapter {:id (:id chapter)
+                 :title (:title chapter)
+                 :description (:description chapter)}
+       :rosterIds roster-ids
+       :rosterMap (build-roster-map entities roster-ids)
+       :createdAt (.toISOString (js/Date.))})))
+
+(defn ensure-agent-exists! [chapter-id]
+  (let [chapter-id* (str chapter-id)]
+    (or (get-in @state [:chapterAgents chapter-id*])
+        (let [agent (build-chapter-agent chapter-id*)]
+          (swap! state assoc-in [:chapterAgents chapter-id*] agent)
+          agent))))
+
+(defn trash-agent! [chapter-id]
+  (swap! state update :chapterAgents dissoc (str chapter-id))
+  true)
+
+(defn chapter-id-for-frame [frame]
+  (some-> (or (get-in frame [:payload :parentId])
+              (get-in frame [:payload :chapterId]))
+          str
+          not-empty))
 
 (defn generate-image! [entity]
-  (image-generator/generate-image! {:generator (get-in entity [:payload :generator])
-                                    :prompt (build-prompt-for-entity entity)
-                                    :refs []}))
+  (let [without-roster? (true? (get-in entity [:payload :withoutRoster]))
+        chapter-id (chapter-id-for-frame entity)
+        agent (when (and chapter-id (not without-roster?))
+                (ensure-agent-exists! chapter-id))]
+    (image-generator/generate-image! (cond-> {:generator (get-in entity [:payload :generator])
+                                              :prompt (or (:description entity) "")
+                                              :refs []}
+                                       agent
+                                       (assoc :agentId (:agentId agent)
+                                              :chapterId chapter-id)))))
 
 (defn queue-frame-generation! [{:keys [frameId direction generator withoutRoster]}]
   (let [frame-id (str frameId)
@@ -300,13 +365,23 @@
       (throw (js/Error. "Only frame entities can be generated.")))
     (when-not (some #(= % generator-id) (:availableImageGenerators @state))
       (throw (js/Error. (str "Unsupported image generator: " generator-id))))
-    (let [next-frame (cond-> (-> frame
+    (let [chapter-id (chapter-id-for-frame frame)
+          agent-id (when (and chapter-id (false? withoutRoster))
+                     (str "chapter-agent-" chapter-id))
+          next-frame (cond-> (-> frame
                                  (assoc :description (or (some-> direction str) (:description frame) ""))
                                  (assoc-in [:payload :generator] generator-id)
                                  (assoc-in [:payload :imageStatus] "queued")
                                  (assoc-in [:payload :error] nil))
+                       agent-id
+                       (assoc-in [:payload :agentId] agent-id)
+
+                       agent-id
+                       (assoc-in [:payload :agentChapterId] chapter-id)
+
                        (true? withoutRoster)
-                       (assoc-in [:payload :withoutRoster] true)
+                       (-> (assoc-in [:payload :withoutRoster] true)
+                           (update :payload dissoc :agentId :agentChapterId))
 
                        (false? withoutRoster)
                        (update :payload dissoc :withoutRoster))]

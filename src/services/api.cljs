@@ -77,6 +77,19 @@
                      (.then (fn [frame]
                               (json-response 200 {:frame frame} request)))))))))
 
+(defn handle-ensure-agent [request]
+  (-> (.json request)
+      (.then (fn [body]
+               (let [payload (js->clj body :keywordize-keys true)
+                     agent (entity/ensure-agent-exists! (:chapterId payload))]
+                 (json-response 200 {:agent agent} request))))))
+
+(defn handle-trash-agent [request]
+  (let [params (gobj/get request "params")
+        chapter-id (gobj/get params "chapterId")]
+    (entity/trash-agent! chapter-id)
+    (json-response 200 {:deleted true :chapterId chapter-id} request)))
+
 (defn handle-signalr-negotiate [request]
   (json-response 200 (or (realtime/create-client-connection-info) {:disabled true}) request))
 
@@ -121,6 +134,18 @@
             :authLevel "anonymous"
             :route "generate-frame"
             :handler handle-generate-frame})
+
+(.http app "post-ensure-agent"
+       #js {:methods #js ["POST"]
+            :authLevel "anonymous"
+            :route "chapter-agent/ensure"
+            :handler handle-ensure-agent})
+
+(.http app "delete-chapter-agent"
+       #js {:methods #js ["DELETE"]
+            :authLevel "anonymous"
+            :route "chapter-agent/{chapterId}"
+            :handler handle-trash-agent})
 
 (.http app "signalr-negotiate"
        #js {:methods #js ["POST"]
