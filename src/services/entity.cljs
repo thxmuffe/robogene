@@ -343,17 +343,67 @@
           str
           not-empty))
 
+(defn data-url->ref [image-url name]
+  (when-let [[_ mime-type b64] (re-matches #"^data:([^;]+);base64,(.+)$" (or image-url ""))]
+    (let [buffer (.from js/Buffer b64 "base64")]
+      {:bytes buffer
+       :mimeType mime-type
+       :name name})))
+
+(defn image-url->ref [image-url name]
+  (let [url-str (or image-url "")]
+    (if (str/starts-with? url-str "data:")
+      (js/Promise.resolve (data-url->ref url-str name))
+      (if (str/starts-with? url-str "http")
+        (-> (js/fetch url-str)
+            (.then (fn [response]
+                     (if (.-ok response)
+                       (-> (.arrayBuffer response)
+                           (.then (fn [ab]
+                                    {:bytes (.from js/Buffer ab)
+                                     :mimeType (.get (.-headers response) "content-type")
+                                     :name name})))
+                       (js/Promise.resolve nil))))
+            (.catch (fn [_] nil)))
+        (js/Promise.resolve nil)))))
+
+(defn field [m k]
+  (or (get m k)
+      (get m (name k))
+      (when m
+        (gobj/get m (name k)))))
+
+(defn selected-character-refs [agent prompt]
+  (let [prompt* (str/lower-case (str (or prompt "")))
+        roster-map (clj->js (field agent :rosterMap))
+        promises (->> (js/Object.entries roster-map)
+                      (mapcat (fn [entry]
+                                (let [name (aget entry 0)
+                                      character (aget entry 1)]
+                                  (if (.includes prompt* (str/lower-case (str name)))
+                                    (map #(image-url->ref (field % :imageUrl) (str name ".png"))
+                                         (array-seq (or (field character :referenceFrames) #js [])))
+                                    [])))))]
+    (-> (js/Promise.all (to-array promises))
+        (.then (fn [refs]
+                 (vec (remove nil? refs)))))))
+
 (defn generate-image! [entity]
   (let [without-roster? (true? (get-in entity [:payload :withoutRoster]))
         chapter-id (chapter-id-for-frame entity)
+        prompt (or (:description entity) "")
         agent (when (and chapter-id (not without-roster?))
                 (ensure-agent-exists! chapter-id))]
-    (image-generator/generate-image! (cond-> {:generator (get-in entity [:payload :generator])
-                                              :prompt (or (:description entity) "")
-                                              :refs []}
-                                       agent
-                                       (assoc :agentId (:agentId agent)
-                                              :chapterId chapter-id)))))
+    (-> (if agent
+          (selected-character-refs agent prompt)
+          (js/Promise.resolve []))
+        (.then (fn [refs]
+                 (image-generator/generate-image! (cond-> {:generator (get-in entity [:payload :generator])
+                                                           :prompt prompt
+                                                           :refs refs}
+                                                    agent
+                                                    (assoc :agentId (:agentId agent)
+                                                           :chapterId chapter-id))))))))
 
 (defn queue-frame-generation! [{:keys [frameId direction generator withoutRoster]}]
   (let [frame-id (str frameId)

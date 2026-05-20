@@ -4,14 +4,6 @@ import assert from 'node:assert/strict';
 import { startAzurite } from '../shared/azurite.mjs';
 import { bootWebapiIntegration } from '../shared/webapi-integration.mjs';
 
-process.env.ROBOGENE_ALLOWED_ORIGIN = 'http://integration.test';
-process.env.ROBOGENE_STORAGE_CONNECTION_STRING = 'UseDevelopmentStorage=true';
-process.env.AzureWebJobsStorage = 'UseDevelopmentStorage=true';
-process.env.ROBOGENE_ALLOW_DEV_STORAGE_FOR_SMOKE = '1';
-process.env.ROBOGENE_IMAGE_GENERATOR = 'mock';
-process.env.ROBOGENE_WORKSPACE_ID = 'integration-bootstrap';
-process.env.AzureSignalRConnectionString = 'Endpoint=https://signalr.integration.test;AccessKey=integration-key;Version=1.0;';
-
 let azurite;
 let harness;
 let fetchCalls = [];

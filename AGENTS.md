@@ -25,6 +25,7 @@ Architecture note: before changing data flow, sync, subscriptions, search loadin
 21. Do not run tests unless the user asks, or you are preparing for a push, or a test run is the only practical way to verify the requested change.
 22. Before pushing, run the relevant tests needed to catch regressions in the changed area unless the user explicitly tells you not to.
 23. If the user explicitly says to "put this to todo list" or clearly means the same thing for a decided-not-to-implement item, treat that as a GitHub issue task: check existing repo issues for duplicates first, merge new context into the existing issue if it is a duplicate, otherwise create a new issue. Do not create duplicate todo issues for the same underlying problem.
+24. Before adding new logic, exhaustive search the codebase for existing functions or patterns that solve the problem and reuse them; adding specialized or duplicated code is strictly forbidden.
 
 ## Optimal Change (Preferred, Non-Mandatory)
 

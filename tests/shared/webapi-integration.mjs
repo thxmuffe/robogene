@@ -4,6 +4,48 @@ import {
   jsToCljs,
   loadWebapiNamespace,
 } from './load-webapi-runtime.mjs';
+import fs from 'node:fs';
+
+export function renderHttpFixture(path, metaUrl, vars) {
+  let text = fs.readFileSync(new URL(path, metaUrl), 'utf8');
+  for (const [key, value] of Object.entries(vars)) {
+    text = text.replaceAll(`{{$processEnv ${key}}}`, value);
+  }
+
+  const constants = {};
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^@(\w+)\s*=\s*(.+)$/);
+    if (match) constants[match[1]] = match[2];
+  }
+
+  for (const [key, value] of Object.entries(constants)) {
+    text = text.replaceAll(`{{${key}}}`, value);
+  }
+
+  return text;
+}
+
+export function requestBodiesFromHttpFixture(text) {
+  return text
+    .split(/^### .+$/m)
+    .map((part) => {
+      const jsonStart = part.indexOf('{');
+      return jsonStart >= 0 ? JSON.parse(part.slice(jsonStart)) : null;
+    })
+    .filter(Boolean);
+}
+
+export async function seedFromHttpFixture(harness, path, metaUrl, vars) {
+  const text = renderHttpFixture(path, metaUrl, vars);
+  for (const body of requestBodiesFromHttpFixture(text)) {
+    const response = await harness.api.handle_save_entity(
+      harness.makeRequest({ url: 'http://localhost/api/entity', body }),
+    );
+    if (response.status !== 200) {
+      throw new Error(`Failed to seed entity: ${JSON.stringify(body)}`);
+    }
+  }
+}
 
 export function bootWebapiIntegration() {
   const runtime = loadWebapiNamespace('imageGenerator');
@@ -80,11 +122,13 @@ export function bootWebapiIntegration() {
     api,
     azureStore,
     cljs,
+    cljsToJs,
     entity,
     loadStoredEntities,
     makeDeleteRequest,
     makeRequest,
     resetEntityState,
+    services,
     snapshot: () => cljsToJs(cljs.core.deref(entity.state)),
   };
 }

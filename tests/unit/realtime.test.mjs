@@ -39,7 +39,7 @@ test('realtime create_jwt encodes the audience and ttl into the payload', () => 
 test('realtime create_client_connection_info uses the configured SignalR endpoint', () => {
   const info = cljsToJs(realtime.create_client_connection_info());
 
-  assert.equal(info.url, 'https://signalr.example.com/client/?hub=robogene');
+  assert.equal(info.url, 'https://signalr.integration.test/client/?hub=robogene');
   assert.equal(typeof info.accessToken, 'string');
   assert.ok(info.accessToken.split('.').length === 3);
 });

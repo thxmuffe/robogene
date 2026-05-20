@@ -22,5 +22,5 @@ test('api cors_headers falls back to the first configured origin for unknown cal
   };
 
   const headers = api.cors_headers(request);
-  assert.equal(headers['Access-Control-Allow-Origin'], 'http://allowed.test');
+  assert.equal(headers['Access-Control-Allow-Origin'], 'http://integration.test');
 });

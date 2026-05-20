@@ -1,0 +1,134 @@
+@base = {{$processEnv ROBOGENE_API_BASE}}
+@sagaId = chapter-agent-saga
+@chapterId = chapter-agent-chapter
+@rosterId = chapter-agent-roster
+@robotEmperorId = chapter-agent-robot-emperor
+@robotEmperorFrameId = chapter-agent-robot-emperor-ref
+@robotEmperorImage = {{$processEnv ROBOGENE_ROBOT_EMPEROR_IMAGE}}
+@billId = chapter-agent-bill
+@billFrameId = chapter-agent-bill-ref
+@billImage = {{$processEnv ROBOGENE_BILL_IMAGE}}
+
+### Seed saga
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{sagaId}}",
+  "vanityRole": "saga",
+  "title": "Chapter Agent Saga",
+  "children": ["{{chapterId}}"],
+  "payload": {}
+}
+
+### Seed chapter
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{chapterId}}",
+  "vanityRole": "chapter",
+  "title": "Chapter Agent Chapter",
+  "children": ["chapter-agent-frame"],
+  "payload": {
+    "parentId": "{{sagaId}}",
+    "rosterId": "{{rosterId}}",
+    "rosterIds": ["{{rosterId}}"]
+  }
+}
+
+### Seed roster
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{rosterId}}",
+  "vanityRole": "roster",
+  "title": "Chapter Agent Roster",
+  "children": ["{{robotEmperorId}}", "{{billId}}"],
+  "payload": {}
+}
+
+### Seed Robot Emperor
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{robotEmperorId}}",
+  "vanityRole": "character",
+  "title": "Robot Emperor",
+  "description": "Red scarf.",
+  "children": ["{{robotEmperorFrameId}}"],
+  "payload": {
+    "parentId": "{{rosterId}}",
+    "rosterId": "{{rosterId}}"
+  }
+}
+
+### Seed Bill
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{billId}}",
+  "vanityRole": "character",
+  "title": "Bill",
+  "description": "Blue jacket.",
+  "children": ["{{billFrameId}}"],
+  "payload": {
+    "parentId": "{{rosterId}}",
+    "rosterId": "{{rosterId}}"
+  }
+}
+
+### Seed Robot Emperor reference
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{robotEmperorFrameId}}",
+  "vanityRole": "frame",
+  "title": "Robot Emperor reference",
+  "children": [],
+  "payload": {
+    "parentId": "{{robotEmperorId}}",
+    "ownerType": "character",
+    "frameNumber": 1,
+    "imageUrl": "{{robotEmperorImage}}"
+  }
+}
+
+### Seed Bill reference
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "{{billFrameId}}",
+  "vanityRole": "frame",
+  "title": "Bill reference",
+  "children": [],
+  "payload": {
+    "parentId": "{{billId}}",
+    "ownerType": "character",
+    "frameNumber": 1,
+    "imageUrl": "{{billImage}}"
+  }
+}
+
+### Seed chapter frame
+POST {{base}}/api/entity
+Content-Type: application/json
+
+{
+  "id": "chapter-agent-frame",
+  "vanityRole": "frame",
+  "title": "Frame 1",
+  "description": "",
+  "children": [],
+  "payload": {
+    "parentId": "{{chapterId}}",
+    "ownerType": "saga",
+    "frameNumber": 1,
+    "imageStatus": "draft"
+  }
+}
